@@ -1,0 +1,86 @@
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/preflight.css" layer(base);
+@import "tailwindcss/utilities.css";
+
+@import "nativewind/theme";
+
+@theme {
+    --color-violet: #7A1EFF;
+    --color-violet-bright: #B03BFF;
+    --color-magenta: #D84CFF;
+    --color-orange: #FF8A2A;
+    --color-indigo-deep: #2D2A8F;
+    --color-ink: #1E1E24;
+
+    --color-background: #101015;              /* hsl(240 14% 7%) */
+    --color-foreground: #FFFFFF;              /* hsl(0 0% 100%) */
+
+    --color-card: #19191F;                    /* hsl(240 12% 11%) */
+    --color-card-foreground: #FFFFFF;         /* hsl(0 0% 100%) */
+
+    --color-popover: #17171D;                 /* hsl(240 12% 10%) */
+    --color-popover-foreground: #FFFFFF;      /* hsl(0 0% 100%) */
+
+    --color-primary: #7A1EFF;                 /* hsl(265 100% 56%) */
+    --color-primary-foreground: #FFFFFF;      /* hsl(0 0% 100%) */
+
+    --color-secondary: #25252D;               /* hsl(240 10% 16%) */
+    --color-secondary-foreground: #FFFFFF;    /* hsl(0 0% 100%) */
+
+    --color-muted: #2C2C32;                   /* hsl(240 8% 18%) */
+    --color-muted-foreground: #A3A3AB;        /* hsl(240 5% 65%) */
+
+    --color-accent: #FF8A2A;                  /* hsl(24 100% 58%) */
+    --color-accent-foreground: #FFFFFF;       /* hsl(0 0% 100%) */
+
+    --color-destructive: #EF4444;             /* hsl(0 84% 60%) */
+    --color-destructive-foreground: #FFFFFF;  /* hsl(0 0% 100%) */
+
+    --color-border: #2E2E38;                  /* hsl(240 10% 20%) */
+    --color-input: #25252D;                   /* hsl(240 10% 16%) */
+    --color-ring: #B03BFF;                    /* hsl(280 100% 62%) */
+
+    --radius: 20px;                     /* 1.25rem */
+
+    /* Signature gradients */
+    --gradient-hero: linear-gradient(135deg, hsl(var(--color-violet)) 0%, hsl(var(--color-magenta)) 50%, hsl(var(--color-orange)) 100%);
+    --gradient-primary: linear-gradient(135deg, hsl(var(--color-violet)) 0%, hsl(var(--color-violet-bright)) 100%);
+    --gradient-glow: linear-gradient(135deg, hsl(var(--color-magenta)) 0%, hsl(var(--color-orange)) 100%);
+    --gradient-night: linear-gradient(180deg, hsl(240 14% 7%) 0%, hsl(243 30% 12%) 100%);
+    --gradient-card: linear-gradient(145deg, hsl(240 12% 13% / 0.9) 0%, hsl(243 25% 16% / 0.7) 100%);
+    --gradient-token: linear-gradient(135deg, hsl(45 100% 60%) 0%, hsl(var(--color-orange)) 100%);
+
+    /* Shadows / glows */
+    --shadow-glow: 0 20px 60px -20px hsl(var(--color-violet-bright) / 0.55);
+    --shadow-card: 0 10px 40px -10px hsl(240 50% 2% / 0.6);
+    --shadow-token: 0 8px 24px -6px hsl(var(--color-orange) / 0.5);
+
+    --sidebar-background: 240 14% 7%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 265 100% 56%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 10% 16%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 240 10% 20%;
+    --sidebar-ring: 280 100% 62%;
+
+    --spacing-0: 0px;
+    --spacing-1: 4px;
+    --spacing-2: 8px;
+    --spacing-3: 12px;
+    --spacing-4: 16px;
+    --spacing-5: 20px;
+    --spacing-6: 24px;
+    --spacing-7: 28px;
+    --spacing-8: 32px;
+    --spacing-9: 36px;
+    --spacing-10: 40px;
+    --spacing-11: 44px;
+    --spacing-12: 48px;
+    --spacing-14: 56px;
+    --spacing-16: 64px;
+    --spacing-18: 72px;
+    --spacing-20: 80px;
+    --spacing-24: 96px;
+    --spacing-30: 120px;
+}
