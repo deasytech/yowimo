@@ -1,0 +1,112 @@
+# Project file structure
+
+```text
+/ (project root)
+.env
+.gitignore
+AGENTS.md
+app.json
+CLAUDE.md
+eslint.config.js
+global.css
+image.d.ts
+metro.config.js
+nativewind-env.d.ts
+package-lock.json
+package.json
+postcss.config.mjs
+README.md
+tsconfig.json
+type.d.ts
+
+app/
+  _layout.tsx
+  onboarding.tsx
+  (auth)/
+    _layout.tsx
+    sign-in.tsx
+    sign-up.tsx
+  (tabs)/
+    _layout.tsx
+    discover.tsx
+    index.tsx
+    play.tsx
+    profile.tsx
+    wallet.tsx
+
+assets/
+  fonts/
+    PlusJakartaSans-Bold.ttf
+    PlusJakartaSans-ExtraBold.ttf
+    PlusJakartaSans-Light.ttf
+    PlusJakartaSans-Medium.ttf
+    PlusJakartaSans-Regular.ttf
+    PlusJakartaSans-SemiBold.ttf
+    SpaceGrotesk-Bold.ttf
+    SpaceGrotesk-Light.ttf
+    SpaceGrotesk-Medium.ttf
+    SpaceGrotesk-Regular.ttf
+    SpaceGrotesk-SemiBold.ttf
+  images/
+    android-icon-background.png
+    android-icon-foreground.png
+    android-icon-monochrome.png
+    deck-charades.jpg
+    deck-corporate.jpg
+    deck-couple.jpg
+    deck-family.jpg
+    deck-guess-movie.jpg
+    deck-guess-song.jpg
+    deck-hot-seat.jpg
+    deck-most-likely.jpg
+    deck-never_have_i.jpg
+    deck-party.jpg
+    deck-rapid-fire.jpg
+    deck-truth-dare.jpg
+    deck-two-truths.jpg
+    deck-wild.jpg
+    deck-would-rather.jpg
+    favicon.png
+    icon.png
+    onboarding-1.jpg
+    onboarding-2.jpg
+    onboarding-3.jpg
+    pack-couples-deluxe.jpg
+    pack-family-movie.jpg
+    pack-midnight-spice.jpg
+    pack-office-icebreakers.jpg
+    pack-truth-bombs.jpg
+    pack-wild-card.jpg
+    partial-react-logo.png
+    party-p1.jpg
+    party-p2.jpg
+    party-p3.jpg
+    party-p4.jpg
+    party-p5.jpg
+    react-logo.png
+    react-logo@2x.png
+    react-logo@3x.png
+    splash-icon.png
+    yowimo-icon.png
+    yowimo-logo.png
+
+components/
+  CrewOnline.tsx
+  Header.tsx
+  HeroCard.tsx
+  ListHeading.tsx
+  QuickDeckCard.tsx
+  QuickDiscoverCard.tsx
+  themed-text.tsx
+  themed-view.tsx
+  brand/
+    GradientText.tsx
+    TokenBadge.tsx
+    YowimoLogo.tsx
+
+data/
+  mock.ts
+
+lib/
+  utils.ts
+```

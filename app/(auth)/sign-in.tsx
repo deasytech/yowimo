@@ -1,16 +1,421 @@
-import { Link } from 'expo-router'
-import { Text, View } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { useSignIn, useSSO } from "@clerk/expo";
+import { LinearGradient } from "expo-linear-gradient";
+import * as Linking from "expo-linking";
+import { Href, Link, useRouter } from "expo-router";
+import { Apple, ArrowLeft } from "lucide-react-native";
+import React, { useState } from "react";
+import {
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-const SignIn = () => {
-  return (
-    <SafeAreaView>
-      <View>
-        <Text>Sign in screen</Text>
-        <Link href="/" className='bg-accent p-4 rounded-2xl text-white w-fit'>Go to Home</Link>
+import AuthInput from "@/components/shared/AuthInput";
+import SocialBtn from "@/components/shared/SocialBtn";
+import * as WebBrowser from "expo-web-browser";
+
+// Required — cleans up the browser session on Android
+WebBrowser.maybeCompleteAuthSession();
+
+type SSOStrategy = "oauth_google" | "oauth_apple";
+
+// ─── Google wordmark SVG-ish icon (text-based, no SVG dep needed) ─────────────
+const GoogleIcon = () => (
+  <Text style={{ fontSize: 14, fontWeight: "700", color: "#fff", letterSpacing: -0.5 }}>G</Text>
+);
+
+// ─── Sign In ──────────────────────────────────────────────────────────────────
+export default function SignInScreen() {
+  const { signIn, errors, fetchStatus } = useSignIn();
+  const { startSSOFlow } = useSSO();
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+
+  const [emailAddress, setEmailAddress] = useState("");
+  const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
+  const [authError, setAuthError] = useState("");
+
+  const isLoading = fetchStatus === "fetching";
+
+  // Validation states
+  const [emailTouched, setEmailTouched] = useState(false);
+  const [passwordTouched, setPasswordTouched] = useState(false);
+
+  const emailValid =
+    emailAddress.length === 0 || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailAddress);
+  const passwordValid = password.length > 0;
+  const formValid =
+    emailAddress.length > 0 && password.length > 0 && emailValid;
+
+  // ─── Navigation helper ───────────────────────────────────────────────────
+  const navigateHome = (decorateUrl: (url: string) => string) => {
+    const url = decorateUrl("/(tabs)");
+    if (url.startsWith("http")) {
+      if (typeof window !== "undefined" && window.location) {
+        window.location.href = url;
+      } else {
+        router.replace("/(tabs)" as Href);
+      }
+    } else {
+      router.replace(url as Href);
+    }
+  };
+
+  // ─── Email / password sign-in ────────────────────────────────────────────
+  const handleSubmit = async () => {
+    if (!formValid) return;
+
+    const { error } = await signIn.password({ emailAddress, password });
+    if (error) {
+      console.error(JSON.stringify(error, null, 2));
+      return;
+    }
+
+    if (signIn.status === "complete") {
+      await signIn.finalize({
+        navigate: ({ session, decorateUrl }) => {
+          if (session?.currentTask) return;
+          navigateHome(decorateUrl);
+        },
+      });
+    } else if (signIn.status === "needs_client_trust") {
+      const emailCodeFactor = signIn.supportedSecondFactors.find(
+        (f) => f.strategy === "email_code"
+      );
+      if (emailCodeFactor) await signIn.mfa.sendEmailCode();
+    } else {
+      console.error("Sign-in not complete:", signIn);
+    }
+  };
+
+
+  // ─── MFA verification ────────────────────────────────────────────────────
+  const handleVerify = async () => {
+    await signIn.mfa.verifyEmailCode({ code });
+    if (signIn.status === "complete") {
+      await signIn.finalize({
+        navigate: ({ session, decorateUrl }) => {
+          if (session?.currentTask) return;
+          navigateHome(decorateUrl);
+        },
+      });
+    } else {
+      console.error("Sign-in not complete:", signIn);
+    }
+  };
+
+  const handleSSO = async (strategy: SSOStrategy) => {
+    setAuthError("");
+    try {
+      const { createdSessionId, setActive } = await startSSOFlow({
+        strategy,
+        redirectUrl: Linking.createURL("/"),
+      });
+      if (createdSessionId && setActive) {
+        await setActive({ session: createdSessionId });
+        router.replace("/");
+      }
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Unknown SSO sign-in error";
+      console.error("SSO sign-in failed", err);
+      console.log(message)
+      setAuthError("Couldn't continue with social sign in. Please try again.");
+    }
+  };
+
+  // ─── Verify screen ───────────────────────────────────────────────────────
+  if (signIn.status === "needs_client_trust") {
+    return (
+      <View className="flex-1 bg-background">
+        <View
+          style={{
+            position: "absolute",
+            top: -60,
+            left: "50%",
+            marginLeft: -180,
+            width: 360,
+            height: 360,
+            borderRadius: 180,
+            backgroundColor: "#4C1D95",
+            opacity: 0.55,
+          }}
+        />
+        <KeyboardAvoidingView
+          className="flex-1"
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <ScrollView
+            contentContainerStyle={{
+              flexGrow: 1,
+              paddingTop: insets.top,
+              paddingBottom: insets.bottom + 24,
+            }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <TouchableOpacity
+              onPress={() => signIn.reset()}
+              activeOpacity={0.7}
+              className="flex-row items-center gap-1.5 px-5 py-4"
+            >
+              <ArrowLeft color="rgba(255,255,255,0.70)" size={16} strokeWidth={2} />
+              <Text className="text-white/70 text-sm font-medium">Start over</Text>
+            </TouchableOpacity>
+
+            <View className="items-center mt-4 mb-8 px-5 gap-4">
+              <Image
+                source={require("@/assets/images/yowimo-icon.png")}
+                className="w-20 h-20"
+                resizeMode="contain"
+              />
+              <View className="items-center gap-1">
+                <Text className="text-white text-3xl font-bold tracking-tight">
+                  Check your email
+                </Text>
+                <Text className="text-white/50 text-sm text-center">
+                  We sent a verification code to your email
+                </Text>
+              </View>
+            </View>
+
+            <View className="px-5 gap-3">
+              <TextInput
+                className="w-full rounded-2xl px-4 py-4 text-white text-center"
+                style={{
+                  backgroundColor: "rgba(255,255,255,0.08)",
+                  borderWidth: 1,
+                  borderColor: "rgba(255,255,255,0.10)",
+                  fontSize: 24,
+                  letterSpacing: 8,
+                }}
+                value={code}
+                placeholder="------"
+                placeholderTextColor="rgba(255,255,255,0.20)"
+                onChangeText={setCode}
+                keyboardType="number-pad"
+                autoComplete="one-time-code"
+                maxLength={6}
+              />
+
+              {errors.fields.code && (
+                <Text className="text-red-400 text-sm text-center">
+                  {errors.fields.code.message}
+                </Text>
+              )}
+
+              <TouchableOpacity
+                onPress={handleVerify}
+                activeOpacity={0.85}
+                disabled={!code || isLoading}
+                style={{ marginTop: 4 }}
+              >
+                <LinearGradient
+                  colors={["#7A1EFF", "#D84CFF", "#FF8A2A"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={{
+                    borderRadius: 16,
+                    paddingVertical: 16,
+                    alignItems: "center",
+                    opacity: !code || isLoading ? 0.6 : 1,
+                  }}
+                >
+                  <Text className="text-white font-bold text-base">
+                    {isLoading ? "Verifying..." : "Verify"}
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => signIn.mfa.sendEmailCode()}
+                activeOpacity={0.7}
+                disabled={isLoading}
+                className="items-center py-3"
+              >
+                <Text className="text-violet text-sm font-semibold">Resend code</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </View>
-    </SafeAreaView>
-  )
-}
+    );
+  }
 
-export default SignIn
+  // ─── Main sign-in screen ─────────────────────────────────────────────────
+  return (
+    <View className="flex-1 bg-background">
+      <View
+        className="absolute -top-12 left-1/2 -ml-48 w-96 h-96 rounded-full bg-primary/20"
+      />
+
+      <KeyboardAvoidingView
+        className="flex-1"
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <ScrollView
+          contentContainerStyle={{
+            flexGrow: 1,
+            paddingTop: insets.top,
+            paddingBottom: insets.bottom + 24,
+          }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Back */}
+          <TouchableOpacity
+            onPress={() => router.back()}
+            activeOpacity={0.7}
+            className="flex-row items-center gap-1.5 px-5 py-4"
+          >
+            <ArrowLeft color="rgba(255,255,255,0.70)" size={16} strokeWidth={2} />
+            <Text className="text-white/70 text-sm font-medium">Back</Text>
+          </TouchableOpacity>
+
+          {/* Logo + heading */}
+          <View className="items-center mt-4 mb-8 px-5 gap-4">
+            <Image
+              source={require("@/assets/images/yowimo-icon.png")}
+              className="w-20 h-20"
+              resizeMode="contain"
+            />
+            <View className="items-center gap-1">
+              <Text className="text-white text-3xl font-bold tracking-tight">
+                Welcome back
+              </Text>
+              <Text className="text-white/50 text-sm text-center">
+                Your crew has been asking about you.
+              </Text>
+            </View>
+          </View>
+
+          {/* Form */}
+          <View className="px-5 gap-3">
+            <View>
+              <AuthInput
+                placeholder="Email or phone"
+                value={emailAddress}
+                onChangeText={setEmailAddress}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                onBlur={() => setEmailTouched(true)}
+              />
+              {emailTouched && !emailValid && (
+                <Text className="text-red-400 text-xs mt-1 ml-1">
+                  Please enter a valid email address
+                </Text>
+              )}
+              {errors.fields.identifier && (
+                <Text className="text-red-400 text-xs mt-1 ml-1">
+                  {errors.fields.identifier.message}
+                </Text>
+              )}
+            </View>
+
+            <View>
+              <AuthInput
+                placeholder="Password"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                onBlur={() => setPasswordTouched(true)}
+              />
+              {passwordTouched && !passwordValid && (
+                <Text className="text-red-400 text-xs mt-1 ml-1">
+                  Password is required
+                </Text>
+              )}
+              {errors.fields.password && (
+                <Text className="text-red-400 text-xs mt-1 ml-1">
+                  {errors.fields.password.message}
+                </Text>
+              )}
+            </View>
+
+            {/* Forgot password */}
+            <TouchableOpacity activeOpacity={0.7} className="self-end">
+              <Text className="text-violet text-sm font-semibold">
+                Forgot password?
+              </Text>
+            </TouchableOpacity>
+
+            {/* Log in button */}
+            <TouchableOpacity
+              onPress={handleSubmit}
+              activeOpacity={0.85}
+              disabled={isLoading || !formValid}
+              style={{ marginTop: 4 }}
+            >
+              <LinearGradient
+                colors={["#7A1EFF", "#D84CFF", "#FF8A2A"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={{
+                  borderRadius: 16,
+                  paddingVertical: 16,
+                  alignItems: "center",
+                  opacity: isLoading || !formValid ? 0.6 : 1,
+                }}
+              >
+                <Text className="text-white font-bold text-base">
+                  {isLoading ? "Signing in..." : "Sign in"}
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            {/* Divider */}
+            <View className="flex-row items-center gap-3 my-2">
+              <View className="flex-1 h-px bg-white/10" />
+              <Text className="text-white/40 text-xs">or continue with</Text>
+              <View className="flex-1 h-px bg-white/10" />
+            </View>
+
+            {/* Social buttons */}
+            <View className="flex-row gap-3">
+              <SocialBtn
+                label="Google"
+                icon={<GoogleIcon />}
+                onPress={() => handleSSO("oauth_google")}
+              />
+              <SocialBtn
+                label="Apple"
+                icon={<Apple color="#fff" size={16} strokeWidth={2} />}
+                onPress={() => handleSSO("oauth_apple")}
+              />
+            </View>
+            {authError ? (
+              <Text className="text-sm text-red-500 mb-2">{authError}</Text>
+            ) : null}
+          </View>
+
+          {/* Footer */}
+          <View className="flex-1 justify-end px-5 mt-10 gap-2">
+            <Text className="text-white/40 text-xs text-center">
+              {"By continuing you agree to Yowimo's "}
+              <Text className="text-violet">Terms</Text>
+              {" & "}
+              <Text className="text-violet">Privacy</Text>.
+            </Text>
+            <View className="flex-row justify-center gap-1">
+              <Text className="text-white/50 text-sm">New here?</Text>
+              <Link href="/(auth)/sign-up" asChild>
+                <TouchableOpacity activeOpacity={0.7}>
+                  <Text className="text-white font-bold text-sm">
+                    Create an account
+                  </Text>
+                </TouchableOpacity>
+              </Link>
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
+  );
+}

@@ -5,6 +5,7 @@ import ListHeading from "@/components/ListHeading";
 import QuickDeckCard from "@/components/QuickDeckCard";
 import QuickDiscoverCard from "@/components/QuickDiscoverCard";
 import { FRIENDS, GAME_TYPES, PARTIES, QUICK_ACTIONS } from "@/data/mock";
+import { useUser } from "@clerk/expo";
 import { LinearGradient as RNLinearGradient } from 'expo-linear-gradient';
 import { Link } from "expo-router";
 import { styled } from "nativewind";
@@ -22,6 +23,9 @@ const _GAMES = (GAME_TYPES ?? []).slice(0, 4);
 
 export default function HomeScreen() {
     const [cardWidth, setCardWidth] = useState(0);
+    const { user } = useUser();
+
+    const displayName = user?.firstName || user?.fullName || user?.emailAddresses[0]?.emailAddress || 'User';
 
     return (
         <SafeAreaView className="flex-1 bg-background">
@@ -31,7 +35,7 @@ export default function HomeScreen() {
                 showsVerticalScrollIndicator={false}
             >
                 <View className="gap-1 pt-20">
-                    <Text className="text-sm text-muted-foreground">Tonight, Alex</Text>
+                    <Text className="text-sm text-muted-foreground">Tonight, {displayName}</Text>
                     <View className="flex-row flex-wrap items-center gap-2">
                         <Text className="text-3xl font-sg-bold text-white">Ready for a</Text>
                         <GradientText className="text-3xl font-sg-bold">legendary</GradientText>
