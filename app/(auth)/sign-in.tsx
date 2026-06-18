@@ -86,24 +86,21 @@ export default function SignInScreen() {
 
   // ─── MFA verification ────────────────────────────────────────────────────
   const handleVerify = async () => {
-    await signIn.mfa.verifyEmailCode({ code });
+    const { error } = await signIn.mfa.verifyEmailCode({ code });
+    if (error) {
+      console.error("MFA verification failed:", error);
+      return;
+    }
     if (signIn.status === "complete") {
-      const { error } = await signIn.mfa.verifyEmailCode({ code });
-      if (error) {
-        console.error("MFA verification failed:", error);
-        return;
-      }
-      if (signIn.status === "complete") {
-        await signIn.finalize({
-          navigate: ({ session, decorateUrl }) => {
-            if (session?.currentTask) return;
-            navigateHome(decorateUrl);
-          },
-        });
-      } else {
-        console.error("Sign-in not complete:", signIn);
-      }
-    };
+      await signIn.finalize({
+        navigate: ({ session, decorateUrl }) => {
+          if (session?.currentTask) return;
+          navigateHome(decorateUrl);
+        },
+      });
+    } else {
+      console.error("Sign-in not complete:", signIn);
+    }
   };
 
   const handleSSO = async (strategy: SSOStrategy) => {
