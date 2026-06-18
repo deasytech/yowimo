@@ -1,10 +1,9 @@
 import '@/global.css';
 import { useFonts } from 'expo-font';
 import { SplashScreen, Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
-import { ClerkProvider } from '@clerk/expo';
+import { ClerkProvider, useAuth } from '@clerk/expo';
 import { tokenCache } from '@clerk/expo/token-cache';
 import Constants, { ExecutionEnvironment } from "expo-constants";
 
@@ -18,34 +17,35 @@ if (!publishableKey) {
 
 const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
-export default function RootLayout() {
+function RootLayoutContent() {
+  const { isLoaded: authLoaded } = useAuth();
+
   const [fontsLoaded] = useFonts({
     'sans-regular': require('../assets/fonts/PlusJakartaSans-Regular.ttf'),
+    'sans-bold': require('../assets/fonts/PlusJakartaSans-Bold.ttf'),
     'sans-medium': require('../assets/fonts/PlusJakartaSans-Medium.ttf'),
     'sans-semibold': require('../assets/fonts/PlusJakartaSans-SemiBold.ttf'),
-    'sans-bold': require('../assets/fonts/PlusJakartaSans-Bold.ttf'),
     'sans-extrabold': require('../assets/fonts/PlusJakartaSans-ExtraBold.ttf'),
-    'sans-light': require('../assets/fonts/PlusJakartaSans-Light.ttf'),
-
-    'sg-regular': require('../assets/fonts/SpaceGrotesk-Regular.ttf'),
-    'sg-medium': require('../assets/fonts/SpaceGrotesk-Medium.ttf'),
-    'sg-semibold': require('../assets/fonts/SpaceGrotesk-SemiBold.ttf'),
-    'sg-bold': require('../assets/fonts/SpaceGrotesk-Bold.ttf'),
-    'sg-light': require('../assets/fonts/SpaceGrotesk-Light.ttf'),
-  });
+    'sans-light': require('../assets/fonts/PlusJakartaSans-Light.ttf')
+  })
 
   useEffect(() => {
-    if (fontsLoaded) {
-      SplashScreen.hideAsync();
+    // Hide splash only when both fonts and auth are loaded
+    if (fontsLoaded && authLoaded) {
+      SplashScreen.hideAsync()
     }
-  }, [fontsLoaded]);
+  }, [fontsLoaded, authLoaded])
 
-  if (!fontsLoaded) return null;
+  // Don't render app until both are ready
+  if (!fontsLoaded || !authLoaded) return null;
 
+  return <Stack screenOptions={{ headerShown: false }} />;
+}
+
+export default function RootLayout() {
   return (
     <ClerkProvider publishableKey={publishableKey} tokenCache={isExpoGo ? undefined : tokenCache}>
-      <StatusBar style="light" />
-      <Stack screenOptions={{ headerShown: false }} />
+      <RootLayoutContent />
     </ClerkProvider>
   );
 }

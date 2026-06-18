@@ -1,7 +1,7 @@
 import { useSignIn, useSSO } from "@clerk/expo";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Linking from "expo-linking";
-import { Href, Link, useRouter } from "expo-router";
+import { Link, useRouter } from "expo-router";
 import { Apple, ArrowLeft } from "lucide-react-native";
 import React, { useState } from "react";
 import {
@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import AuthInput from "@/components/shared/AuthInput";
 import SocialBtn from "@/components/shared/SocialBtn";
+import { navigateHome } from "@/lib/utils";
 import * as WebBrowser from "expo-web-browser";
 
 // Required — cleans up the browser session on Android
@@ -41,6 +42,7 @@ export default function SignInScreen() {
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [authError, setAuthError] = useState("");
+  const [ssoLoading, setSsoLoading] = useState(false);
 
   const isLoading = fetchStatus === "fetching";
 
@@ -53,20 +55,6 @@ export default function SignInScreen() {
   const passwordValid = password.length > 0;
   const formValid =
     emailAddress.length > 0 && password.length > 0 && emailValid;
-
-  // ─── Navigation helper ───────────────────────────────────────────────────
-  const navigateHome = (decorateUrl: (url: string) => string) => {
-    const url = decorateUrl("/(tabs)");
-    if (url.startsWith("http")) {
-      if (typeof window !== "undefined" && window.location) {
-        window.location.href = url;
-      } else {
-        router.replace("/(tabs)" as Href);
-      }
-    } else {
-      router.replace(url as Href);
-    }
-  };
 
   // ─── Email / password sign-in ────────────────────────────────────────────
   const handleSubmit = async () => {
@@ -100,19 +88,27 @@ export default function SignInScreen() {
   const handleVerify = async () => {
     await signIn.mfa.verifyEmailCode({ code });
     if (signIn.status === "complete") {
-      await signIn.finalize({
-        navigate: ({ session, decorateUrl }) => {
-          if (session?.currentTask) return;
-          navigateHome(decorateUrl);
-        },
-      });
-    } else {
-      console.error("Sign-in not complete:", signIn);
-    }
+      const { error } = await signIn.mfa.verifyEmailCode({ code });
+      if (error) {
+        console.error("MFA verification failed:", error);
+        return;
+      }
+      if (signIn.status === "complete") {
+        await signIn.finalize({
+          navigate: ({ session, decorateUrl }) => {
+            if (session?.currentTask) return;
+            navigateHome(decorateUrl);
+          },
+        });
+      } else {
+        console.error("Sign-in not complete:", signIn);
+      }
+    };
   };
 
   const handleSSO = async (strategy: SSOStrategy) => {
     setAuthError("");
+    setSsoLoading(true);
     try {
       const { createdSessionId, setActive } = await startSSOFlow({
         strategy,
@@ -128,6 +124,8 @@ export default function SignInScreen() {
       console.error("SSO sign-in failed", err);
       console.log(message)
       setAuthError("Couldn't continue with social sign in. Please try again.");
+    } finally {
+      setSsoLoading(false);
     }
   };
 
@@ -383,11 +381,13 @@ export default function SignInScreen() {
                 label="Google"
                 icon={<GoogleIcon />}
                 onPress={() => handleSSO("oauth_google")}
+                loading={ssoLoading}
               />
               <SocialBtn
                 label="Apple"
                 icon={<Apple color="#fff" size={16} strokeWidth={2} />}
                 onPress={() => handleSSO("oauth_apple")}
+                loading={ssoLoading}
               />
             </View>
             {authError ? (

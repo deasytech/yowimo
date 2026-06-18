@@ -31,7 +31,8 @@ const AuthInput = ({
     secureTextEntry={secureTextEntry}
     onBlur={onBlur}
     keyboardType={keyboardType ?? "default"}
-    autoCapitalize={autoCapitalize ?? "sentences"}
+    autoCapitalize={autoCapitalize ?? (secureTextEntry ? "none" : "sentences")}
+    autoCorrect={false}
   />
 );
 

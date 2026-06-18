@@ -10,7 +10,7 @@ const SocialBtn = ({
   label: string;
   icon: React.ReactNode;
   onPress: () => void;
-  loading?: boolean;
+  loading: boolean;
 }) => (
   <TouchableOpacity
     onPress={onPress}

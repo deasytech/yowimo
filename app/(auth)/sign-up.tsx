@@ -1,8 +1,10 @@
 import AuthInput from "@/components/shared/AuthInput";
+import SocialBtn from "@/components/shared/SocialBtn";
+import { navigateHome } from "@/lib/utils";
 import { useAuth, useSignUp, useSSO } from "@clerk/expo";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Linking from "expo-linking";
-import { Href, Link, useRouter } from "expo-router";
+import { Link, useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { Apple, ArrowLeft } from "lucide-react-native";
 import React, { useState } from "react";
@@ -26,37 +28,6 @@ const GoogleIcon = () => (
   <Text style={{ fontSize: 14, fontWeight: "700", color: "#fff" }}>G</Text>
 );
 
-// ─── Social button ────────────────────────────────────────────────────────────
-const SocialBtn = ({
-  label,
-  icon,
-  onPress,
-  loading,
-}: {
-  label: string;
-  icon: React.ReactNode;
-  onPress: () => void;
-  loading?: boolean;
-}) => (
-  <TouchableOpacity
-    onPress={onPress}
-    activeOpacity={0.75}
-    disabled={loading}
-    className="flex-1 flex-row items-center justify-center gap-2 rounded-2xl py-3.5"
-    style={{
-      backgroundColor: "rgba(255,255,255,0.08)",
-      borderWidth: 1,
-      borderColor: "rgba(255,255,255,0.10)",
-      opacity: loading ? 0.6 : 1,
-    }}
-  >
-    {icon}
-    <Text className="text-white font-semibold text-sm">
-      {loading ? "..." : label}
-    </Text>
-  </TouchableOpacity>
-);
-
 // ─── Sign Up ──────────────────────────────────────────────────────────────────
 export default function SignUpScreen() {
   const { signUp, errors, fetchStatus } = useSignUp();
@@ -69,6 +40,7 @@ export default function SignUpScreen() {
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [authError, setAuthError] = useState("");
+  const [ssoLoading, setSsoLoading] = useState(false);
 
   const isLoading = fetchStatus === "fetching";
 
@@ -107,34 +79,27 @@ export default function SignUpScreen() {
 
   // ─── Step 2: Verify email ─────────────────────────────────────────────────
   const handleVerify = async () => {
-    await signUp.verifications.verifyEmailCode({ code });
+    const { error } = await signUp.verifications.verifyEmailCode({ code });
+    if (error) {
+      console.error("Email verification failed:", error);
+      return;
+    }
 
     if (signUp.status === "complete") {
       await signUp.finalize({
         navigate: ({ session, decorateUrl }) => {
-          if (session?.currentTask) {
-            console.log(session?.currentTask);
-            return;
-          }
-          const url = decorateUrl("/(tabs)");
-          if (url.startsWith("http")) {
-            if (typeof window !== "undefined" && window.location) {
-              window.location.href = url;
-            } else {
-              router.replace("/(tabs)" as Href);
-            }
-          } else {
-            router.replace(url as Href);
-          }
+          if (session?.currentTask) return;
+          navigateHome(decorateUrl);
         },
       });
     } else {
-      console.error("Sign-up not complete:", signUp);
+      console.error("Sign-in not complete:", signUp);
     }
   };
 
   const handleSSO = async (strategy: SSOStrategy) => {
     setAuthError("");
+    setSsoLoading(true);
     try {
       const { createdSessionId, setActive } = await startSSOFlow({
         strategy,
@@ -150,6 +115,8 @@ export default function SignUpScreen() {
       console.log(message)
       console.error("SSO sign-up failed", err);
       setAuthError("Couldn't continue with social sign up. Please try again.");
+    } finally {
+      setSsoLoading(false);
     }
   };
 
@@ -400,11 +367,13 @@ export default function SignUpScreen() {
                 label="Google"
                 icon={<GoogleIcon />}
                 onPress={() => handleSSO("oauth_google")}
+                loading={ssoLoading}
               />
               <SocialBtn
                 label="Apple"
                 icon={<Apple color="#fff" size={16} strokeWidth={2} />}
                 onPress={() => handleSSO("oauth_apple")}
+                loading={ssoLoading}
               />
             </View>
 
