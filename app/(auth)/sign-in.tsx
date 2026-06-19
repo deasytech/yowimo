@@ -10,14 +10,14 @@ import {
   Platform,
   ScrollView,
   Text,
-  TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import AuthInput from "@/components/shared/AuthInput";
 import SocialBtn from "@/components/shared/SocialBtn";
+import { posthog } from "@/lib/posthog";
 import { navigateHome } from "@/lib/utils";
 import * as WebBrowser from "expo-web-browser";
 
@@ -56,21 +56,27 @@ export default function SignInScreen() {
   const formValid =
     emailAddress.length > 0 && password.length > 0 && emailValid;
 
+  const needsVerification =
+    signIn.status === "needs_client_trust" ||
+    signIn.status === "needs_first_factor" ||
+    signIn.status === "needs_second_factor";
+
   // ─── Email / password sign-in ────────────────────────────────────────────
   const handleSubmit = async () => {
     if (!formValid) return;
 
     const { error } = await signIn.password({ emailAddress, password });
     if (error) {
-      console.error(JSON.stringify(error, null, 2));
+      posthog.capture('sign_in_failed', { method: 'email', error_code: error.code });
       return;
     }
 
     if (signIn.status === "complete") {
+      posthog.identify(emailAddress, { $set: { email: emailAddress } });
+      posthog.capture('sign_in_completed', { method: 'email' });
       await signIn.finalize({
-        navigate: ({ session, decorateUrl }) => {
-          if (session?.currentTask) return;
-          navigateHome(decorateUrl);
+        navigate: ({ session }) => {
+          console.log(session?.currentTask);
         },
       });
     } else if (signIn.status === "needs_client_trust") {
@@ -78,6 +84,9 @@ export default function SignInScreen() {
         (f) => f.strategy === "email_code"
       );
       if (emailCodeFactor) await signIn.mfa.sendEmailCode();
+    } else if (signIn.status === "needs_first_factor" || signIn.status === "needs_second_factor") {
+      // Email code challenge as a first/second factor — send the code and show OTP UI
+      await signIn.mfa.sendEmailCode();
     } else {
       console.error("Sign-in not complete:", signIn);
     }
@@ -92,6 +101,9 @@ export default function SignInScreen() {
       return;
     }
     if (signIn.status === "complete") {
+      posthog.identify(emailAddress, { $set: { email: emailAddress } });
+      posthog.capture('mfa_verified', { method: 'email_code' });
+      posthog.capture('sign_in_completed', { method: 'email_mfa' });
       await signIn.finalize({
         navigate: ({ session, decorateUrl }) => {
           if (session?.currentTask) return;
@@ -106,6 +118,7 @@ export default function SignInScreen() {
   const handleSSO = async (strategy: SSOStrategy) => {
     setAuthError("");
     setSsoLoading(true);
+    posthog.capture('sso_sign_in_initiated', { provider: strategy });
     try {
       const { createdSessionId, setActive } = await startSSOFlow({
         strategy,
@@ -113,13 +126,14 @@ export default function SignInScreen() {
       });
       if (createdSessionId && setActive) {
         await setActive({ session: createdSessionId });
+        posthog.capture('sign_in_completed', { method: strategy });
         router.replace("/");
       }
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Unknown SSO sign-in error";
       console.error("SSO sign-in failed", err);
-      console.log(message)
+      posthog.capture('sign_in_failed', { method: strategy, error_message: message });
       setAuthError("Couldn't continue with social sign in. Please try again.");
     } finally {
       setSsoLoading(false);
@@ -127,7 +141,7 @@ export default function SignInScreen() {
   };
 
   // ─── Verify screen ───────────────────────────────────────────────────────
-  if (signIn.status === "needs_client_trust") {
+  if (needsVerification) {
     return (
       <View className="flex-1 bg-background">
         <View
@@ -182,24 +196,13 @@ export default function SignInScreen() {
             </View>
 
             <View className="px-5 gap-3">
-              <TextInput
-                className="w-full rounded-2xl px-4 py-4 text-white text-center"
-                style={{
-                  backgroundColor: "rgba(255,255,255,0.08)",
-                  borderWidth: 1,
-                  borderColor: "rgba(255,255,255,0.10)",
-                  fontSize: 24,
-                  letterSpacing: 8,
-                }}
+              <AuthInput
+                placeholder="6-digit verification code"
                 value={code}
-                placeholder="------"
-                placeholderTextColor="rgba(255,255,255,0.20)"
                 onChangeText={setCode}
                 keyboardType="number-pad"
-                autoComplete="one-time-code"
                 maxLength={6}
               />
-
               {errors.fields.code && (
                 <Text className="text-red-400 text-sm text-center">
                   {errors.fields.code.message}
@@ -209,7 +212,7 @@ export default function SignInScreen() {
               <TouchableOpacity
                 onPress={handleVerify}
                 activeOpacity={0.85}
-                disabled={!code || isLoading}
+                disabled={code.length !== 6 || isLoading}
                 style={{ marginTop: 4 }}
               >
                 <LinearGradient
@@ -220,7 +223,7 @@ export default function SignInScreen() {
                     borderRadius: 16,
                     paddingVertical: 16,
                     alignItems: "center",
-                    opacity: !code || isLoading ? 0.6 : 1,
+                    opacity: code.length !== 6 || isLoading ? 0.6 : 1,
                   }}
                 >
                   <Text className="text-white font-bold text-base">

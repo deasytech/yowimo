@@ -1,3 +1,4 @@
+import { posthog } from "@/lib/posthog";
 import clsx from 'clsx';
 import { LinearGradient as RNLinearGradient } from 'expo-linear-gradient';
 import { Link } from 'expo-router';
@@ -12,6 +13,8 @@ const QuickDiscoverCard = ({ data }: { data: PartyProps }) => {
       <TouchableOpacity
         activeOpacity={0.85}
         className='w-72 mr-4 overflow-hidden bg-[#1C1C26] rounded-3xl'
+        onPress={() => posthog.capture('live_party_tapped', { party_id: data.id, party_title: data.title, is_live: data.isLive ?? false, mode: data.mode })}
+        testID="live-party-card"
       >
         <View className='h-44 overflow-hidden'>
           {data.image ? (

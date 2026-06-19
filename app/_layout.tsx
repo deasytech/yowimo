@@ -1,11 +1,13 @@
 import '@/global.css';
 import { useFonts } from 'expo-font';
-import { SplashScreen, Stack } from 'expo-router';
-import { useEffect } from 'react';
+import { SplashScreen, Stack, useGlobalSearchParams, usePathname } from 'expo-router';
+import { useEffect, useRef } from 'react';
 
+import { posthog } from '@/lib/posthog';
 import { ClerkProvider, useAuth } from '@clerk/expo';
 import { tokenCache } from '@clerk/expo/token-cache';
 import Constants, { ExecutionEnvironment } from "expo-constants";
+import { PostHogProvider } from 'posthog-react-native';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -19,6 +21,31 @@ const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreCl
 
 function RootLayoutContent() {
   const { isLoaded: authLoaded } = useAuth();
+  // Only keys in this set are allowed through to analytics
+  const SAFE_PARAM_KEYS = new Set<string>([
+    'deck_id',
+    'category',
+    'mode',
+    'tab',
+    'invite',
+  ]);
+
+  const pathname = usePathname();
+  const params = useGlobalSearchParams();
+  const previousPathname = useRef<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (previousPathname.current !== pathname) {
+      const safeParams = Object.fromEntries(
+        Object.entries(params).filter(([key]) => SAFE_PARAM_KEYS.has(key)),
+      );
+      posthog.screen(pathname, {
+        previous_screen: previousPathname.current ?? null,
+        ...safeParams,
+      });
+      previousPathname.current = pathname;
+    }
+  }, [pathname, params]);
 
   const [fontsLoaded] = useFonts({
     'sans-regular': require('../assets/fonts/PlusJakartaSans-Regular.ttf'),
@@ -39,7 +66,19 @@ function RootLayoutContent() {
   // Don't render app until both are ready
   if (!fontsLoaded || !authLoaded) return null;
 
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return (
+    <PostHogProvider
+      client={posthog}
+      autocapture={{
+        captureScreens: false,
+        captureTouches: true,
+        propsToCapture: ['testID'],
+        maxElementsCaptured: 20,
+      }}
+    >
+      <Stack screenOptions={{ headerShown: false }} />
+    </PostHogProvider>
+  );
 }
 
 export default function RootLayout() {

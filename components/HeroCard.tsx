@@ -1,3 +1,4 @@
+import { posthog } from "@/lib/posthog";
 import { LinearGradient as RNLinearGradient } from 'expo-linear-gradient';
 import { Sparkles } from 'lucide-react-native';
 import { styled } from "nativewind";
@@ -37,7 +38,12 @@ const HeroCard = () => {
       </Text>
 
       <View className="mt-5 flex-row gap-2">
-        <TouchableOpacity activeOpacity={0.88} className="rounded-full bg-white px-5 py-2.5 items-center">
+        <TouchableOpacity
+          activeOpacity={0.88}
+          className="rounded-full bg-white px-5 py-2.5 items-center"
+          onPress={() => posthog.capture('party_created', { source: 'hero_card' })}
+          testID="create-party-button"
+        >
           <Text className="font-sans-bold text-sm text-background">
             Create Party
           </Text>
