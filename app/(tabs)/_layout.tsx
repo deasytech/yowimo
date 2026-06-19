@@ -1,6 +1,7 @@
 import Header from "@/components/Header";
+import { useAuth } from "@clerk/expo";
 import { LinearGradient } from "expo-linear-gradient";
-import { Tabs } from "expo-router";
+import { Redirect, Tabs } from "expo-router";
 import { Compass, Home, Plus, User, Wallet } from "lucide-react-native";
 import { useEffect, useRef } from "react";
 import { Animated, View } from "react-native";
@@ -102,80 +103,95 @@ const PulsingPlusIcon = () => {
   );
 };
 
-const TabLayout = () => (
-  <>
-    <Header />
+const TabLayout = () => {
 
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: {
-          position: "absolute",
-          marginHorizontal: 16,
-          bottom: 16,
-          height: 70,
-          borderRadius: 24,
-          backgroundColor: "#19191F",
-          borderTopWidth: 0,
-          elevation: 10,
-        },
-        tabBarActiveTintColor: "#FFFFFF",
-        tabBarInactiveTintColor: "#A3A3AB",
-        tabBarLabelStyle: {
-          fontSize: 10,
-          fontWeight: "600",
-        },
-      }}
-    >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: "Home",
-          tabBarIconStyle: { marginTop: 6 },
-          tabBarIcon: ({ color, size, focused }) => (
-            <Home color={color} size={focused ? size + 2 : size} strokeWidth={focused ? 2.5 : 2} />
-          ),
+  const { isSignedIn, isLoaded } = useAuth();
+
+  // Wait for auth to load before rendering anything
+  if (!isLoaded) {
+    return null;
+  }
+
+  // Redirect to sign-in if user is not authenticated
+  if (!isSignedIn) {
+    return <Redirect href="/(auth)/sign-in" />;
+  }
+
+  return (
+    <>
+      <Header />
+
+      <Tabs
+        screenOptions={{
+          headerShown: false,
+          tabBarStyle: {
+            position: "absolute",
+            marginHorizontal: 16,
+            bottom: 16,
+            height: 70,
+            borderRadius: 24,
+            backgroundColor: "#19191F",
+            borderTopWidth: 0,
+            elevation: 10,
+          },
+          tabBarActiveTintColor: "#FFFFFF",
+          tabBarInactiveTintColor: "#A3A3AB",
+          tabBarLabelStyle: {
+            fontSize: 10,
+            fontWeight: "600",
+          },
         }}
-      />
-      <Tabs.Screen
-        name="discover"
-        options={{
-          title: "Discover",
-          tabBarIconStyle: { marginTop: 6 },
-          tabBarIcon: ({ color, size, focused }) => (
-            <Compass color={color} size={focused ? size + 2 : size} strokeWidth={focused ? 2.5 : 2} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="play"
-        options={{
-          title: "Play",
-          tabBarIcon: () => <PulsingPlusIcon />,
-        }}
-      />
-      <Tabs.Screen
-        name="wallet"
-        options={{
-          title: "Wallet",
-          tabBarIconStyle: { marginTop: 6 },
-          tabBarIcon: ({ color, size, focused }) => (
-            <Wallet color={color} size={focused ? size + 2 : size} strokeWidth={focused ? 2.5 : 2} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: "Profile",
-          tabBarIconStyle: { marginTop: 6 },
-          tabBarIcon: ({ color, size, focused }) => (
-            <User color={color} size={focused ? size + 2 : size} strokeWidth={focused ? 2.5 : 2} />
-          ),
-        }}
-      />
-    </Tabs>
-  </>
-);
+      >
+        <Tabs.Screen
+          name="index"
+          options={{
+            title: "Home",
+            tabBarIconStyle: { marginTop: 6 },
+            tabBarIcon: ({ color, size, focused }) => (
+              <Home color={color} size={focused ? size + 2 : size} strokeWidth={focused ? 2.5 : 2} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="discover"
+          options={{
+            title: "Discover",
+            tabBarIconStyle: { marginTop: 6 },
+            tabBarIcon: ({ color, size, focused }) => (
+              <Compass color={color} size={focused ? size + 2 : size} strokeWidth={focused ? 2.5 : 2} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="play"
+          options={{
+            title: "Play",
+            tabBarIcon: () => <PulsingPlusIcon />,
+          }}
+        />
+        <Tabs.Screen
+          name="wallet"
+          options={{
+            title: "Wallet",
+            tabBarIconStyle: { marginTop: 6 },
+            tabBarIcon: ({ color, size, focused }) => (
+              <Wallet color={color} size={focused ? size + 2 : size} strokeWidth={focused ? 2.5 : 2} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="profile"
+          options={{
+            title: "Profile",
+            tabBarIconStyle: { marginTop: 6 },
+            tabBarIcon: ({ color, size, focused }) => (
+              <User color={color} size={focused ? size + 2 : size} strokeWidth={focused ? 2.5 : 2} />
+            ),
+          }}
+        />
+      </Tabs>
+    </>
+  )
+};
 
 export default TabLayout;

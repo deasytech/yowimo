@@ -122,3 +122,9 @@
   --spacing-24: 96px;
   --spacing-30: 120px;
 }
+
+@layer components {
+  .auth-error {
+    @apply text-xs font-sans-medium text-destructive mt-1;
+  }
+}
