@@ -1,5 +1,5 @@
-import { useClerk, useUser } from "@clerk/expo";
 import { posthog } from "@/lib/posthog";
+import { useClerk, useUser } from "@clerk/expo";
 import { styled } from "nativewind";
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
@@ -14,9 +14,9 @@ const ProfileScreen = () => {
 
   const handleSignOut = async () => {
     try {
+      await signOut();
       posthog.capture('sign_out_completed');
       posthog.reset();
-      await signOut();
     } catch (error) {
       console.error('Sign-out failed:', error);
     }

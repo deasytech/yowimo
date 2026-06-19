@@ -76,7 +76,7 @@ export default function SignInScreen() {
       posthog.capture('sign_in_completed', { method: 'email' });
       await signIn.finalize({
         navigate: ({ session }) => {
-          console.log(session.currentTask);
+          console.log(session?.currentTask);
         },
       });
     } else if (signIn.status === "needs_client_trust") {
@@ -200,7 +200,8 @@ export default function SignInScreen() {
                 placeholder="6-digit verification code"
                 value={code}
                 onChangeText={setCode}
-                keyboardType="numeric"
+                keyboardType="number-pad"
+                maxLength={6}
               />
               {errors.fields.code && (
                 <Text className="text-red-400 text-sm text-center">
@@ -211,7 +212,7 @@ export default function SignInScreen() {
               <TouchableOpacity
                 onPress={handleVerify}
                 activeOpacity={0.85}
-                disabled={!code || isLoading}
+                disabled={code.length !== 6 || isLoading}
                 style={{ marginTop: 4 }}
               >
                 <LinearGradient
@@ -222,7 +223,7 @@ export default function SignInScreen() {
                     borderRadius: 16,
                     paddingVertical: 16,
                     alignItems: "center",
-                    opacity: !code || isLoading ? 0.6 : 1,
+                    opacity: code.length !== 6 || isLoading ? 0.6 : 1,
                   }}
                 >
                   <Text className="text-white font-bold text-base">
