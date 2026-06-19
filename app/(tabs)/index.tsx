@@ -1,3 +1,4 @@
+import { posthog } from "@/lib/posthog";
 import { GradientText } from "@/components/brand/GradientText";
 import CrewOnline from "@/components/CrewOnline";
 import HeroCard from "@/components/HeroCard";
@@ -52,6 +53,7 @@ export default function HomeScreen() {
                                 key={label}
                                 href={href as any}
                                 asChild
+                                onPress={() => posthog.capture('quick_action_tapped', { label })}
                             >
                                 <TouchableOpacity
                                     activeOpacity={0.85}

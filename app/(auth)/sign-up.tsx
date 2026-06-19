@@ -1,5 +1,6 @@
 import AuthInput from "@/components/shared/AuthInput";
 import SocialBtn from "@/components/shared/SocialBtn";
+import { posthog } from "@/lib/posthog";
 import { navigateHome } from "@/lib/utils";
 import { useAuth, useSignUp, useSSO } from "@clerk/expo";
 import { LinearGradient } from "expo-linear-gradient";
@@ -68,6 +69,7 @@ export default function SignUpScreen() {
     });
 
     if (error) {
+      posthog.capture('sign_up_failed', { method: 'email', error_code: error.code });
       console.error(JSON.stringify(error, null, 2));
       return;
     }
@@ -86,6 +88,12 @@ export default function SignUpScreen() {
     }
 
     if (signUp.status === "complete") {
+      posthog.identify(email, {
+        $set: { email },
+        $set_once: { first_signup_date: new Date().toISOString() },
+      });
+      posthog.capture('email_verified', { method: 'email_code' });
+      posthog.capture('sign_up_completed', { method: 'email' });
       await signUp.finalize({
         navigate: ({ session, decorateUrl }) => {
           if (session?.currentTask) return;
@@ -100,6 +108,7 @@ export default function SignUpScreen() {
   const handleSSO = async (strategy: SSOStrategy) => {
     setAuthError("");
     setSsoLoading(true);
+    posthog.capture('sso_sign_up_initiated', { provider: strategy });
     try {
       const { createdSessionId, setActive } = await startSSOFlow({
         strategy,
@@ -107,13 +116,14 @@ export default function SignUpScreen() {
       });
       if (createdSessionId && setActive) {
         await setActive({ session: createdSessionId });
+        posthog.capture('sign_up_completed', { method: strategy });
         router.replace("/");
       }
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Unknown SSO sign-up error";
-      console.log(message)
       console.error("SSO sign-up failed", err);
+      posthog.capture('sign_up_failed', { method: strategy, error_message: message });
       setAuthError("Couldn't continue with social sign up. Please try again.");
     } finally {
       setSsoLoading(false);

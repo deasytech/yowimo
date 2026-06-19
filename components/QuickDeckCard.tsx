@@ -1,3 +1,4 @@
+import { posthog } from "@/lib/posthog";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   Image,
@@ -13,10 +14,16 @@ const QuickDeckCard = ({
   onPress,
 }: GameCardProps) => {
 
+  const handlePress = () => {
+    posthog.capture('game_deck_selected', { game_id: game.id, game_name: game.name, game_cost: game.cost, intensity: game.intensity });
+    onPress?.();
+  };
+
   return (
     <TouchableOpacity
       activeOpacity={0.85}
-      onPress={onPress}
+      onPress={handlePress}
+      testID="game-deck-card"
       className="overflow-hidden rounded-3xl"
       style={{
         width,
