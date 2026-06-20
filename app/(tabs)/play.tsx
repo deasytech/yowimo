@@ -1,6 +1,6 @@
 import { GAME_TYPES } from "@/data/mock";
 import { LinearGradient as RNLinearGradient } from "expo-linear-gradient";
-import { Link, useRouter } from "expo-router";
+import { Href, Link, useRouter } from "expo-router";
 import { Globe, Lock, Sparkles, Tv, Users } from "lucide-react-native";
 import { styled } from "nativewind";
 import { useState } from "react";
@@ -16,15 +16,15 @@ const MODES = [
   { id: "Hybrid" as const, Icon: Tv },
 ];
 
-const ADVANCED_LINKS = [
-  { to: "/party-type", label: "Party type", emoji: "🎴" },
-  { to: "/schedule", label: "Schedule", emoji: "🗓️" },
-  { to: "/invite", label: "Invite friends", emoji: "👥" },
-  { to: "/public", label: "Browse public", emoji: "🌍" },
-  { to: "/setup/in-person", label: "In-person setup", emoji: "🪑" },
-  { to: "/setup/hybrid", label: "Hybrid setup", emoji: "📺" },
-  { to: "/connect-tv", label: "Connect TV", emoji: "📡" },
-  { to: "/qr-join", label: "QR / Code", emoji: "🔳" },
+const ADVANCED_LINKS: { to: Href; label: string; emoji: string }[] = [
+  { to: "/play/party-type", label: "Party type", emoji: "🎴" },
+  { to: "/play/schedule", label: "Schedule", emoji: "🗓️" },
+  { to: "/play/invite", label: "Invite friends", emoji: "👥" },
+  { to: "/play/public", label: "Browse public", emoji: "🌍" },
+  { to: "/play/in-person", label: "In-person setup", emoji: "🪑" },
+  { to: "/play/hybrid", label: "Hybrid setup", emoji: "📺" },
+  { to: "/play/connect-tv", label: "Connect TV", emoji: "📡" },
+  { to: "/play/qr-join", label: "QR / Code", emoji: "🔳" },
 ];
 
 export default function CreatePartyScreen() {
@@ -41,11 +41,11 @@ export default function CreatePartyScreen() {
   const handleLaunch = () => {
     const dest =
       mode === "In-person"
-        ? "/setup/in-person"
+        ? "/play/in-person"
         : mode === "Hybrid"
-          ? "/setup/hybrid"
+          ? "/play/hybrid"
           : "/lobby/new";
-    router.push(dest as any);
+    router.push(dest);
   };
 
   return (
@@ -279,7 +279,7 @@ export default function CreatePartyScreen() {
         {/* ── Advanced setup links ── */}
         <View className="mt-6 flex-row flex-wrap gap-2">
           {ADVANCED_LINKS.map((l) => (
-            <Link key={l.to} href={l.to as any} asChild>
+            <Link key={l.label} href={l.to} asChild>
               <TouchableOpacity
                 activeOpacity={0.8}
                 style={{ width: "48.5%" }}
@@ -294,15 +294,14 @@ export default function CreatePartyScreen() {
 
         {/* ── Actions ── */}
         <View className="mt-8 flex-row gap-3">
-          <Link href="/" asChild>
-            <TouchableOpacity
-              activeOpacity={0.8}
-              style={{ flex: 1 }}
-              className="h-14 items-center justify-center rounded-2xl border border-border"
-            >
-              <Text className="text-foreground text-sm font-semibold">Save draft</Text>
-            </TouchableOpacity>
-          </Link>
+          <TouchableOpacity
+            onPress={() => { }}
+            activeOpacity={0.8}
+            style={{ flex: 1 }}
+            className="h-14 items-center justify-center rounded-2xl border border-border"
+          >
+            <Text className="text-foreground text-sm font-semibold">Save draft</Text>
+          </TouchableOpacity>
 
           <TouchableOpacity
             onPress={handleLaunch}
