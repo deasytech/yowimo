@@ -1,5 +1,7 @@
 import GoBack from "@/components/shared/GoBack";
+import Toast from "@/components/shared/Toast";
 import { FRIENDS, PARTIES } from "@/data/mock";
+import { useToast } from "@/hooks/useToast";
 import * as Clipboard from "expo-clipboard";
 import { LinearGradient as RNLinearGradient } from "expo-linear-gradient";
 import { Link, useLocalSearchParams, useRouter } from "expo-router";
@@ -13,6 +15,7 @@ import {
   Video,
 } from "lucide-react-native";
 import { styled } from "nativewind";
+import { useState } from "react";
 import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
 
@@ -29,17 +32,34 @@ const SETTINGS_ROWS = [
 ];
 
 export default function LobbyScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { slug: id } = useLocalSearchParams<{ slug: string }>();
   const router = useRouter();
   const party = PARTIES.find((p) => p.id === id) ?? PARTIES[0];
 
+  const toast = useToast();
+  const [toastMessage, setToastMessage] = useState("Copied!");
+  const [toastBg, setToastBg] = useState("bg-green-600");
+
   const handleCopy = async () => {
-    await Clipboard.setStringAsync("YW-7K2");
-    // Swap for your toast system
+    try {
+      await Clipboard.setStringAsync("YW-7K2");
+      setToastMessage("Room code copied!");
+      setToastBg("bg-green-600");
+    } catch {
+      setToastMessage("Failed to copy room code");
+      setToastBg("bg-red-600");
+    }
+    toast.showToast();
   };
 
   return (
     <SafeAreaView className="flex-1 bg-background">
+      <Toast
+        opacity={toast.opacity}
+        isVisible={toast.isVisible}
+        message={toastMessage}
+        bgClass={toastBg}
+      />
       <ScrollView
         className="flex-1"
         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 32 }}

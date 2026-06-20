@@ -1,4 +1,3 @@
-import Header from "@/components/Header";
 import { styled } from "nativewind";
 import { ScrollView, Text, View } from "react-native";
 import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
@@ -16,7 +15,6 @@ const ITEMS = [
 export default function NotificationsScreen() {
   return (
     <SafeAreaView className="flex-1 bg-background">
-      <Header />
       <ScrollView
         className="flex-1"
         contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 32 }}
