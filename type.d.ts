@@ -1,10 +1,18 @@
+import { LucideIcon } from "lucide-react-native";
 import { ImageSourcePropType } from "react-native";
 
 declare global {
   interface ListHeadingProps {
     title: string;
-    actionText: string;
+    titleSize?: string;
+    link?: string;
+    actionText?: string;
+    actionTextSize?: string;
     iconSet?: boolean;
+    lucideIcon?: LucideIcon;
+    iconColor?: string;
+    iconSize?: number;
+    iconStroke?: number;
   }
 
   interface GameTypeProps {
@@ -58,6 +66,13 @@ declare global {
     tokens?: number;
     title?: string;
     showLogo?: boolean;
+  }
+
+  interface GoBackProps {
+    title: string;
+    showTitle?: boolean;
+    rightIcon?: LucideIcon;
+    rightAction?: () => void;
   }
 }
 

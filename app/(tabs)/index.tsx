@@ -1,11 +1,11 @@
-import { posthog } from "@/lib/posthog";
 import { GradientText } from "@/components/brand/GradientText";
 import CrewOnline from "@/components/CrewOnline";
 import HeroCard from "@/components/HeroCard";
-import ListHeading from "@/components/ListHeading";
 import QuickDeckCard from "@/components/QuickDeckCard";
 import QuickDiscoverCard from "@/components/QuickDiscoverCard";
+import ListHeading from "@/components/shared/ListHeading";
 import { FRIENDS, GAME_TYPES, PARTIES, QUICK_ACTIONS } from "@/data/mock";
+import { posthog } from "@/lib/posthog";
 import { useUser } from "@clerk/expo";
 import { LinearGradient as RNLinearGradient } from 'expo-linear-gradient';
 import { Link } from "expo-router";
@@ -83,7 +83,7 @@ export default function HomeScreen() {
 
                 <View style={{ gap: 12 }}>
                     <View>
-                        <ListHeading title="Crew online" actionText="See all" />
+                        <ListHeading title="Crew online" actionText="See all" link="/profile/friends" />
                         <FlatList
                             data={_FRIENDS}
                             horizontal
@@ -98,7 +98,7 @@ export default function HomeScreen() {
                 </View>
 
                 <View>
-                    <ListHeading iconSet={true} title="Live now" actionText="Discover" />
+                    <ListHeading iconSet={true} title="Live now" actionText="Discover" link="/discover" />
                     <FlatList
                         data={_PARTIES}
                         horizontal
@@ -112,7 +112,7 @@ export default function HomeScreen() {
                 </View>
 
                 <View>
-                    <ListHeading title="Pick your deck" actionText="All games" />
+                    <ListHeading title="Pick your deck" actionText="All games" link="/play" />
                     <View
                         style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}
                         onLayout={(e) => setCardWidth((e.nativeEvent.layout.width - 12) / 2)}

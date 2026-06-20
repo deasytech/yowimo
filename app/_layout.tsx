@@ -8,6 +8,7 @@ import { ClerkProvider, useAuth } from '@clerk/expo';
 import { tokenCache } from '@clerk/expo/token-cache';
 import Constants, { ExecutionEnvironment } from "expo-constants";
 import { PostHogProvider } from 'posthog-react-native';
+import { StatusBar } from 'react-native';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -77,6 +78,7 @@ function RootLayoutContent() {
       }}
     >
       <Stack screenOptions={{ headerShown: false }} />
+      <StatusBar barStyle='light-content' />
     </PostHogProvider>
   );
 }

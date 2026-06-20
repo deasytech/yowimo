@@ -64,3 +64,11 @@ export const navigateHome = (decorateUrl: (url: string) => string) => {
     router.replace(url as Href);
   }
 };
+
+export const getInitials = (user: any) => {
+  if (!user) return "U";
+  const first = user.firstName ? user.firstName.charAt(0) : "";
+  const last = user.lastName ? user.lastName.charAt(0) : "";
+  const fallback = user.emailAddresses?.[0]?.emailAddress?.charAt(0) ?? "U";
+  return `${first}${last}`.toUpperCase() || fallback.toUpperCase();
+};

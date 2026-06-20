@@ -18,7 +18,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AuthInput from "@/components/shared/AuthInput";
 import SocialBtn from "@/components/shared/SocialBtn";
 import { posthog } from "@/lib/posthog";
-import { navigateHome } from "@/lib/utils";
 import * as WebBrowser from "expo-web-browser";
 
 // Required — cleans up the browser session on Android
@@ -105,9 +104,8 @@ export default function SignInScreen() {
       posthog.capture('mfa_verified', { method: 'email_code' });
       posthog.capture('sign_in_completed', { method: 'email_mfa' });
       await signIn.finalize({
-        navigate: ({ session, decorateUrl }) => {
-          if (session?.currentTask) return;
-          navigateHome(decorateUrl);
+        navigate: ({ session }) => {
+          console.log(session.currentTask);
         },
       });
     } else {
@@ -271,10 +269,9 @@ export default function SignInScreen() {
           <TouchableOpacity
             onPress={() => router.back()}
             activeOpacity={0.7}
-            className="flex-row items-center gap-1.5 px-5 py-4"
+            className="h-10 w-10 items-center justify-center rounded-full bg-card border border-border"
           >
-            <ArrowLeft color="rgba(255,255,255,0.70)" size={16} strokeWidth={2} />
-            <Text className="text-white/70 text-sm font-medium">Back</Text>
+            <ArrowLeft color="#fff" size={16} strokeWidth={2} />
           </TouchableOpacity>
 
           {/* Logo + heading */}

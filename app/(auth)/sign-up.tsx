@@ -1,7 +1,6 @@
 import AuthInput from "@/components/shared/AuthInput";
 import SocialBtn from "@/components/shared/SocialBtn";
 import { posthog } from "@/lib/posthog";
-import { navigateHome } from "@/lib/utils";
 import { useAuth, useSignUp, useSSO } from "@clerk/expo";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Linking from "expo-linking";
@@ -37,6 +36,8 @@ export default function SignUpScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
@@ -46,12 +47,22 @@ export default function SignUpScreen() {
   const isLoading = fetchStatus === "fetching";
 
   // Validation
+  const [firstNameTouched, setFirstNameTouched] = useState(false);
+  const [lastNameTouched, setLastNameTouched] = useState(false);
   const [emailTouched, setEmailTouched] = useState(false);
   const [passwordTouched, setPasswordTouched] = useState(false);
+
+  const firstNameValid = firstName.trim().length > 0;
+  const lastNameValid = lastName.trim().length > 0;
   const emailValid =
     email.length === 0 || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   const passwordValid = password.length === 0 || password.length >= 8;
-  const formValid = email.length > 0 && password.length >= 8 && emailValid;
+  const formValid =
+    firstNameValid &&
+    lastNameValid &&
+    email.length > 0 &&
+    password.length >= 8 &&
+    emailValid;
 
   // ─── Determine current step from Clerk status (single source of truth) ───
   const isVerifyStep =
@@ -64,13 +75,14 @@ export default function SignUpScreen() {
     if (!formValid) return;
 
     const { error } = await signUp.password({
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
       emailAddress: email,
       password,
     });
 
     if (error) {
       posthog.capture('sign_up_failed', { method: 'email', error_code: error.code });
-      console.error(JSON.stringify(error, null, 2));
       return;
     }
 
@@ -83,7 +95,7 @@ export default function SignUpScreen() {
   const handleVerify = async () => {
     const { error } = await signUp.verifications.verifyEmailCode({ code });
     if (error) {
-      console.error("Email verification failed:", error);
+      console.log("Email verification failed:", error);
       return;
     }
 
@@ -95,9 +107,8 @@ export default function SignUpScreen() {
       posthog.capture('email_verified', { method: 'email_code' });
       posthog.capture('sign_up_completed', { method: 'email' });
       await signUp.finalize({
-        navigate: ({ session, decorateUrl }) => {
-          if (session?.currentTask) return;
-          navigateHome(decorateUrl);
+        navigate: ({ session }) => {
+          console.log(session?.currentTask);
         },
       });
     } else {
@@ -171,10 +182,9 @@ export default function SignUpScreen() {
             <TouchableOpacity
               onPress={() => signUp.reset?.()}
               activeOpacity={0.7}
-              className="flex-row items-center gap-1.5 px-5 py-4"
+              className="h-10 w-10 items-center justify-center rounded-full bg-card border border-border"
             >
-              <ArrowLeft color="rgba(255,255,255,0.70)" size={16} strokeWidth={2} />
-              <Text className="text-white/70 text-sm font-medium">Back</Text>
+              <ArrowLeft color="#fff" size={16} strokeWidth={2} />
             </TouchableOpacity>
 
             <View className="items-center mt-4 mb-8 px-5 gap-4">
@@ -263,14 +273,12 @@ export default function SignUpScreen() {
           }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+        ><TouchableOpacity
+          onPress={() => router.back()}
+          activeOpacity={0.7}
+          className="h-10 w-10 items-center justify-center rounded-full bg-card border border-border"
         >
-          <TouchableOpacity
-            onPress={() => router.back()}
-            activeOpacity={0.7}
-            className="flex-row items-center gap-1.5 px-5 py-4"
-          >
-            <ArrowLeft color="rgba(255,255,255,0.70)" size={16} strokeWidth={2} />
-            <Text className="text-white/70 text-sm font-medium">Back</Text>
+            <ArrowLeft color="#fff" size={16} strokeWidth={2} />
           </TouchableOpacity>
 
           <View className="items-center mt-4 mb-8 px-5 gap-4">
@@ -290,6 +298,48 @@ export default function SignUpScreen() {
           </View>
 
           <View className="px-5 gap-3">
+            <View className="flex-row gap-3">
+              <View className="flex-1">
+                <AuthInput
+                  placeholder="First name"
+                  value={firstName}
+                  onChangeText={setFirstName}
+                  autoCapitalize="words"
+                  onBlur={() => setFirstNameTouched(true)}
+                />
+                {firstNameTouched && !firstNameValid && (
+                  <Text className="text-red-400 text-xs mt-1 ml-1">
+                    Required
+                  </Text>
+                )}
+                {errors.fields.firstName && (
+                  <Text className="text-red-400 text-xs mt-1 ml-1">
+                    {errors.fields.firstName.message}
+                  </Text>
+                )}
+              </View>
+
+              <View className="flex-1">
+                <AuthInput
+                  placeholder="Last name"
+                  value={lastName}
+                  onChangeText={setLastName}
+                  autoCapitalize="words"
+                  onBlur={() => setLastNameTouched(true)}
+                />
+                {lastNameTouched && !lastNameValid && (
+                  <Text className="text-red-400 text-xs mt-1 ml-1">
+                    Required
+                  </Text>
+                )}
+                {errors.fields.lastName && (
+                  <Text className="text-red-400 text-xs mt-1 ml-1">
+                    {errors.fields.lastName.message}
+                  </Text>
+                )}
+              </View>
+            </View>
+
             <View>
               <AuthInput
                 placeholder="Email address"
