@@ -2,7 +2,7 @@ import clsx from 'clsx';
 import { Href, Link } from 'expo-router';
 import { Text, TouchableOpacity, View } from 'react-native';
 
-const ListHeading = ({ title, titleSize, link = '/', actionText, actionTextSize, iconSet, lucideIcon: Icon, iconColor, iconSize, iconStroke }: ListHeadingProps) => {
+const ListHeading = ({ title, titleSize, link, actionText, actionTextSize, iconSet, lucideIcon: Icon, iconColor, iconSize, iconStroke }: ListHeadingProps) => {
   return (
     <View className='flex-1 flex-row items-center justify-between my-5'>
       <View className='flex-row items-center gap-2'>
@@ -22,11 +22,13 @@ const ListHeading = ({ title, titleSize, link = '/', actionText, actionTextSize,
           )}
         >{title}</Text>
       </View>
-      <Link href={link as Href} asChild>
-        <TouchableOpacity>
-          <Text className={clsx('font-sans text-muted-foreground', actionTextSize ?? 'text-md')}>{actionText}</Text>
-        </TouchableOpacity>
-      </Link>
+      {actionText && link &&
+        <Link href={link as Href} asChild>
+          <TouchableOpacity>
+            <Text className={clsx('font-sans text-muted-foreground', actionTextSize ?? 'text-md')}>{actionText}</Text>
+          </TouchableOpacity>
+        </Link>
+      }
     </View>
   )
 }

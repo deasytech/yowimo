@@ -6,7 +6,7 @@ declare global {
     title: string;
     titleSize?: string;
     link?: string;
-    actionText: string;
+    actionText?: string;
     actionTextSize?: string;
     iconSet?: boolean;
     lucideIcon?: LucideIcon;

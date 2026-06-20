@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Animated } from "react-native";
 
 export interface ToastConfig {
@@ -20,6 +20,14 @@ export function useToast(config: ToastConfig = {}) {
   const [isVisible, setIsVisible] = useState(false);
   const opacity = useRef(new Animated.Value(0)).current;
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup timeouts and animations on unmount to prevent state updates on unmounted components
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      opacity.stopAnimation();
+    };
+  }, []);
 
   const showToast = () => {
     // Clear any existing timer

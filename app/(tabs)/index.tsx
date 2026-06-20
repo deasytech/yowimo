@@ -83,7 +83,7 @@ export default function HomeScreen() {
 
                 <View style={{ gap: 12 }}>
                     <View>
-                        <ListHeading title="Crew online" actionText="See all" />
+                        <ListHeading title="Crew online" actionText="See all" link="/profile/friends" />
                         <FlatList
                             data={_FRIENDS}
                             horizontal
@@ -98,7 +98,7 @@ export default function HomeScreen() {
                 </View>
 
                 <View>
-                    <ListHeading iconSet={true} title="Live now" actionText="Discover" />
+                    <ListHeading iconSet={true} title="Live now" actionText="Discover" link="/discover" />
                     <FlatList
                         data={_PARTIES}
                         horizontal
@@ -112,7 +112,7 @@ export default function HomeScreen() {
                 </View>
 
                 <View>
-                    <ListHeading title="Pick your deck" actionText="All games" />
+                    <ListHeading title="Pick your deck" actionText="All games" link="/play" />
                     <View
                         style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}
                         onLayout={(e) => setCardWidth((e.nativeEvent.layout.width - 12) / 2)}

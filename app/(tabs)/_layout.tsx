@@ -1,7 +1,7 @@
 import Header from "@/components/Header";
 import { useAuth } from "@clerk/expo";
 import { LinearGradient } from "expo-linear-gradient";
-import { Redirect, Tabs } from "expo-router";
+import { Redirect, Tabs, useSegments } from "expo-router";
 import { Compass, Home, Plus, User, Wallet } from "lucide-react-native";
 import { useEffect, useRef } from "react";
 import { Animated, View } from "react-native";
@@ -106,6 +106,8 @@ const PulsingPlusIcon = () => {
 const TabLayout = () => {
 
   const { isSignedIn, isLoaded } = useAuth();
+  const segments = useSegments();
+  const hideHeader = segments[1] === "discover";
 
   // Wait for auth to load before rendering anything
   if (!isLoaded) {
@@ -119,7 +121,7 @@ const TabLayout = () => {
 
   return (
     <>
-      <Header />
+      {!hideHeader && <Header />}
 
       <Tabs
         screenOptions={{

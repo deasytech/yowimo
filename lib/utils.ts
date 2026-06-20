@@ -66,8 +66,9 @@ export const navigateHome = (decorateUrl: (url: string) => string) => {
 };
 
 export const getInitials = (user: any) => {
-  if (!user) return "";
+  if (!user) return "U";
   const first = user.firstName ? user.firstName.charAt(0) : "";
   const last = user.lastName ? user.lastName.charAt(0) : "";
-  return `${first}${last}`.toUpperCase();
+  const fallback = user.emailAddresses?.[0]?.emailAddress?.charAt(0) ?? "U";
+  return `${first}${last}`.toUpperCase() || fallback.toUpperCase();
 };

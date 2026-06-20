@@ -8,6 +8,8 @@ const GoBack = ({ title, showTitle = true, rightIcon: Icon, rightAction }: GoBac
       <TouchableOpacity
         onPress={() => router.back()}
         activeOpacity={0.8}
+        accessibilityRole="button"
+        accessibilityLabel="Go back"
         className="h-10 w-10 items-center justify-center rounded-full bg-card border border-border"
       >
         <ArrowLeft color="#fff" size={16} strokeWidth={2} />
@@ -19,6 +21,9 @@ const GoBack = ({ title, showTitle = true, rightIcon: Icon, rightAction }: GoBac
       {Icon && <TouchableOpacity
         onPress={rightAction}
         activeOpacity={0.8}
+        accessibilityRole="button"
+        accessibilityLabel="Header action"
+        disabled={!rightAction}
         className="h-10 w-10 items-center justify-center rounded-full bg-card border border-border"
       >
         <Icon color="#fff" size={16} strokeWidth={2} />

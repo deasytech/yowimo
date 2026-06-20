@@ -1,4 +1,5 @@
 import { Check } from "lucide-react-native";
+import React, { ReactNode } from "react";
 import { Animated, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -12,7 +13,7 @@ interface ToastProps {
   /** Vertical offset from top (default: safa area top + 60) */
   topOffset?: number;
   /** Icon to show before the message. Pass null for no icon. Default: Check */
-  icon?: React.ReactNode;
+  icon?: ReactNode;
   /** Background colour class (default: bg-green-600) */
   bgClass?: string;
 }

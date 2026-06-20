@@ -1,7 +1,6 @@
 import GoBack from "@/components/shared/GoBack";
 import { FRIENDS } from "@/data/mock";
 import { LinearGradient as RNLinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
 import { Search, UserPlus } from "lucide-react-native";
 import { styled } from "nativewind";
 import { useState } from "react";
@@ -17,10 +16,9 @@ import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
 const SafeAreaView = styled(RNSafeAreaView);
 const LinearGradient = styled(RNLinearGradient);
 
-const TABS = ["All", "Online", "In game", "Requests"];
+const TABS = ["All", "Online", "In game"];
 
 export default function FriendsListScreen() {
-  const router = useRouter();
   const [tab, setTab] = useState("All");
   const [q, setQ] = useState("");
 
@@ -153,7 +151,7 @@ export default function FriendsListScreen() {
             </View>
 
             {/* Invite */}
-            <TouchableOpacity activeOpacity={0.85}>
+            <TouchableOpacity activeOpacity={0.85} onPress={() => { }}>
               <LinearGradient
                 colors={["#7A1EFF", "#B03BFF"]}
                 className="rounded-xl px-3 py-1.5"

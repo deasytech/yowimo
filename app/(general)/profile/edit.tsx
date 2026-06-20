@@ -5,6 +5,7 @@ import { ArrowLeft, Camera, Check, ChevronDown } from "lucide-react-native";
 import { styled } from "nativewind";
 import React, { useState } from "react";
 import {
+  Alert,
   Image,
   KeyboardAvoidingView,
   Modal,
@@ -202,12 +203,10 @@ export default function EditProfileScreen() {
 
   const onSave = () => {
     if (!form.displayName.trim() || !form.username.trim()) {
-      // Swap for your toast system
-      console.warn("Missing info: Name and username are required.");
+      Alert.alert("Missing info", "Name and username are required.");
       return;
     }
-    // Swap for your toast system
-    console.log("Profile updated");
+    Alert.alert("Success", "Profile updated.");
     router.push("/profile");
   };
 
@@ -275,7 +274,7 @@ export default function EditProfileScreen() {
               </LinearGradient>
             </TouchableOpacity>
             <Text className="mt-3 text-muted-foreground text-xs">
-              Tap to change photo · max 5MB
+              Tap to change photo
             </Text>
           </View>
 
