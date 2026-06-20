@@ -56,7 +56,7 @@ const Header = ({
           </TouchableOpacity>
         </Link>
 
-        <Link href="/" asChild>
+        <Link href="/notifications" asChild>
           <TouchableOpacity activeOpacity={0.8}>
             <IconBtn>
               <Bell color="#fff" size={16} strokeWidth={2} />

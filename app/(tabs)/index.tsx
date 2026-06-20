@@ -1,11 +1,11 @@
-import { posthog } from "@/lib/posthog";
 import { GradientText } from "@/components/brand/GradientText";
 import CrewOnline from "@/components/CrewOnline";
 import HeroCard from "@/components/HeroCard";
-import ListHeading from "@/components/ListHeading";
 import QuickDeckCard from "@/components/QuickDeckCard";
 import QuickDiscoverCard from "@/components/QuickDiscoverCard";
+import ListHeading from "@/components/shared/ListHeading";
 import { FRIENDS, GAME_TYPES, PARTIES, QUICK_ACTIONS } from "@/data/mock";
+import { posthog } from "@/lib/posthog";
 import { useUser } from "@clerk/expo";
 import { LinearGradient as RNLinearGradient } from 'expo-linear-gradient';
 import { Link } from "expo-router";

@@ -189,6 +189,12 @@ const TabLayout = () => {
             ),
           }}
         />
+        <Tabs.Screen
+          name="notifications"
+          options={{
+            href: null,
+          }}
+        />
       </Tabs>
     </>
   )
