@@ -3,6 +3,7 @@ import Toast from "@/components/shared/Toast";
 import { FRIENDS, PARTIES } from "@/data/mock";
 import { useToast } from "@/hooks/useToast";
 import * as Clipboard from "expo-clipboard";
+import { Image } from "expo-image";
 import { LinearGradient as RNLinearGradient } from "expo-linear-gradient";
 import { Link, useLocalSearchParams, useRouter } from "expo-router";
 import {
@@ -68,25 +69,39 @@ export default function LobbyScreen() {
         <GoBack title="Lobby" />
 
         {/* ── Hero card ── */}
-        <LinearGradient
-          colors={party.cover ?? ["#7A1EFF", "#D84CFF"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          className="mt-4 rounded-3xl p-6 overflow-hidden"
-        >
-          <View className="self-start rounded-full bg-ink/40 px-3 py-1">
-            <Text
-              className="text-white text-[11px] font-semibold uppercase"
-              style={{ letterSpacing: 0.5 }}
-            >
-              {party.type} · {party.mode}
+        <View className="mt-4 min-h-52.5 overflow-hidden rounded-3xl">
+          {party.image && (
+            <Image
+              source={party.image}
+              contentFit="cover"
+              accessibilityLabel={`${party.title} party`}
+              style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+            />
+          )}
+          <LinearGradient
+            colors={
+              party.image
+                ? ["rgba(13,13,18,0.08)", "rgba(13,13,18,0.92)"]
+                : party.cover ?? ["#7A1EFF", "#D84CFF"]
+            }
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0, y: 1 }}
+            className="min-h-52.5 justify-end p-6"
+          >
+            <View className="self-start rounded-full bg-ink/40 px-3 py-1">
+              <Text
+                className="text-white text-[11px] font-semibold uppercase"
+                style={{ letterSpacing: 0.5 }}
+              >
+                {party.type} · {party.mode}
+              </Text>
+            </View>
+            <Text className="mt-3 text-white text-3xl font-bold leading-tight">
+              {party.title}
             </Text>
-          </View>
-          <Text className="mt-3 text-white text-3xl font-bold leading-tight">
-            {party.title}
-          </Text>
-          <Text className="mt-1 text-white/80 text-sm">Hosted by {party.host}</Text>
-        </LinearGradient>
+            <Text className="mt-1 text-white/80 text-sm">Hosted by {party.host}</Text>
+          </LinearGradient>
+        </View>
 
         {/* ── Code + QR ── */}
         <View className="mt-5 flex-row gap-3">
@@ -117,7 +132,7 @@ export default function LobbyScreen() {
                 <Text className="text-foreground text-xs font-medium">Copy</Text>
               </TouchableOpacity>
 
-              <Link href="/" asChild>
+              <Link href="/play/invite" asChild>
                 <TouchableOpacity
                   activeOpacity={0.8}
                   className="flex-row items-center gap-1 rounded-full bg-secondary px-3 py-1.5"

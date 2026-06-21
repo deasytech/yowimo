@@ -11,8 +11,8 @@ import {
 import { styled } from "nativewind";
 import { useMemo, useRef, useState } from "react";
 import {
-  Dimensions,
   FlatList,
+  LayoutChangeEvent,
   ScrollView,
   Text,
   TextInput,
@@ -24,8 +24,6 @@ import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
 
 const SafeAreaView = styled(RNSafeAreaView);
 const LinearGradient = styled(RNLinearGradient);
-
-const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 const FILTERS = [
   "For you",
@@ -50,6 +48,8 @@ export default function DiscoverScreen() {
   const [muted, setMuted] = useState(true);
   const [liked, setLiked] = useState<Record<string, boolean>>({});
   const [activeIdx, setActiveIdx] = useState(0);
+  const [feedHeight, setFeedHeight] = useState(0);
+  const [headerHeight, setHeaderHeight] = useState(0);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -102,8 +102,13 @@ export default function DiscoverScreen() {
 
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 60 }).current;
 
+  const handleFeedLayout = (event: LayoutChangeEvent) => {
+    const nextHeight = Math.round(event.nativeEvent.layout.height);
+    if (nextHeight > 0 && nextHeight !== feedHeight) setFeedHeight(nextHeight);
+  };
+
   return (
-    <View className="flex-1 bg-background">
+    <View className="flex-1 bg-background" onLayout={handleFeedLayout}>
       {/* ── Feed ── */}
       {visible.length === 0 ? (
         <View className="flex-1 items-center justify-center px-8">
@@ -122,6 +127,8 @@ export default function DiscoverScreen() {
           renderItem={({ item, index }) => (
             <PartyCard
               party={item}
+              height={feedHeight}
+              statusTop={headerHeight}
               active={index === activeIdx}
               liked={!!liked[item.id]}
               onLike={() => toggleLike(item.id)}
@@ -129,29 +136,32 @@ export default function DiscoverScreen() {
           )}
           pagingEnabled
           showsVerticalScrollIndicator={false}
-          snapToInterval={SCREEN_HEIGHT}
+          snapToInterval={feedHeight || undefined}
           snapToAlignment="start"
           decelerationRate="fast"
           onViewableItemsChanged={onViewableItemsChanged}
           viewabilityConfig={viewabilityConfig}
-          getItemLayout={(_, index) => ({
-            length: SCREEN_HEIGHT,
-            offset: SCREEN_HEIGHT * index,
+          getItemLayout={feedHeight ? (_, index) => ({
+            length: feedHeight,
+            offset: feedHeight * index,
             index,
-          })}
+          }) : undefined}
         />
       )}
 
       {/* ── Top overlay: search + filters ── */}
-      <SafeAreaView
-        className="absolute inset-x-0 -top-16"
+      <LinearGradient
+        colors={["#101015", "rgba(16,16,21,0.92)", "rgba(16,16,21,0.68)", "transparent"]}
+        className="absolute inset-x-0 top-0"
         pointerEvents="box-none"
+        onLayout={(event) => setHeaderHeight(Math.round(event.nativeEvent.layout.height))}
       >
-        <LinearGradient
-          colors={["rgba(16,16,21,0.95)", "rgba(16,16,21,0.70)", "transparent"]}
-          className="px-4 pb-6 pt-2"
+        <SafeAreaView
+          className="pb-5 pt-2"
+          style={{ paddingHorizontal: 16 }}
+          pointerEvents="box-none"
         >
-          <View className="flex-row items-center gap-2 mt-16">
+          <View className="flex-row items-center gap-2">
             <Text className="text-violet text-2xl font-bold tracking-tight">
               Discover
             </Text>
@@ -211,7 +221,7 @@ export default function DiscoverScreen() {
             horizontal
             showsHorizontalScrollIndicator={false}
             style={{ flexGrow: 0, marginTop: 12 }}
-            contentContainerStyle={{ gap: 8, alignItems: "center" }}
+            contentContainerStyle={{ gap: 8, alignItems: "center", paddingRight: 24 }}
           >
             {FILTERS.map((f) => {
               const active = filter === f;
@@ -238,8 +248,8 @@ export default function DiscoverScreen() {
               );
             })}
           </ScrollView>
-        </LinearGradient>
-      </SafeAreaView>
+        </SafeAreaView>
+      </LinearGradient>
     </View>
   );
 }

@@ -10,8 +10,6 @@ import Constants, { ExecutionEnvironment } from "expo-constants";
 import { PostHogProvider } from 'posthog-react-native';
 import { StatusBar } from 'react-native';
 
-SplashScreen.preventAutoHideAsync();
-
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY as string
 
 if (!publishableKey) {
@@ -58,9 +56,19 @@ function RootLayoutContent() {
   })
 
   useEffect(() => {
+    SplashScreen.preventAutoHideAsync()
+      .catch(() => {
+        // Native splash screen may not be available (e.g. dev builds, web)
+      });
+  }, []);
+
+  useEffect(() => {
     // Hide splash only when both fonts and auth are loaded
     if (fontsLoaded && authLoaded) {
       SplashScreen.hideAsync()
+        .catch(() => {
+          // Native splash screen may not be available
+        });
     }
   }, [fontsLoaded, authLoaded])
 

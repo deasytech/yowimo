@@ -9,7 +9,13 @@ const LinearGradient = styled(RNLinearGradient);
 
 const QuickDiscoverCard = ({ data }: { data: PartyProps }) => {
   return (
-    <Link href='/' asChild>
+    <Link
+      href={{
+        pathname: "/lobby/[slug]",
+        params: { slug: data.id },
+      }}
+      asChild
+    >
       <TouchableOpacity
         activeOpacity={0.85}
         className='w-72 mr-4 overflow-hidden bg-[#1C1C26] rounded-3xl'

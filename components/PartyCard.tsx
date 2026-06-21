@@ -3,25 +3,29 @@ import { Link } from 'expo-router';
 import { Heart, MessageCircle, Plus, Share2, Users } from 'lucide-react-native';
 import { styled } from 'nativewind';
 import React from 'react';
-import { Dimensions, Image, Text, TouchableOpacity, View } from 'react-native';
+import { Image, Text, TouchableOpacity, View } from 'react-native';
 
 const LinearGradient = styled(RNLinearGradient);
 
 const PartyCard = ({
   party,
+  height,
+  statusTop,
   active,
   liked,
   onLike,
 }: {
   party: PartyProps;
+  height: number;
+  statusTop: number;
   active: boolean;
   liked: boolean;
   onLike: () => void;
 }) => {
-  const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+  const compact = height > 0 && height < 720;
 
   return (
-    <View style={{ height: SCREEN_HEIGHT, width: "100%" }} className="relative overflow-hidden">
+    <View style={{ height: height || "100%", width: "100%" }} className="relative overflow-hidden">
       {/* Background gradient + image */}
       <LinearGradient
         colors={party.cover ?? ["#7A1EFF", "#D84CFF"]}
@@ -66,8 +70,8 @@ const PartyCard = ({
 
       {/* ── Live badge / sponsored ── */}
       <View
-        className="absolute left-4 z-10 flex-row flex-wrap items-center gap-2 mt-14"
-        style={{ top: 128 }}
+        className="absolute left-4 right-4 z-10 flex-row flex-wrap items-center gap-2"
+        style={{ top: Math.max(statusTop, compact ? 132 : 148) }}
       >
         {party.isLive ? (
           <View className="flex-row items-center gap-1.5 rounded-full bg-red-500/90 px-2.5 py-1">
@@ -106,16 +110,19 @@ const PartyCard = ({
       </View>
 
       {/* ── Right-side action rail ── */}
-      <View className="absolute right-3 z-20 items-center gap-5" style={{ bottom: 176 }}>
+      <View
+        className="absolute right-3 z-20 items-center"
+        style={{ bottom: compact ? 164 : 176, gap: compact ? 12 : 20 }}
+      >
         <TouchableOpacity onPress={onLike} activeOpacity={0.85} className="items-center">
           <View
-            className={`h-12 w-12 items-center justify-center rounded-full ${liked ? "bg-red-500/90" : "bg-white/15"
+            className={`${compact ? "h-10 w-10" : "h-12 w-12"} items-center justify-center rounded-full ${liked ? "bg-red-500/90" : "bg-white/15"
               }`}
           >
             <Heart
               color="#fff"
               fill={liked ? "#fff" : "transparent"}
-              size={24}
+              size={compact ? 21 : 24}
               strokeWidth={2}
             />
           </View>
@@ -125,8 +132,8 @@ const PartyCard = ({
         </TouchableOpacity>
 
         <TouchableOpacity activeOpacity={0.85} className="items-center">
-          <View className="h-12 w-12 items-center justify-center rounded-full bg-white/15">
-            <MessageCircle color="#fff" size={24} strokeWidth={2} />
+          <View className={`${compact ? "h-10 w-10" : "h-12 w-12"} items-center justify-center rounded-full bg-white/15`}>
+            <MessageCircle color="#fff" size={compact ? 21 : 24} strokeWidth={2} />
           </View>
           <Text className="mt-1 text-white text-[11px] font-semibold">
             {party.players * 3}
@@ -134,8 +141,8 @@ const PartyCard = ({
         </TouchableOpacity>
 
         <TouchableOpacity activeOpacity={0.85} className="items-center">
-          <View className="h-12 w-12 items-center justify-center rounded-full bg-white/15">
-            <Share2 color="#fff" size={24} strokeWidth={2} />
+          <View className={`${compact ? "h-10 w-10" : "h-12 w-12"} items-center justify-center rounded-full bg-white/15`}>
+            <Share2 color="#fff" size={compact ? 21 : 24} strokeWidth={2} />
           </View>
           <Text className="mt-1 text-white text-[11px] font-semibold">Share</Text>
         </TouchableOpacity>
@@ -145,7 +152,7 @@ const PartyCard = ({
             colors={["#7A1EFF", "#D84CFF", "#FF8A2A"]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
-            className="h-12 w-12 items-center justify-center rounded-full"
+            className={`${compact ? "h-10 w-10" : "h-12 w-12"} items-center justify-center rounded-full`}
             style={{ borderWidth: 2, borderColor: "#fff" }}
           >
             <Text className="text-white text-sm font-bold">{party.hostAvatar}</Text>
@@ -161,21 +168,27 @@ const PartyCard = ({
       </View>
 
       {/* ── Bottom content ── */}
-      <View className="absolute inset-x-0 z-10 px-5" style={{ bottom: 112, paddingRight: 80 }}>
+      <View
+        className="absolute inset-x-0 z-10 px-5"
+        style={{ bottom: compact ? 96 : 112, paddingRight: compact ? 68 : 80 }}
+      >
         <Text
           className="text-magenta text-xs font-bold uppercase"
           style={{ letterSpacing: 2 }}
         >
           {party.type}
         </Text>
-        <Text className="mt-1.5 text-white text-2xl font-extrabold leading-tight">
+        <Text
+          className={`${compact ? "mt-1 text-xl" : "mt-1.5 text-2xl"} text-white font-extrabold leading-tight`}
+          numberOfLines={2}
+        >
           {party.title}
         </Text>
         <Text className="mt-1.5 text-white/80 text-sm">
           Hosted by <Text className="text-white font-semibold">{party.host}</Text>
         </Text>
 
-        <View className="mt-3 flex-row flex-wrap gap-1.5">
+        <View className={`${compact ? "mt-2" : "mt-3"} flex-row flex-wrap gap-1.5`}>
           {party.tags.map((t) => (
             <View key={t} className="rounded-full bg-white/15 px-2.5 py-1">
               <Text className="text-white text-[11px] font-semibold">
@@ -185,14 +198,14 @@ const PartyCard = ({
           ))}
         </View>
 
-        <View className="mt-4 flex-row items-center gap-3">
-          <Link href={`/lobby/${party.id.split("-")[0]}`} asChild>
+        <View className={`${compact ? "mt-3" : "mt-4"} flex-row items-center gap-3`}>
+          <Link href={`/lobby/${party.id}`} asChild>
             <TouchableOpacity activeOpacity={0.9} style={{ flex: 1 }}>
               <LinearGradient
                 colors={["#7A1EFF", "#D84CFF", "#FF8A2A"]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
-                className="rounded-2xl py-3.5 items-center"
+                className={`rounded-2xl ${compact ? "py-3" : "py-3.5"} items-center`}
               >
                 <Text className="text-white text-sm font-bold">
                   {party.isLive ? "Jump in" : "Join party"}

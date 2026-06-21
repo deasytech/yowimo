@@ -1,5 +1,6 @@
 import { posthog } from "@/lib/posthog";
 import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
 import {
   Image,
   Text,
@@ -13,10 +14,15 @@ const QuickDeckCard = ({
   height,
   onPress,
 }: GameCardProps) => {
+  const router = useRouter();
 
   const handlePress = () => {
     posthog.capture('game_deck_selected', { game_id: game.id, game_name: game.name, game_cost: game.cost, intensity: game.intensity });
     onPress?.();
+    router.push({
+      pathname: "/play",
+      params: { gameId: game.id },
+    });
   };
 
   return (

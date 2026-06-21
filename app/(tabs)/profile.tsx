@@ -114,7 +114,7 @@ const ProfileScreen = () => {
 
           <View>
             <ListHeading
-              title={"Friends · 86"}
+              title={`Friends · ${FRIENDS.length}`}
               titleSize="text-lg"
               link="/profile/friends"
               actionText="Manage"

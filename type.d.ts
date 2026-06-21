@@ -13,6 +13,7 @@ declare global {
     iconColor?: string;
     iconSize?: number;
     iconStroke?: number;
+    verticalPadding?: string;
   }
 
   interface GameTypeProps {
@@ -44,6 +45,7 @@ declare global {
     type: string;
     mode: "Online" | "In-person" | "Hybrid";
     startsIn: string;
+    distanceKm?: number;
     cover: readonly [string, string];
     image?: ImageSourcePropType;
     tags: string[];

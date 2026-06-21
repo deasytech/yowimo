@@ -1,14 +1,26 @@
 import { GAME_TYPES } from "@/data/mock";
 import { LinearGradient as RNLinearGradient } from "expo-linear-gradient";
-import { Href, Link, useRouter } from "expo-router";
+import { Href, Link, useLocalSearchParams, useRouter } from "expo-router";
 import { Globe, Lock, Sparkles, Tv, Users } from "lucide-react-native";
 import { styled } from "nativewind";
-import { useState } from "react";
-import { Image, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { useEffect, useState } from "react";
+import {
+  Image,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
 
 const LinearGradient = styled(RNLinearGradient);
 const SafeAreaView = styled(RNSafeAreaView);
+
+const GRID_PADDING = 20; // matches contentContainerStyle paddingHorizontal
+const GRID_GAP = 12; // matches gap-3
+const GRID_COLUMNS = 3;
+const ADVANCED_LINK_GAP = 8; // matches gap-2
 
 const MODES = [
   { id: "Online" as const, Icon: Globe },
@@ -29,11 +41,34 @@ const ADVANCED_LINKS: { to: Href; label: string; emoji: string }[] = [
 
 export default function CreatePartyScreen() {
   const router = useRouter();
-  const [game, setGame] = useState(GAME_TYPES[0].id);
+  const { gameId } = useLocalSearchParams<{ gameId?: string }>();
+  const { width: windowWidth } = useWindowDimensions();
+  const [game, setGame] = useState(
+    () => GAME_TYPES.find((item) => item.id === gameId)?.id ?? GAME_TYPES[0].id,
+  );
   const [mode, setMode] = useState<"Online" | "In-person" | "Hybrid">("Online");
   const [visibility, setVisibility] = useState<"public" | "private">("private");
+  const [gridWidth, setGridWidth] = useState(windowWidth - GRID_PADDING * 2);
+  const [advancedLinksWidth, setAdvancedLinksWidth] = useState(
+    windowWidth - GRID_PADDING * 2,
+  );
 
   const selected = GAME_TYPES.find((g) => g.id === game)!;
+
+  useEffect(() => {
+    const requestedGame = GAME_TYPES.find((item) => item.id === gameId);
+
+    if (requestedGame) {
+      setGame(requestedGame.id);
+    }
+  }, [gameId]);
+  // Round down so three cards plus both gaps can never overflow and wrap.
+  const cardSize = Math.floor(
+    (gridWidth - GRID_GAP * (GRID_COLUMNS - 1)) / GRID_COLUMNS,
+  );
+  const advancedLinkWidth = Math.floor(
+    (advancedLinksWidth - ADVANCED_LINK_GAP) / 2,
+  );
 
   // RN's <Image> + FlatList/ScrollView windowing handles preloading/caching
   // automatically — no manual `new Image()` preload step needed like on web.
@@ -68,68 +103,67 @@ export default function CreatePartyScreen() {
             Choose your game
           </Text>
 
-          <View className="flex-row flex-wrap gap-3">
+          <View
+            className="flex-row flex-wrap gap-3"
+            onLayout={(event) => setGridWidth(event.nativeEvent.layout.width)}
+          >
             {GAME_TYPES.map((g) => {
               const active = g.id === game;
+
               return (
                 <TouchableOpacity
                   key={g.id}
                   onPress={() => setGame(g.id)}
                   activeOpacity={0.85}
                   style={{
-                    width: "30.5%",
-                    aspectRatio: 1,
+                    width: cardSize,
+                    height: cardSize,
+                    borderRadius: 16,
+                    overflow: "hidden",
                     opacity: active ? 1 : 0.8,
                     transform: active ? [{ scale: 1.03 }] : undefined,
+                    borderWidth: active ? 2 : 0,
+                    borderColor: "#fff",
                   }}
                 >
+                  {g.image && (
+                    <Image
+                      source={g.image}
+                      style={{ width: cardSize, height: cardSize }}
+                      resizeMode="cover"
+                    />
+                  )}
+
+                  {/* Bottom scrim for legible label text over the photo */}
                   <LinearGradient
-                    colors={g.gradient}
+                    colors={["transparent", "rgba(0,0,0,0.20)", "rgba(0,0,0,0.70)"]}
                     start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    className="relative rounded-2xl p-2.5 overflow-hidden"
-                    style={[
-                      { flex: 1 },
-                      active ? { borderWidth: 2, borderColor: "#fff" } : undefined,
-                    ]}
+                    end={{ x: 0, y: 1 }}
+                    style={{ position: "absolute", width: "100%", height: "100%" }}
+                  />
+
+                  <Text style={{ position: "absolute", top: 8, left: 8, fontSize: 22 }}>
+                    {g.emoji}
+                  </Text>
+
+                  <Text
+                    className="absolute text-white text-[10px] font-bold leading-tight"
+                    style={{ left: 8, right: 8, bottom: 8 }}
+                    numberOfLines={2}
                   >
-                    {g.image && (
-                      <>
-                        <Image
-                          source={g.image}
-                          style={{ position: "absolute", width: "100%", height: "100%" }}
-                          resizeMode="cover"
-                        />
-                        <LinearGradient
-                          colors={["transparent", "rgba(0,0,0,0.20)", "rgba(0,0,0,0.70)"]}
-                          start={{ x: 0, y: 0 }}
-                          end={{ x: 0, y: 1 }}
-                          style={{ position: "absolute", width: "100%", height: "100%" }}
-                        />
-                      </>
-                    )}
+                    {g.name}
+                  </Text>
 
-                    <Text style={{ fontSize: 22 }}>{g.emoji}</Text>
-
-                    <Text
-                      className="absolute text-white text-[10px] font-bold leading-tight"
-                      style={{ left: 8, right: 8, bottom: 8 }}
-                      numberOfLines={2}
+                  {g.cost > 0 && (
+                    <View
+                      className="absolute rounded-full bg-ink/60 px-1.5 py-0.5"
+                      style={{ top: 6, right: 6 }}
                     >
-                      {g.name}
-                    </Text>
-
-                    {g.cost > 0 && (
-                      <View
-                        className="absolute rounded-full bg-ink/60 px-1.5 py-0.5"
-                        style={{ top: 6, right: 6 }}
-                      >
-                        <Text className="text-white text-[9px] font-bold">
-                          🪙{g.cost}
-                        </Text>
-                      </View>
-                    )}
-                  </LinearGradient>
+                      <Text className="text-white text-[9px] font-bold">
+                        🪙{g.cost}
+                      </Text>
+                    </View>
+                  )}
                 </TouchableOpacity>
               );
             })}
@@ -139,14 +173,9 @@ export default function CreatePartyScreen() {
         {/* ── Selected detail ── */}
         <View
           className="relative mt-5 rounded-3xl overflow-hidden"
-          style={{ aspectRatio: 16 / 9 }}
+          style={{ width: "100%", aspectRatio: 16 / 9, alignSelf: "stretch" }}
         >
-          <LinearGradient
-            colors={selected.gradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={{ flex: 1 }}
-          >
+          <View style={{ flex: 1, backgroundColor: "#19191F" }}>
             {selected.image && (
               <>
                 <Image
@@ -164,8 +193,11 @@ export default function CreatePartyScreen() {
               </>
             )}
 
-            <View className="flex-1 flex-row items-end justify-between p-5">
-              <View>
+            <View
+              className="flex-row items-end justify-between p-5"
+              style={{ position: "absolute", width: "100%", height: "100%" }}
+            >
+              <View className="flex-1 pr-3">
                 <Text style={{ fontSize: 36 }}>{selected.emoji}</Text>
                 <Text className="mt-2 text-white text-xl font-bold">
                   {selected.name}
@@ -179,7 +211,7 @@ export default function CreatePartyScreen() {
                 </Text>
               </View>
             </View>
-          </LinearGradient>
+          </View>
         </View>
 
         {/* ── Mode ── */}
@@ -277,16 +309,26 @@ export default function CreatePartyScreen() {
         </View>
 
         {/* ── Advanced setup links ── */}
-        <View className="mt-6 flex-row flex-wrap gap-2">
+        <View
+          className="mt-6 flex-row flex-wrap gap-2"
+          onLayout={(event) =>
+            setAdvancedLinksWidth(event.nativeEvent.layout.width)
+          }
+        >
           {ADVANCED_LINKS.map((l) => (
             <Link key={l.label} href={l.to} asChild>
               <TouchableOpacity
                 activeOpacity={0.8}
-                style={{ width: "48.5%" }}
+                style={{ width: advancedLinkWidth }}
                 className="flex-row items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-3"
               >
                 <Text style={{ fontSize: 16 }}>{l.emoji}</Text>
-                <Text className="text-foreground text-xs font-semibold">{l.label}</Text>
+                <Text
+                  className="flex-1 text-foreground text-xs font-semibold"
+                  numberOfLines={1}
+                >
+                  {l.label}
+                </Text>
               </TouchableOpacity>
             </Link>
           ))}
