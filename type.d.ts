@@ -13,6 +13,7 @@ declare global {
     iconColor?: string;
     iconSize?: number;
     iconStroke?: number;
+    verticalPadding?: string;
   }
 
   interface GameTypeProps {

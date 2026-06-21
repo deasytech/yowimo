@@ -1,4 +1,5 @@
 import GoBack from "@/components/shared/GoBack";
+import ListHeading from "@/components/shared/ListHeading";
 import { posthog } from "@/lib/posthog";
 import { useClerk } from "@clerk/expo";
 import { LinearGradient as RNLinearGradient } from "expo-linear-gradient";
@@ -39,32 +40,32 @@ export default function SettingsScreen() {
 
   const groups = [
     {
-      title: "Account",
+      title: "ACCOUNT",
       items: [
-        { Icon: User, label: "Edit profile", to: "/create-profile" },
+        { Icon: User, label: "Edit profile", to: "/profile/edit" },
         { Icon: Shield, label: "Privacy", to: "/settings" },
         { Icon: Lock, label: "Security", to: "/settings" },
       ],
     },
     {
-      title: "App",
+      title: "APP",
       items: [
         { Icon: Palette, label: "Appearance", to: "/settings" },
         { Icon: Globe, label: "Language · English", to: "/settings" },
       ],
     },
     {
-      title: "Support",
+      title: "SUPPORT",
       items: [{ Icon: HelpCircle, label: "Help center", to: "/help" }],
     },
     {
-      title: "Explore",
+      title: "EXPLORE",
       items: [
         { Icon: Globe, label: "Public parties", to: "/public" },
         { Icon: Globe, label: "Marketplace", to: "/marketplace" },
         { Icon: Globe, label: "Sponsor management", to: "/sponsor" },
         { Icon: Globe, label: "Audience view", to: "/audience" },
-        { Icon: Globe, label: "Connect TV", to: "/connect-tv" },
+        { Icon: Globe, label: "Connect TV", to: "/play/connect-tv" },
         { Icon: Globe, label: "Loading states", to: "/loading" },
         { Icon: Globe, label: "Empty states", to: "/empty" },
         { Icon: Globe, label: "Error states", to: "/error" },
@@ -78,7 +79,7 @@ export default function SettingsScreen() {
       posthog.capture('sign_out_completed');
       posthog.reset();
     } catch (error) {
-      console.error('Sign-out failed:', error);
+      console.log('Sign-out failed:', error);
     }
   };
 
@@ -123,12 +124,7 @@ export default function SettingsScreen() {
         {/* ── Grouped sections ── */}
         {groups.map((g) => (
           <View key={g.title} className="mt-5">
-            <Text
-              className="px-2 mb-2 text-muted-foreground text-[11px] font-bold uppercase"
-              style={{ letterSpacing: 0.5 }}
-            >
-              {g.title}
-            </Text>
+            <ListHeading title={g.title} titleSize="text-sm" verticalPadding="my-2" />
             <View className="rounded-3xl bg-card">
               {g.items.map((item, idx) => (
                 <TouchableOpacity
