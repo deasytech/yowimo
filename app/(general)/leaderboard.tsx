@@ -116,9 +116,10 @@ export default function LeaderboardScreen() {
                   <Text className="text-white text-2xl font-extrabold">{r.rank}</Text>
                 )}
               </LinearGradient>
-              <Text className="text-muted-foreground text-sm mt-1">
-                {r.tokens.toLocaleString()} <Coins color="#ffffff" size={20} strokeWidth={2.5} />
-              </Text>
+              <View className="mt-1 flex-row items-center gap-1">
+                <Text className="text-muted-foreground text-sm">{r.tokens.toLocaleString()}</Text>
+                <Coins color="#ffffff" size={16} strokeWidth={2.5} />
+              </View>
             </View>
           ))}
         </View>
@@ -143,9 +144,10 @@ export default function LeaderboardScreen() {
                   <Text className="text-foreground text-sm font-semibold">{r.name}</Text>
                   <Text className="text-muted-foreground text-xs">Lvl {r.level}</Text>
                 </View>
-                <Text className="text-orange text-base font-bold">
-                  {r.tokens.toLocaleString()} <Coins color="#ffffff" size={20} strokeWidth={2.5} />
-                </Text>
+                <View className="flex-row items-center gap-1">
+                  <Text className="text-orange text-base font-bold">{r.tokens.toLocaleString()}</Text>
+                  <Coins color="#ffffff" size={16} strokeWidth={2.5} />
+                </View>
               </View>
             ) : (
               <View
@@ -165,9 +167,10 @@ export default function LeaderboardScreen() {
                   <Text className="text-foreground text-sm font-semibold">{r.name}</Text>
                   <Text className="text-muted-foreground text-xs">Lvl {r.level}</Text>
                 </View>
-                <Text className="text-orange text-base font-bold">
-                  {r.tokens.toLocaleString()} <Coins color="#ffffff" size={20} strokeWidth={2.5} />
-                </Text>
+                <View className="flex-row items-center gap-1">
+                  <Text className="text-orange text-base font-bold">{r.tokens.toLocaleString()}</Text>
+                  <Coins color="#ffffff" size={16} strokeWidth={2.5} />
+                </View>
               </View>
             )
           )}

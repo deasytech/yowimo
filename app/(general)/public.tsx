@@ -26,6 +26,7 @@ const TABS = ["All", "Live", "Tonight", "Nearby", "Sponsored"];
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const COVER_WIDTH = SCREEN_WIDTH - 20 * 2;
 const COVER_HEIGHT = 96;
+const NEARBY_DISTANCE_KM = 5;
 
 export default function PublicPartyBrowserScreen() {
   const router = useRouter();
@@ -34,9 +35,19 @@ export default function PublicPartyBrowserScreen() {
 
   const list = PARTIES.filter((p) => p.isPublic).filter(
     (p) =>
-      (tab === "Live" ? p.isLive : tab === "Sponsored" ? !!p.sponsored : true) &&
+      (tab === "Live"
+        ? p.isLive
+        : tab === "Tonight"
+          ? p.isLive || /^in \d+(m|h)$/i.test(p.startsIn)
+          : tab === "Nearby"
+            ? p.distanceKm !== undefined && p.distanceKm <= NEARBY_DISTANCE_KM
+            : tab === "Sponsored"
+              ? !!p.sponsored
+              : true) &&
       (p.title.toLowerCase().includes(q.toLowerCase()) ||
-        p.type.toLowerCase().includes(q.toLowerCase()))
+        p.type.toLowerCase().includes(q.toLowerCase()) ||
+        p.host.toLowerCase().includes(q.toLowerCase()) ||
+        p.tags.some((tag) => tag.toLowerCase().includes(q.toLowerCase())))
   );
 
   const filterParties = () => {
@@ -191,7 +202,7 @@ export default function PublicPartyBrowserScreen() {
                 <View className="flex-row items-center gap-1">
                   <MapPin color="#a3a3ab" size={14} strokeWidth={2} />
                   <Text className="text-muted-foreground text-xs">
-                    {p.mode === "In-person" ? "1.2 km away" : "Global"}
+                    {p.distanceKm !== undefined ? `${p.distanceKm} km away` : "Global"}
                   </Text>
                 </View>
               </View>

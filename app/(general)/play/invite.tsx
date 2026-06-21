@@ -1,14 +1,18 @@
+import Toast from '@/components/shared/Toast';
 import { FRIENDS } from '@/data/mock';
+import { useToast } from '@/hooks/useToast';
+import * as Clipboard from 'expo-clipboard';
 import { LinearGradient as RNLinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, Copy, Link2, MessageCircle, QrCode, Send, Share2 } from 'lucide-react-native';
 import { styled } from 'nativewind';
 import { useState } from 'react';
-import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, Share, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView as RNSafeAreaView } from 'react-native-safe-area-context';
 
 const SafeAreaView = styled(RNSafeAreaView);
 const LinearGradient = styled(RNLinearGradient);
+const inviteLink = 'https://yowimo.app/p/FRD9X2';
 
 const channels = [
   { id: "wa", label: "WhatsApp", icon: MessageCircle, colors: ["#10B981", "#059669"] as const },
@@ -22,10 +26,23 @@ const channels = [
 const InviteFriendsScreen = () => {
   const router = useRouter();
   const [picked, setPicked] = useState<string[]>([]);
+  const toast = useToast();
   const toggle = (id: string) => setPicked((p) => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
+  const copyInviteLink = async () => {
+    await Clipboard.setStringAsync(inviteLink);
+    toast.showToast();
+  };
+  const shareInvite = (channel: string) => channel === 'link'
+    ? copyInviteLink()
+    : Share.share({ message: `Join my Yowimo party: ${inviteLink}`, url: inviteLink });
 
   return (
     <SafeAreaView className="flex-1 bg-background">
+      <Toast
+        opacity={toast.opacity}
+        isVisible={toast.isVisible}
+        message="Invite link copied"
+      />
       <ScrollView
         className="flex-1"
         contentContainerStyle={{
@@ -66,10 +83,13 @@ const InviteFriendsScreen = () => {
               numberOfLines={1}
               className="flex-1 text-lg font-sans-bold text-white"
             >
-              yowimo.app/p/FRD9X2
+              {inviteLink.replace('https://', '')}
             </Text>
 
-            <TouchableOpacity className="ml-3 h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-white/10">
+            <TouchableOpacity
+              onPress={copyInviteLink}
+              className="ml-3 h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-white/10"
+            >
               <Copy color="#fff" size={16} />
             </TouchableOpacity>
           </View>
@@ -85,6 +105,7 @@ const InviteFriendsScreen = () => {
             {channels.map((item) => (
               <TouchableOpacity
                 key={item.id}
+                onPress={() => shareInvite(item.id)}
                 activeOpacity={0.8}
                 className="mb-5 w-1/3 items-center"
               >
@@ -189,6 +210,7 @@ const InviteFriendsScreen = () => {
           <TouchableOpacity
             className="h-14 items-center justify-center"
             activeOpacity={0.9}
+            onPress={() => router.push("/lobby/p1")}
           >
             <Text className="text-base font-sans-bold text-white">
               Send Invites ({picked.length || "Skip"})

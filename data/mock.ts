@@ -136,6 +136,7 @@ export const PARTIES: PartyProps[] = [
     type: "Rapid Fire",
     mode: "In-person",
     startsIn: "Live now",
+    distanceKm: 1.2,
     cover: [COLORS.orange, COLORS.violet],
     image: partyP4,
     tags: ["Uni", "Fast"],

@@ -199,7 +199,7 @@ const PartyCard = ({
         </View>
 
         <View className={`${compact ? "mt-3" : "mt-4"} flex-row items-center gap-3`}>
-          <Link href={`/lobby/${party.id.split("-")[0]}`} asChild>
+          <Link href={`/lobby/${party.id}`} asChild>
             <TouchableOpacity activeOpacity={0.9} style={{ flex: 1 }}>
               <LinearGradient
                 colors={["#7A1EFF", "#D84CFF", "#FF8A2A"]}
