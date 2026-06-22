@@ -36,7 +36,7 @@ const SETTINGS_ROWS = [
   { Icon: Award, label: "Referral center", sub: "Earn 50 tokens per friend", to: "/profile/referrals" },
   { Icon: Trophy, label: "Achievements", sub: "Badges, streaks, MVPs", to: "/profile/achievements" },
   { Icon: Settings, label: "Settings", sub: "Privacy, notifications, more", to: "/profile/settings" },
-  { Icon: Trophy, label: "Help center", sub: "Get answers fast", to: "/help" },
+  { Icon: Trophy, label: "Help center", sub: "Get answers fast", to: "/profile/help" },
 ];
 
 const ProfileScreen = () => {
@@ -154,7 +154,7 @@ const ProfileScreen = () => {
                     </Text>
                   </View>
 
-                  <Link href="/" asChild>
+                  <Link href="/play/invite" asChild>
                     <TouchableOpacity activeOpacity={0.85}>
                       <LinearGradient
                         colors={["#7A1EFF", "#D84CFF", "#FF8A2A"]}

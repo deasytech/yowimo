@@ -1,3 +1,4 @@
+import { TOKEN_BUNDLES } from "@/data/tokenBundles";
 import { LinearGradient as RNLinearGradient } from "expo-linear-gradient";
 import { Link } from "expo-router";
 import {
@@ -24,13 +25,6 @@ const SafeAreaView = styled(RNSafeAreaView);
 const LinearGradient = styled(RNLinearGradient);
 const PACK_GAP = 12;
 const NARROW_GRID_BREAKPOINT = 320;
-
-const PACKS = [
-  { name: "Starter", tokens: 100, price: "$1.99", colors: ["#7A1EFF", "#2D2A8F"] as const },
-  { name: "Party", tokens: 500, price: "$7.99", colors: ["#D84CFF", "#7A1EFF"] as const, badge: "Popular" },
-  { name: "Legend", tokens: 1500, price: "$19.99", colors: ["#FF8A2A", "#D84CFF"] as const, badge: "Best value" },
-  { name: "Whale", tokens: 5000, price: "$49.99", colors: ["#B03BFF", "#FF8A2A"] as const },
-];
 
 const TX = [
   { type: "earn", label: "MVP — Friday Night Chaos", amount: 25, time: "2h ago" },
@@ -91,7 +85,7 @@ const WalletScreen = () => {
               </View>
 
               <View className="mt-4 flex-row gap-2">
-                <Link href="/" asChild>
+                <Link href="/wallet/buy-token" asChild>
                   <TouchableOpacity
                     activeOpacity={0.85}
                     className="flex-row items-center gap-1.5 rounded-full bg-ink px-4 py-2"
@@ -101,7 +95,7 @@ const WalletScreen = () => {
                   </TouchableOpacity>
                 </Link>
 
-                <Link href="/" asChild>
+                <Link href="/play/invite" asChild>
                   <TouchableOpacity
                     activeOpacity={0.85}
                     className="flex-row items-center gap-1.5 rounded-full bg-white/40 px-4 py-2"
@@ -151,8 +145,15 @@ const WalletScreen = () => {
             className="flex-row flex-wrap gap-3"
             onLayout={(event) => setPackGridWidth(event.nativeEvent.layout.width)}
           >
-            {PACKS.map((p) => (
-              <Link key={p.name} href="/" asChild>
+            {TOKEN_BUNDLES.map((p) => (
+              <Link
+                key={p.id}
+                href={{
+                  pathname: "/wallet/buy-token",
+                  params: { bundle: p.id },
+                }}
+                asChild
+              >
                 <TouchableOpacity
                   activeOpacity={0.85}
                   style={{ width: packWidth }}
@@ -165,7 +166,7 @@ const WalletScreen = () => {
                   >
                     <View className="min-h-5 flex-row items-start justify-between gap-2">
                       <Text
-                        className="flex-shrink font-sans-bold text-xs uppercase text-white/80"
+                        className="shrink font-sans-bold text-xs uppercase text-white/80"
                         numberOfLines={1}
                         style={{ letterSpacing: 0.5 }}
                       >
@@ -187,7 +188,7 @@ const WalletScreen = () => {
                     <View className="mt-1 h-10 flex-row items-center gap-2">
                       <Text
                         adjustsFontSizeToFit
-                        className="min-w-0 flex-shrink font-sans-extrabold text-3xl text-white"
+                        className="min-w-0 shrink font-sans-extrabold text-3xl text-white"
                         minimumFontScale={0.65}
                         numberOfLines={1}
                         style={{ lineHeight: 40 }}
@@ -201,7 +202,7 @@ const WalletScreen = () => {
                       />
                     </View>
                     <Text className="mt-3 font-sans-bold text-sm text-white">
-                      {p.price}
+                      ${p.price.toFixed(2)}
                     </Text>
                   </LinearGradient>
                 </TouchableOpacity>
@@ -211,7 +212,7 @@ const WalletScreen = () => {
         </View>
 
         {/* ── Marketplace shortcut ── */}
-        <Link href="/" asChild>
+        <Link href="/market-place" asChild>
           <TouchableOpacity
             activeOpacity={0.85}
             className="mt-6 flex-row items-center gap-3 rounded-3xl border border-border bg-card p-4"
@@ -286,7 +287,7 @@ const WalletScreen = () => {
         </View>
 
         {/* ── See full history ── */}
-        <Link href="/" asChild>
+        <Link href="/wallet/transactions" asChild>
           <TouchableOpacity
             activeOpacity={0.8}
             className="mt-6 h-12 w-full items-center justify-center rounded-2xl border border-border"

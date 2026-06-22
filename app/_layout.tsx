@@ -3,6 +3,7 @@ import { useFonts } from 'expo-font';
 import { SplashScreen, Stack, useGlobalSearchParams, usePathname } from 'expo-router';
 import { useEffect, useRef } from 'react';
 
+import { PlayersProvider } from '@/context/PlayersContext';
 import { posthog } from '@/lib/posthog';
 import { ClerkProvider, useAuth } from '@clerk/expo';
 import { tokenCache } from '@clerk/expo/token-cache';
@@ -85,8 +86,10 @@ function RootLayoutContent() {
         maxElementsCaptured: 20,
       }}
     >
-      <Stack screenOptions={{ headerShown: false }} />
-      <StatusBar barStyle='light-content' />
+      <PlayersProvider>
+        <Stack screenOptions={{ headerShown: false }} />
+        <StatusBar barStyle='light-content' />
+      </PlayersProvider>
     </PostHogProvider>
   );
 }

@@ -75,6 +75,7 @@ declare global {
     showTitle?: boolean;
     rightIcon?: LucideIcon;
     rightAction?: () => void;
+    rightText?: string;
   }
 }
 
