@@ -197,6 +197,12 @@ const TabLayout = () => {
             href: null,
           }}
         />
+        <Tabs.Screen
+          name="market-place"
+          options={{
+            href: null,
+          }}
+        />
       </Tabs>
     </>
   )

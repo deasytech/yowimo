@@ -1,11 +1,17 @@
 import { posthog } from "@/lib/posthog";
 import { LinearGradient as RNLinearGradient } from 'expo-linear-gradient';
+import { router } from "expo-router";
 import { Sparkles } from 'lucide-react-native';
 import { styled } from "nativewind";
 import { Text, TouchableOpacity, View } from 'react-native';
 const LinearGradient = styled(RNLinearGradient);
 
 const HeroCard = () => {
+  const gotoPlay = () => {
+    router.replace('/play');
+    posthog.capture('party_created', { source: 'hero_card' });
+  }
+
   return (
     <LinearGradient
       colors={["#7A1EFF", "#D84CFF", "#FF8A2A"]}
@@ -41,7 +47,7 @@ const HeroCard = () => {
         <TouchableOpacity
           activeOpacity={0.88}
           className="rounded-full bg-white px-5 py-2.5 items-center"
-          onPress={() => posthog.capture('party_created', { source: 'hero_card' })}
+          onPress={() => gotoPlay()}
           testID="create-party-button"
         >
           <Text className="font-sans-bold text-sm text-background">
@@ -49,7 +55,11 @@ const HeroCard = () => {
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity activeOpacity={0.66} className="rounded-full border border-white/15 bg-white/10 px-4 py-2.5 items-center">
+        <TouchableOpacity
+          activeOpacity={0.66}
+          onPress={() => router.replace('/wallet')}
+          className="rounded-full border border-white/15 bg-white/10 px-4 py-2.5 items-center"
+        >
           <Text className="font-sans-bold text-sm text-white">
             +15 Token Quest
           </Text>

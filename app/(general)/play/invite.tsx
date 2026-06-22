@@ -1,10 +1,11 @@
+import GoBack from '@/components/shared/GoBack';
 import Toast from '@/components/shared/Toast';
 import { FRIENDS } from '@/data/mock';
 import { useToast } from '@/hooks/useToast';
 import * as Clipboard from 'expo-clipboard';
 import { LinearGradient as RNLinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, Copy, Link2, MessageCircle, QrCode, Send, Share2 } from 'lucide-react-native';
+import { Copy, Link2, MessageCircle, QrCode, Send, Share2 } from 'lucide-react-native';
 import { styled } from 'nativewind';
 import { useState } from 'react';
 import { ScrollView, Share, Text, TouchableOpacity, View } from 'react-native';
@@ -51,21 +52,7 @@ const InviteFriendsScreen = () => {
         }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <View className="flex-row items-center justify-between py-3">
-          <TouchableOpacity
-            onPress={() => router.back()}
-            className="h-10 w-10 items-center justify-center rounded-full border border-border bg-card"
-          >
-            <ArrowLeft color="#fff" size={16} />
-          </TouchableOpacity>
-
-          <Text className="text-lg font-sans-bold text-white">
-            Invite Friends
-          </Text>
-
-          <View className="w-10" />
-        </View>
+        <GoBack title='Invite Friends' />
 
         {/* Party Link Hero Card */}
         <LinearGradient
