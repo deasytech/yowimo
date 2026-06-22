@@ -8,6 +8,7 @@ import {
 import { styled } from "nativewind";
 import { useState } from "react";
 import {
+  Linking,
   ScrollView,
   Text,
   TextInput,
@@ -49,6 +50,7 @@ const faqs = [
 
 export default function HelpCenterScreen() {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const [searchQuery, setSearchQuery] = useState("");
 
   return (
     <SafeAreaView
@@ -93,6 +95,8 @@ export default function HelpCenterScreen() {
               placeholder="Search FAQs..."
               placeholderTextColor="rgba(255,255,255,0.6)"
               className="h-12 rounded-2xl bg-white/15 pl-11 pr-4 text-white"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
             />
           </View>
         </LinearGradient>
@@ -105,11 +109,14 @@ export default function HelpCenterScreen() {
           </Text>
 
           <View className="flex-row flex-wrap justify-between">
-            {topics.map((topic) => (
+            {topics.filter((t) =>
+              t.title.toLowerCase().includes(searchQuery.toLowerCase())
+            ).map((topic) => (
               <TouchableOpacity
                 key={topic.title}
                 activeOpacity={0.85}
                 className="mb-3 w-[48%] rounded-3xl border border-white/10 bg-card p-4"
+                onPress={() => setSearchQuery(topic.title)}
               >
                 <Text className="text-3xl">
                   {topic.emoji}
@@ -134,7 +141,10 @@ export default function HelpCenterScreen() {
             Popular FAQs
           </Text>
 
-          {faqs.map((faq, index) => (
+          {faqs.filter((faq) =>
+            faq.q.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            faq.a.toLowerCase().includes(searchQuery.toLowerCase())
+          ).map((faq, index) => (
             <View
               key={index}
               className="mb-2 overflow-hidden rounded-2xl border border-white/10 bg-card"
@@ -183,6 +193,7 @@ export default function HelpCenterScreen() {
         <TouchableOpacity
           activeOpacity={0.9}
           className="mt-5"
+          onPress={() => Linking.openURL("mailto:support@yowimo.com")}
         >
           <LinearGradient
             colors={[

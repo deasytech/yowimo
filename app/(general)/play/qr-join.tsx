@@ -21,12 +21,14 @@ export default function QRJoinScreen() {
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [isScanning, setIsScanning] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
 
   const joinParty = (value = code) => {
     const normalizedCode = value.trim().split("/").filter(Boolean).at(-1)?.toUpperCase();
 
     if (normalizedCode !== PARTY_CODE) {
+      setIsProcessing(false);
       setIsScanning(false);
       setError("Party code not found");
       return;
@@ -47,10 +49,13 @@ export default function QRJoinScreen() {
     }
 
     setError("");
+    setIsProcessing(false);
     setIsScanning(true);
   };
 
   const handleBarcodeScanned = ({ data }: BarcodeScanningResult) => {
+    if (isProcessing) return;
+    setIsProcessing(true);
     joinParty(data);
   };
 

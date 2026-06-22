@@ -1,11 +1,12 @@
 import GoBack from "@/components/shared/GoBack";
+import { usePlayers } from "@/context/PlayersContext";
 import { LinearGradient as RNLinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import {
   Shuffle
 } from "lucide-react-native";
 import { styled } from "nativewind";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ScrollView,
   Text,
@@ -17,19 +18,10 @@ import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
 const SafeAreaView = styled(RNSafeAreaView);
 const LinearGradient = styled(RNLinearGradient);
 
-interface Player {
+interface TeamPlayer {
   id: string;
   name: string;
 }
-
-const POOL: Player[] = [
-  { id: "1", name: "Alex" },
-  { id: "2", name: "Maya" },
-  { id: "3", name: "Leo" },
-  { id: "4", name: "Sam" },
-  { id: "5", name: "Priya" },
-  { id: "6", name: "Jordan" },
-];
 
 const TEAMS = [
   {
@@ -45,7 +37,20 @@ const TEAMS = [
 ];
 
 export default function TeamSelectionScreen() {
+  const { players: registeredPlayers } = usePlayers();
+  const [pool, setPool] = useState<TeamPlayer[]>([]);
   const [assign, setAssign] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (registeredPlayers.length > 0) {
+      setPool(
+        registeredPlayers.map((player, index) => ({
+          id: String(index),
+          name: player.name,
+        }))
+      );
+    }
+  }, [registeredPlayers]);
 
   const teamOf = (id: string) => assign[id];
 
@@ -62,7 +67,13 @@ export default function TeamSelectionScreen() {
   const shuffleTeams = () => {
     const result: Record<string, string> = {};
 
-    POOL.forEach((player, index) => {
+    const shuffled = [...pool];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+
+    shuffled.forEach((player, index) => {
       result[player.id] =
         TEAMS[index % TEAMS.length].id;
     });
@@ -80,7 +91,7 @@ export default function TeamSelectionScreen() {
     });
   };
 
-  const unassigned = POOL.filter(
+  const unassigned = pool.filter(
     (player) => !teamOf(player.id)
   );
 
@@ -168,7 +179,7 @@ export default function TeamSelectionScreen() {
         <View className="mt-4">
           {TEAMS.map((team) => {
             const members =
-              POOL.filter(
+              pool.filter(
                 (player) =>
                   teamOf(player.id) ===
                   team.id

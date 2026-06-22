@@ -1,6 +1,7 @@
 import GoBack from "@/components/shared/GoBack";
+import { usePlayers } from "@/context/PlayersContext";
 import { LinearGradient as RNLinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import {
   Crown
 } from "lucide-react-native";
@@ -17,22 +18,25 @@ import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
 const LinearGradient = styled(RNLinearGradient);
 const SafeAreaView = styled(RNSafeAreaView);
 
-const players = [
-  "Alex",
-  "Maya",
-  "Leo",
-  "Sam",
-  "Priya",
-  "Jordan",
-  "Aiden",
-  "Kai",
-];
-
 const TABLE_SIZE = 320;
 const PLAYER_SIZE = 48;
 const RADIUS = 140;
 
 export default function SeatingScreen() {
+  const { players: playersParam } = useLocalSearchParams<{ players: string }>();
+  const { players: contextPlayers } = usePlayers();
+
+  const players = useMemo<string[]>(() => {
+    if (playersParam) {
+      try {
+        return JSON.parse(playersParam) as string[];
+      } catch {
+        // fall through to context
+      }
+    }
+    return contextPlayers.map((p) => p.name);
+  }, [playersParam, contextPlayers]);
+
   const positions = useMemo(() => {
     return players.map((_, index) => {
       const angle =
@@ -53,7 +57,7 @@ export default function SeatingScreen() {
           PLAYER_SIZE / 2,
       };
     });
-  }, []);
+  }, [players]);
 
   return (
     <SafeAreaView

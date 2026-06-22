@@ -15,10 +15,12 @@ interface MarketplaceCardProps {
     tag?: string | null;
     image: any;
   };
+  onBuy?: () => void;
 }
 
 export default function MarketplaceCard({
   pack,
+  onBuy,
 }: MarketplaceCardProps) {
   return (
     <View className="mb-4 w-[48%] overflow-hidden rounded-3xl border border-white/10 bg-card">
@@ -63,11 +65,12 @@ export default function MarketplaceCard({
         </Text>
 
         <View className="mt-3 flex-row items-center justify-between">
-          <Text className="font-sans-bold text-accent">
-            <Coins color="#ffffff" size={16} strokeWidth={2.5} />{" "} {pack.price}
-          </Text>
+          <View className="flex-row items-center gap-1">
+            <Coins color="#ffffff" size={16} strokeWidth={2.5} />
+            <Text className="font-sans-bold text-accent">{pack.price}</Text>
+          </View>
 
-          <TouchableOpacity activeOpacity={0.9} onPress={() => { }}>
+          <TouchableOpacity activeOpacity={0.9} onPress={onBuy}>
             <LinearGradient
               colors={["#7A1EFF", "#D84CFF"]}
               className="rounded-xl px-3 py-1.5"

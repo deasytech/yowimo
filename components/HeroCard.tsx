@@ -8,8 +8,8 @@ const LinearGradient = styled(RNLinearGradient);
 
 const HeroCard = () => {
   const gotoPlay = () => {
-    router.replace('/play');
     posthog.capture('party_created', { source: 'hero_card' });
+    router.replace('/play');
   }
 
   return (

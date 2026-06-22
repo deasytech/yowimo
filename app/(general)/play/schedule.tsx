@@ -67,7 +67,7 @@ export default function ScheduleScreen() {
                 key={index}
                 activeOpacity={0.85}
                 onPress={() => setPickedDate(index)}
-                className={`mr-2 min-w-[72px] rounded-2xl px-3 py-3 ${pickedDate === index
+                className={`mr-2 min-w-18 rounded-2xl px-3 py-3 ${pickedDate === index
                   ? "bg-primary"
                   : "bg-secondary"
                   }`}
@@ -211,7 +211,16 @@ export default function ScheduleScreen() {
       <View className="border-t border-white/10 bg-background px-5 pb-3 pt-2">
         <TouchableOpacity
           activeOpacity={0.9}
-          onPress={() => router.push("/play/invite")}
+          onPress={() =>
+            router.push({
+              pathname: "/play/invite",
+              params: {
+                scheduledDate: dates[pickedDate].toISOString(),
+                scheduledTime: pickedTime,
+                reminders: JSON.stringify(reminders),
+              },
+            })
+          }
           className="mt-6 h-14 items-center justify-center rounded-2xl bg-primary"
         >
           <Text className="font-sans-bold text-base text-white">

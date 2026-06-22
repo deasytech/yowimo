@@ -2,13 +2,15 @@ import GoBack from "@/components/shared/GoBack";
 import { PARTIES } from "@/data/mock";
 import { LinearGradient as RNLinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { Filter, MapPin, Search, Users } from "lucide-react-native";
+import { Check, Filter, MapPin, Search, Users, X } from "lucide-react-native";
 import { styled } from "nativewind";
 import { useState } from "react";
 import {
   Dimensions,
   Image,
+  Modal,
   ScrollView,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -32,27 +34,36 @@ export default function PublicPartyBrowserScreen() {
   const router = useRouter();
   const [tab, setTab] = useState("All");
   const [q, setQ] = useState("");
+  const [showFilter, setShowFilter] = useState(false);
+  const [openSpotsOnly, setOpenSpotsOnly] = useState(false);
+  const [sortBy, setSortBy] = useState<"default" | "distance" | "players">("default");
 
-  const list = PARTIES.filter((p) => p.isPublic).filter(
-    (p) =>
-      (tab === "Live"
-        ? p.isLive
-        : tab === "Tonight"
-          ? p.isLive || /^in \d+(m|h)$/i.test(p.startsIn)
-          : tab === "Nearby"
-            ? p.distanceKm !== undefined && p.distanceKm <= NEARBY_DISTANCE_KM
-            : tab === "Sponsored"
-              ? !!p.sponsored
-              : true) &&
-      (p.title.toLowerCase().includes(q.toLowerCase()) ||
-        p.type.toLowerCase().includes(q.toLowerCase()) ||
-        p.host.toLowerCase().includes(q.toLowerCase()) ||
-        p.tags.some((tag) => tag.toLowerCase().includes(q.toLowerCase())))
-  );
+  let list = PARTIES.filter((p) => p.isPublic)
+    .filter(
+      (p) =>
+        (tab === "Live"
+          ? p.isLive
+          : tab === "Tonight"
+            ? p.isLive || /^in \d+(m|h)$/i.test(p.startsIn)
+            : tab === "Nearby"
+              ? p.distanceKm !== undefined && p.distanceKm <= NEARBY_DISTANCE_KM
+              : tab === "Sponsored"
+                ? !!p.sponsored
+                : true) &&
+        (p.title.toLowerCase().includes(q.toLowerCase()) ||
+          p.type.toLowerCase().includes(q.toLowerCase()) ||
+          p.host.toLowerCase().includes(q.toLowerCase()) ||
+          p.tags.some((tag) => tag.toLowerCase().includes(q.toLowerCase())))
+    )
+    .filter((p) => !openSpotsOnly || p.players < p.maxPlayers);
 
-  const filterParties = () => {
-    console.log("Filter public parties")
+  if (sortBy === "distance") {
+    list = [...list].sort((a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity));
+  } else if (sortBy === "players") {
+    list = [...list].sort((a, b) => b.players - a.players);
   }
+
+  const filterParties = () => setShowFilter(true);
 
   return (
     <SafeAreaView className="flex-1 bg-background">
@@ -216,6 +227,78 @@ export default function PublicPartyBrowserScreen() {
           </Text>
         )}
       </ScrollView>
+
+      {/* ── Filter Sheet ── */}
+      <Modal
+        visible={showFilter}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowFilter(false)}
+      >
+        <View style={{ flex: 1 }}>
+          <TouchableOpacity
+            style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }}
+            activeOpacity={1}
+            onPress={() => setShowFilter(false)}
+          />
+          <View className="bg-card rounded-t-3xl px-6 pt-6 pb-10">
+            {/* Header */}
+            <View className="flex-row items-center justify-between mb-6">
+              <Text className="text-foreground text-lg font-bold">Filter Parties</Text>
+              <TouchableOpacity onPress={() => setShowFilter(false)}>
+                <X color="#a3a3ab" size={20} strokeWidth={2} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Open spots only */}
+            <View className="flex-row items-center justify-between mb-6">
+              <Text className="text-foreground text-sm font-semibold">Open spots only</Text>
+              <Switch
+                value={openSpotsOnly}
+                onValueChange={setOpenSpotsOnly}
+                trackColor={{ false: "#3f3f46", true: "#7A1EFF" }}
+                thumbColor="#fff"
+              />
+            </View>
+
+            {/* Sort by */}
+            <Text className="text-foreground text-sm font-semibold mb-2">Sort by</Text>
+            {(
+              [
+                { key: "default", label: "Default" },
+                { key: "distance", label: "Distance (nearest first)" },
+                { key: "players", label: "Most players" },
+              ] as const
+            ).map(({ key, label }) => (
+              <TouchableOpacity
+                key={key}
+                onPress={() => setSortBy(key)}
+                activeOpacity={0.75}
+                className="flex-row items-center justify-between py-3.5 border-b border-border"
+              >
+                <Text className="text-foreground text-sm">{label}</Text>
+                {sortBy === key && <Check color="#7A1EFF" size={16} strokeWidth={2.5} />}
+              </TouchableOpacity>
+            ))}
+
+            {/* Apply */}
+            <TouchableOpacity
+              onPress={() => setShowFilter(false)}
+              activeOpacity={0.85}
+              className="mt-6 rounded-2xl overflow-hidden"
+            >
+              <LinearGradient
+                colors={["#7A1EFF", "#D84CFF", "#FF8A2A"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                className="py-3.5 items-center"
+              >
+                <Text className="text-white text-sm font-bold">Apply Filters</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

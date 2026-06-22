@@ -39,6 +39,7 @@ const packs = [
     price: 120,
     emoji: "🌶️",
     tag: "Limited",
+    category: "Limited",
     colors: ["#D84CFF", "#FF8A2A"],
     image: packMidnightSpice,
   },
@@ -49,6 +50,7 @@ const packs = [
     price: 200,
     emoji: "💞",
     tag: "Hot",
+    category: "Couples",
     colors: ["#7A1EFF", "#D84CFF"],
     image: packCouplesDeluxe,
   },
@@ -59,6 +61,7 @@ const packs = [
     price: 80,
     emoji: "🍿",
     tag: null,
+    category: "Family",
     colors: ["#FF8A2A", "#7A1EFF"],
     image: packFamilyMovie,
   },
@@ -69,6 +72,7 @@ const packs = [
     price: 60,
     emoji: "💼",
     tag: "Corporate",
+    category: "Corporate",
     colors: ["#2D2A8F", "#B03BFF"],
     image: packOfficeIcebreakers,
   },
@@ -79,6 +83,7 @@ const packs = [
     price: 250,
     emoji: "🃏",
     tag: "New",
+    category: "Spicy",
     colors: ["#B03BFF", "#FF8A2A"],
     image: packWildCard,
   },
@@ -89,6 +94,7 @@ const packs = [
     price: 150,
     emoji: "💣",
     tag: null,
+    category: "Spicy",
     colors: ["#D84CFF", "#7A1EFF"],
     image: packTruthBombs,
   },
@@ -98,10 +104,17 @@ export default function MarketplaceScreen() {
   const [selectedCategory, setSelectedCategory] =
     useState("Featured");
 
+  const filteredPacks =
+    selectedCategory === "Featured"
+      ? packs
+      : packs.filter(
+          (pack) => pack.category === selectedCategory
+        );
+
   return (
     <SafeAreaView className="flex-1 bg-background">
       <FlatList
-        data={packs}
+        data={filteredPacks}
         numColumns={2}
         keyExtractor={(item) =>
           item.id.toString()

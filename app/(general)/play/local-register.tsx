@@ -1,4 +1,5 @@
 import GoBack from "@/components/shared/GoBack";
+import { usePlayers } from "@/context/PlayersContext";
 import { LinearGradient as RNLinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import {
@@ -20,6 +21,8 @@ const SafeAreaView = styled(RNSafeAreaView);
 const LinearGradient = styled(RNLinearGradient);
 
 export default function LocalRegisterScreen() {
+  const { players: contextPlayers, setPlayers: setContextPlayers } = usePlayers();
+
   const emojis = [
     "🎯",
     "🦊",
@@ -41,18 +44,14 @@ export default function LocalRegisterScreen() {
     ["#B03BFF", "#D84CFF"],
   ];
 
-  const [players, setPlayers] = useState<
-    { name: string; emoji: string }[]
-  >([]);
-
   const [name, setName] = useState("");
   const [emoji, setEmoji] = useState(emojis[0]);
 
   const addPlayer = () => {
     if (!name.trim()) return;
 
-    setPlayers((prev) => [
-      ...prev,
+    setContextPlayers([
+      ...contextPlayers,
       {
         name: name.trim(),
         emoji,
@@ -62,7 +61,7 @@ export default function LocalRegisterScreen() {
     setName("");
     setEmoji(
       emojis[
-      (players.length + 1) % emojis.length
+      (contextPlayers.length + 1) % emojis.length
       ]
     );
   };
@@ -77,7 +76,7 @@ export default function LocalRegisterScreen() {
         }}
         showsVerticalScrollIndicator={false}
       >
-        <GoBack title="Pass & Register" rightText={players.length + " Added"} />
+        <GoBack title="Pass & Register" rightText={contextPlayers.length + " Added"} />
         {/* Registration Card */}
         <LinearGradient
           colors={["#7A1EFF", "#D84CFF", "#FF8A2A"]}
@@ -86,7 +85,7 @@ export default function LocalRegisterScreen() {
           className="mt-5 rounded-3xl p-6"
         >
           <Text className="text-center text-xs font-sans-semibold uppercase tracking-wider text-white/80">
-            Player {players.length + 1}
+            Player {contextPlayers.length + 1}
           </Text>
           {/* Selected Avatar */}
           <View className="mx-auto mt-4 h-24 w-24 items-center justify-center rounded-3xl bg-white/20">
@@ -149,13 +148,13 @@ export default function LocalRegisterScreen() {
           <Text className="mb-3 font-sg-bold text-sm text-white">
             Registered Crew
           </Text>
-          {players.length === 0 ? (
+          {contextPlayers.length === 0 ? (
             <Text className="text-sm text-muted-foreground">
               Pass the phone around — add everyone.
             </Text>
           ) : (
             <View className="flex-row flex-wrap">
-              {players.map((player, index) => (
+              {contextPlayers.map((player, index) => (
                 <View
                   key={index}
                   className="mb-4 mr-3 w-20 items-center"

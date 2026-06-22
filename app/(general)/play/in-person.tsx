@@ -210,7 +210,12 @@ export default function InPersonScreen() {
         {/* Teams */}
         <TouchableOpacity
           activeOpacity={0.9}
-          onPress={() => router.push("/play/teams")}
+          onPress={() =>
+            router.push({
+              pathname: "/play/teams",
+              params: { players: JSON.stringify(players) },
+            })
+          }
           className="mt-3 flex-row items-center justify-between rounded-3xl border border-white/10 bg-card p-4"
         >
           <View className="flex-row items-center">
@@ -241,7 +246,10 @@ export default function InPersonScreen() {
         <TouchableOpacity
           activeOpacity={0.9}
           onPress={() =>
-            router.push("/play/seating")
+            router.push({
+              pathname: "/play/seating",
+              params: { players: JSON.stringify(players) },
+            })
           }
           className="mt-6"
         >
