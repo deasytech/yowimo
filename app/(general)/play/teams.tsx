@@ -42,14 +42,12 @@ export default function TeamSelectionScreen() {
   const [assign, setAssign] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    if (registeredPlayers.length > 0) {
-      setPool(
-        registeredPlayers.map((player, index) => ({
-          id: String(index),
-          name: player.name,
-        }))
-      );
-    }
+    setPool(
+      registeredPlayers.map((player, index) => ({
+        id: String(index),
+        name: player.name,
+      }))
+    );
   }, [registeredPlayers]);
 
   const teamOf = (id: string) => assign[id];

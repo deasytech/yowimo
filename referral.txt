@@ -1,0 +1,18 @@
+Referral Flow:
+- Build a web platform to handle referral and redemption
+- Track the referral flow to know how many people that has been referred. Eg. (4 tokens to referral and 6 tokens to new users)
+- To view the tokens acquired you need to download and install the app.
+
+Tokenization
+- Create an event (Game Night) with unique ID
+- Event Pool Column set to zero by default
+- Pool Target: Set target number of participants to fill the pool (total invitees by 10 tokens)
+- No tokens no access
+- You must spend like 10 tokens to participate in the event
+- Group invitees without token are requesting access but they need to fund the event pool first
+- Once pool target is met, invitees can join the event
+- The event pool can only be funded from the user's wallet
+- Token pool funding notification with ranking updates based on the highest contribution
+- At the end of every event they must spend the tokens in the pool
+- The tokens can be used as a giveaway reward and then store the benefactor of the giveaway in database for tracking
+- An event that is created by the game host can then flag everyone notifying the benefactor that spent money in the last event with high contribution

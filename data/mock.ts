@@ -160,6 +160,13 @@ export const PARTIES: PartyProps[] = [
   },
 ];
 
+// Discover expands each party into several feed entries (e.g. "p1-0", "p1-1"),
+// but they all share one chat room — this resolves a feed entry id back to it.
+export function basePartyId(id: string): string {
+  const match = PARTIES.find((p) => id === p.id || id.startsWith(`${p.id}-`));
+  return match ? match.id : id;
+}
+
 export const FRIENDS: FriendProps[] = [
   { id: "f1", name: "Maya Rivera", handle: "@mayarvr", initials: "MR", online: true, inParty: "Friday Night Chaos", level: 24 },
   { id: "f2", name: "Jordan Kim", handle: "@jordkm", initials: "JK", online: true, level: 18 },
@@ -173,5 +180,5 @@ export const QUICK_ACTIONS = [
   { icon: Zap, label: "Quick Match", href: "/lobby/quick", colors: ["#FF8A2A", "#D84CFF"] as const },
   { icon: Users, label: "Friends", href: "/profile/friends", colors: ["#7A1EFF", "#A855F7"] as const },
   { icon: Trophy, label: "Leaderboard", href: "/leaderboard", colors: ["#D84CFF", "#FF8A2A"] as const },
-  { icon: Flame, label: "Trending", href: "/public", colors: ["#312E81", "#7A1EFF"] as const },
+  { icon: Flame, label: "Trending", href: "/play/public", colors: ["#312E81", "#7A1EFF"] as const },
 ];

@@ -14,7 +14,7 @@ export default {
     },
     android: {
       adaptiveIcon: {
-        backgroundColor: '#E6F4FE',
+        backgroundColor: '#101015',
         foregroundImage: './assets/images/android-icon-foreground.png',
         backgroundImage: './assets/images/android-icon-background.png',
         monochromeImage: './assets/images/android-icon-monochrome.png',
@@ -62,6 +62,13 @@ export default {
       '@clerk/expo',
       'expo-secure-store',
       'expo-web-browser',
+      [
+        'expo-audio',
+        {
+          microphonePermission:
+            'Allow $(PRODUCT_NAME) to access your microphone to send voice notes.',
+        },
+      ],
     ],
     experiments: {
       typedRoutes: true,
@@ -70,6 +77,9 @@ export default {
     extra: {
       posthogProjectToken: process.env.POSTHOG_PROJECT_TOKEN,
       posthogHost: process.env.POSTHOG_HOST,
+      eas: {
+        projectId: '14aa01cb-e38c-4a16-bd24-058c68d6a90e',
+      },
     },
   },
-}
+};

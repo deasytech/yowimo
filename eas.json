@@ -1,0 +1,28 @@
+{
+  "cli": {
+    "version": ">= 18.5.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "preview": {
+      "distribution": "internal"
+    },
+    "production": {
+      "autoIncrement": true,
+      "ios": {
+        "simulator": false
+      },
+      "environment": "production"
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "desmonddoc4all@gmail.com",
+        "ascAppId": "6761558235",
+        "appleTeamId": "2R428742QC",
+        "bundleIdentifier": "com.deasytech.yowimo"
+      }
+    }
+  }
+}
