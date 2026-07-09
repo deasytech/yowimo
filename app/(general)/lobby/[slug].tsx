@@ -243,7 +243,7 @@ export default function LobbyScreen() {
       </ScrollView>
       <View className="border-t border-white/10 bg-background px-5 pb-3">
         <TouchableOpacity
-          onPress={() => router.push("/lobby/ready")}
+          onPress={() => router.push("/play/game")}
           activeOpacity={0.85}
           className="mt-8"
         >

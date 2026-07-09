@@ -100,10 +100,7 @@ export default function MVPAwards() {
             const Icon = award.icon;
 
             return (
-              <TouchableOpacity
-                key={award.id}
-                activeOpacity={0.9}
-              >
+              <View key={award.id}>
                 <LinearGradient
                   colors={award.colors}
                   start={{ x: 0, y: 0 }}
@@ -145,7 +142,7 @@ export default function MVPAwards() {
                     </View>
                   </View>
                 </LinearGradient>
-              </TouchableOpacity>
+              </View>
             );
           })}
         </View>

@@ -10,7 +10,7 @@ import {
   X,
 } from "lucide-react-native";
 import { styled } from "nativewind";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Dimensions,
@@ -141,6 +141,13 @@ export default function GameRoom() {
   const [muted, setMuted] = useState(false);
   const [selectedReaction, setSelectedReaction] =
     useState<number | null>(null);
+  const reactionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (reactionTimeoutRef.current) clearTimeout(reactionTimeoutRef.current);
+    };
+  }, []);
 
   const card = CARDS[cardIndex % CARDS.length];
 
@@ -176,8 +183,10 @@ export default function GameRoom() {
   const handleReaction = (index: number) => {
     setSelectedReaction(index);
 
-    setTimeout(() => {
+    if (reactionTimeoutRef.current) clearTimeout(reactionTimeoutRef.current);
+    reactionTimeoutRef.current = setTimeout(() => {
       setSelectedReaction(null);
+      reactionTimeoutRef.current = null;
     }, 500);
   };
 

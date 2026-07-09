@@ -17,14 +17,16 @@ import packOfficeIcebreakers from "@/assets/images/pack-office-icebreakers.jpg";
 import packTruthBombs from "@/assets/images/pack-truth-bombs.jpg";
 import packWildCard from "@/assets/images/pack-wild-card.jpg";
 import MarketplaceCard from "@/components/MarketPlaceCard";
+import MarketplaceCardSkeleton from "@/components/MarketplaceCardSkeleton";
 import PackDetailModal, {
   MarketplacePack,
 } from "@/components/PackDetailModal";
-import MarketplaceCardSkeleton from "@/components/MarketplaceCardSkeleton";
 import Toast from "@/components/shared/Toast";
 import TokenBadge from "@/components/TokenBadge";
 import { useToast } from "@/hooks/useToast";
 import { styled } from "nativewind";
+
+import { getRandomBytesAsync } from "expo-crypto";
 
 const SafeAreaView = styled(RNSafeAreaView);
 const LinearGradient = styled(RNLinearGradient);
@@ -193,16 +195,21 @@ const featuredPack: MarketplacePack = {
   ],
 };
 
-function simulatePurchase(): Promise<void> {
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      if (Math.random() < PURCHASE_FAILURE_RATE) {
-        reject(new Error("purchase_failed"));
-      } else {
-        resolve();
-      }
-    }, SIMULATED_LATENCY_MS);
+async function simulatePurchase(): Promise<void> {
+  const randomBytes = await getRandomBytesAsync(1);
+  const randomByte = randomBytes[0];
+
+  const failureThreshold = Math.floor(
+    PURCHASE_FAILURE_RATE * 256
+  );
+
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, SIMULATED_LATENCY_MS);
   });
+
+  if (randomByte < failureThreshold) {
+    throw new Error("purchase_failed");
+  }
 }
 
 export default function MarketplaceScreen() {
@@ -265,8 +272,8 @@ export default function MarketplaceScreen() {
     selectedCategory === "Featured"
       ? packs
       : packs.filter(
-          (pack) => pack.category === selectedCategory
-        );
+        (pack) => pack.category === selectedCategory
+      );
 
   return (
     <SafeAreaView className="flex-1 bg-background">

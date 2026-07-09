@@ -17,6 +17,7 @@ const LinearGradient = styled(RNLinearGradient);
 export default function CardReveal() {
   const flipAnimation = useRef(new Animated.Value(0)).current;
   const [flipped, setFlipped] = useState(false);
+  const flippedRef = useRef(false);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -28,13 +29,14 @@ export default function CardReveal() {
 
   const flipCard = () => {
     Animated.timing(flipAnimation, {
-      toValue: flipped ? 0 : 180,
+      toValue: flippedRef.current ? 0 : 180,
       duration: 700,
       easing: Easing.inOut(Easing.ease),
       useNativeDriver: true,
     }).start();
 
-    setFlipped((current) => !current);
+    flippedRef.current = !flippedRef.current;
+    setFlipped(flippedRef.current);
   };
 
   const frontRotation = flipAnimation.interpolate({

@@ -156,6 +156,7 @@ export default function PartyChatScreen() {
   const [recordSeconds, setRecordSeconds] = useState(0);
   const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const audioModeReadyRef = useRef(false);
+  const cancelStartRef = useRef(false);
 
   useEffect(() => {
     return () => {
@@ -164,6 +165,7 @@ export default function PartyChatScreen() {
   }, []);
 
   const startRecording = async () => {
+    cancelStartRef.current = false;
     try {
       if (!audioModeReadyRef.current) {
         const { granted } = await requestRecordingPermissionsAsync();
@@ -178,6 +180,10 @@ export default function PartyChatScreen() {
         audioModeReadyRef.current = true;
       }
       await recorder.prepareToRecordAsync();
+      if (cancelStartRef.current) {
+        cancelStartRef.current = false;
+        return;
+      }
       recorder.record();
       setRecordSeconds(0);
       setIsRecording(true);
@@ -188,6 +194,7 @@ export default function PartyChatScreen() {
   };
 
   const stopRecording = async () => {
+    cancelStartRef.current = true;
     if (recordTimerRef.current) {
       clearInterval(recordTimerRef.current);
       recordTimerRef.current = null;

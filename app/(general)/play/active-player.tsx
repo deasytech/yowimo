@@ -30,7 +30,13 @@ export default function ActivePlayerView() {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setTimeLeft((current) => Math.max(0, current - 1));
+      setTimeLeft((current) => {
+        if (current <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return current - 1;
+      });
     }, 1000);
 
     return () => clearInterval(interval);

@@ -48,7 +48,13 @@ export default function WaitingRoom() {
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setTime((v) => Math.max(0, v - 1));
+      setTime((v) => {
+        if (v <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return v - 1;
+      });
     }, 1000);
 
     return () => clearInterval(timer);

@@ -1,3 +1,4 @@
+import { PARTIES } from "@/data/mock";
 import { LinearGradient as RNLinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import {
@@ -286,6 +287,7 @@ export default function LiveVideoRoom() {
 
           {/* Chat */}
           <TouchableOpacity
+            onPress={() => router.push(`/chat/${PARTIES[0].id}`)}
             activeOpacity={0.8}
             className="h-12 w-12 items-center justify-center rounded-2xl bg-secondary"
           >

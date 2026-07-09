@@ -1,9 +1,10 @@
-import { LinearGradient } from "expo-linear-gradient";
+import { LinearGradient as RNLinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import {
   ArrowLeft,
   Share2,
 } from "lucide-react-native";
+import { styled } from "nativewind";
 import {
   ScrollView,
   Share,
@@ -11,7 +12,10 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
+
+const SafeAreaView = styled(RNSafeAreaView);
+const LinearGradient = styled(RNLinearGradient);
 
 const STATS = [
   {

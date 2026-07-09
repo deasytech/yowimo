@@ -1,4 +1,5 @@
 import { FRIENDS, PARTIES } from "@/data/mock";
+import { getRandomBytesAsync } from "expo-crypto";
 import React, {
   createContext,
   ReactNode,
@@ -73,6 +74,21 @@ const ChatContext = createContext<ChatContextType | undefined>(undefined);
 // Discover unread badge has something to react to even without a backend.
 const SIMULATED_MESSAGE_INTERVAL_MS = 15000;
 
+async function secureRandomIndex(length: number): Promise<number> {
+  if (length <= 0) {
+    throw new Error("Cannot select from an empty array");
+  }
+
+  const randomBytes = await getRandomBytesAsync(4);
+  const randomValue =
+    ((randomBytes[0] << 24) |
+      (randomBytes[1] << 16) |
+      (randomBytes[2] << 8) |
+      randomBytes[3]) >>> 0;
+
+  return randomValue % length;
+}
+
 export function ChatProvider({ children }: { children: ReactNode }) {
   const [messagesByParty, setMessagesByParty] = useState<Record<string, ChatMessage[]>>(
     () => {
@@ -94,13 +110,19 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, [blockedUsers]);
 
   useEffect(() => {
-    const interval = setInterval(() => {
+    const interval = setInterval(async () => {
       const pool = FRIENDS.filter((f) => !blockedUsersRef.current.has(firstName(f.name)));
-      if (pool.length === 0) return;
+      if (pool.length === 0 || PARTIES.length === 0 || REACTION_LINES.length === 0) return;
 
-      const party = PARTIES[Math.floor(Math.random() * PARTIES.length)];
-      const sender = pool[Math.floor(Math.random() * pool.length)];
-      const text = REACTION_LINES[Math.floor(Math.random() * REACTION_LINES.length)];
+      const [partyIndex, senderIndex, reactionIndex] = await Promise.all([
+        secureRandomIndex(PARTIES.length),
+        secureRandomIndex(pool.length),
+        secureRandomIndex(REACTION_LINES.length),
+      ]);
+
+      const party = PARTIES[partyIndex];
+      const sender = pool[senderIndex];
+      const text = REACTION_LINES[reactionIndex];
 
       const msg: ChatMessage = {
         id: `sim-${party.id}-${Date.now()}`,

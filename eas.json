@@ -18,7 +18,6 @@
   "submit": {
     "production": {
       "ios": {
-        "appleId": "desmonddoc4all@gmail.com",
         "ascAppId": "6761558235",
         "appleTeamId": "2R428742QC",
         "bundleIdentifier": "com.deasytech.yowimo"
