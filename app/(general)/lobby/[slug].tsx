@@ -24,12 +24,12 @@ const LinearGradient = styled(RNLinearGradient);
 const SafeAreaView = styled(RNSafeAreaView);
 
 const SETTINGS_ROWS = [
-  { Icon: Sparkles, label: "AI Host", value: "On · Spicy mode", colorClass: "text-orange", to: "/ai-host" },
-  { Icon: Users, label: "Teams", value: "Free for all", colorClass: "text-foreground", to: "/teams" },
-  { Icon: Settings2, label: "Seating", value: "Auto · 6 players", colorClass: "text-foreground", to: "/seating" },
-  { Icon: Video, label: "Live video room", value: "Tap to join", colorClass: "text-foreground", to: "/video-room" },
-  { Icon: Settings2, label: "Waiting room", value: "3 waiting", colorClass: "text-foreground", to: "/waiting" },
-  { Icon: Users, label: "Local players", value: "Add device", colorClass: "text-foreground", to: "/local-register" },
+  { Icon: Sparkles, label: "AI Host", value: "On · Spicy mode", colorClass: "text-orange", to: "/lobby/ai-host" },
+  { Icon: Users, label: "Teams", value: "Free for all", colorClass: "text-foreground", to: "/play/teams" },
+  { Icon: Settings2, label: "Seating", value: "Auto · 6 players", colorClass: "text-foreground", to: "/play/seating" },
+  { Icon: Video, label: "Live video room", value: "Tap to join", colorClass: "text-foreground", to: "/play/video-room" },
+  { Icon: Settings2, label: "Waiting room", value: "3 waiting", colorClass: "text-foreground", to: "/lobby/waiting-room" },
+  { Icon: Users, label: "Local players", value: "Add device", colorClass: "text-foreground", to: "/play/local-register" },
 ];
 
 export default function LobbyScreen() {
@@ -144,7 +144,7 @@ export default function LobbyScreen() {
             </View>
           </View>
 
-          <Link href="/" asChild>
+          <Link href="/play/qr-join" asChild>
             <TouchableOpacity
               activeOpacity={0.8}
               style={{ flex: 1 }}
@@ -164,7 +164,7 @@ export default function LobbyScreen() {
             <Text className="text-foreground text-lg font-bold">
               In the room · {party.players}/{party.maxPlayers}
             </Text>
-            <Link href="/" asChild>
+            <Link href="/play/invite" asChild>
               <TouchableOpacity activeOpacity={0.7}>
                 <Text className="text-violet-bright text-xs font-medium">Invite more</Text>
               </TouchableOpacity>
@@ -240,10 +240,10 @@ export default function LobbyScreen() {
             </Link>
           ))}
         </View>
-
-        {/* ── Start game CTA ── */}
+      </ScrollView>
+      <View className="border-t border-white/10 bg-background px-5 pb-3">
         <TouchableOpacity
-          onPress={() => router.push("/")}
+          onPress={() => router.push("/play/game")}
           activeOpacity={0.85}
           className="mt-8"
         >
@@ -258,7 +258,7 @@ export default function LobbyScreen() {
             </Text>
           </LinearGradient>
         </TouchableOpacity>
-      </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }

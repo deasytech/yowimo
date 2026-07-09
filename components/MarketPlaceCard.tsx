@@ -1,7 +1,14 @@
 import { LinearGradient as RNLinearGradient } from "expo-linear-gradient";
-import { Coins } from "lucide-react-native";
+import { Check, Coins } from "lucide-react-native";
 import { styled } from "nativewind";
-import { Image, Text, TouchableOpacity, View } from "react-native";
+import { useState } from "react";
+import {
+  ActivityIndicator,
+  Image,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 const LinearGradient = styled(RNLinearGradient);
 
@@ -14,22 +21,51 @@ interface MarketplaceCardProps {
     emoji: string;
     tag?: string | null;
     image: any;
+    colors?: [string, string];
   };
+  onPress?: () => void;
   onBuy?: () => void;
+  owned?: boolean;
+  purchasing?: boolean;
+  onImageError?: () => void;
 }
 
 export default function MarketplaceCard({
   pack,
+  onPress,
   onBuy,
+  owned = false,
+  purchasing = false,
+  onImageError,
 }: MarketplaceCardProps) {
+  const [imageFailed, setImageFailed] = useState(false);
+
+  const handleImageError = () => {
+    setImageFailed(true);
+    onImageError?.();
+  };
+
   return (
-    <View className="mb-4 w-[48%] overflow-hidden rounded-3xl border border-white/10 bg-card">
+    <TouchableOpacity
+      activeOpacity={0.9}
+      onPress={onPress}
+      disabled={!onPress}
+      className="mb-4 w-[48%] overflow-hidden rounded-3xl border border-white/10 bg-card"
+    >
       <View className="relative h-32 overflow-hidden">
-        <Image
-          source={pack.image}
-          className="absolute inset-0 h-full w-full"
-          resizeMode="cover"
-        />
+        {imageFailed ? (
+          <LinearGradient
+            colors={pack.colors ?? ["#7A1EFF", "#D84CFF"]}
+            className="absolute inset-0"
+          />
+        ) : (
+          <Image
+            source={pack.image}
+            className="absolute inset-0 h-full w-full"
+            resizeMode="cover"
+            onError={handleImageError}
+          />
+        )}
 
         <LinearGradient
           colors={[
@@ -39,13 +75,20 @@ export default function MarketplaceCard({
           className="absolute inset-0"
         />
 
-        {pack.tag && (
+        {owned ? (
+          <View className="absolute right-2 top-2 flex-row items-center gap-1 rounded-full bg-black/60 px-2 py-1">
+            <Check color="#4ADE80" size={11} strokeWidth={3} />
+            <Text className="text-[10px] font-sans-bold text-white">
+              Owned
+            </Text>
+          </View>
+        ) : pack.tag ? (
           <View className="absolute right-2 top-2 rounded-full bg-black/60 px-2 py-1">
             <Text className="text-[10px] font-sans-bold text-white">
               {pack.tag}
             </Text>
           </View>
-        )}
+        ) : null}
 
         <Text className="absolute left-3 top-3 text-3xl">
           {pack.emoji}
@@ -70,18 +113,35 @@ export default function MarketplaceCard({
             <Text className="font-sans-bold text-accent">{pack.price}</Text>
           </View>
 
-          <TouchableOpacity activeOpacity={0.9} onPress={onBuy}>
-            <LinearGradient
-              colors={["#7A1EFF", "#D84CFF"]}
-              className="rounded-xl px-3 py-1.5"
-            >
+          {owned ? (
+            <View className="flex-row items-center gap-1 rounded-xl bg-secondary px-3 py-1.5">
+              <Check color="#4ADE80" size={12} strokeWidth={3} />
               <Text className="text-[11px] font-sans-semibold text-white">
-                Buy
+                Owned
               </Text>
-            </LinearGradient>
-          </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              activeOpacity={0.9}
+              onPress={onBuy}
+              disabled={purchasing}
+            >
+              <LinearGradient
+                colors={["#7A1EFF", "#D84CFF"]}
+                className="min-w-11 items-center rounded-xl px-3 py-1.5"
+              >
+                {purchasing ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text className="text-[11px] font-sans-semibold text-white">
+                    Buy
+                  </Text>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }

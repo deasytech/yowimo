@@ -167,7 +167,7 @@ export default function ReferralCenterScreen() {
 
         {/* ── Invite friends CTA ── */}
         <TouchableOpacity
-          onPress={() => router.push("/")}
+          onPress={() => router.push("/play/invite")}
           activeOpacity={0.85}
           className="mt-6"
         >

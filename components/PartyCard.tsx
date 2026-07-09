@@ -1,9 +1,12 @@
+import { useChat } from '@/context/ChatContext';
+import { basePartyId } from '@/data/mock';
+import * as Haptics from 'expo-haptics';
 import { LinearGradient as RNLinearGradient } from 'expo-linear-gradient';
 import { Link } from 'expo-router';
-import { Heart, MessageCircle, Plus, Share2, Users } from 'lucide-react-native';
+import { Check, Heart, MessageCircle, Plus, Share2, Users } from 'lucide-react-native';
 import { styled } from 'nativewind';
-import React from 'react';
-import { Image, Text, TouchableOpacity, View } from 'react-native';
+import React, { useState } from 'react';
+import { Image, Share, Text, TouchableOpacity, View } from 'react-native';
 
 const LinearGradient = styled(RNLinearGradient);
 
@@ -23,6 +26,24 @@ const PartyCard = ({
   onLike: () => void;
 }) => {
   const compact = height > 0 && height < 720;
+  const chatPartyId = basePartyId(party.id);
+  const unread = useChat().unreadCount(chatPartyId);
+  const [following, setFollowing] = useState(false);
+
+  const shareParty = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const link = `https://yowimo.app/party/${chatPartyId}`;
+    Share.share({
+      message: `Join "${party.title}" on Yowimo! ${link}`,
+      url: link,
+      title: party.title,
+    }).catch(() => { });
+  };
+
+  const toggleFollow = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setFollowing((f) => !f);
+  };
 
   return (
     <View style={{ height: height || "100%", width: "100%" }} className="relative overflow-hidden">
@@ -131,16 +152,30 @@ const PartyCard = ({
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity activeOpacity={0.85} className="items-center">
-          <View className={`${compact ? "h-10 w-10" : "h-12 w-12"} items-center justify-center rounded-full bg-white/15`}>
-            <MessageCircle color="#fff" size={compact ? 21 : 24} strokeWidth={2} />
-          </View>
-          <Text className="mt-1 text-white text-[11px] font-semibold">
-            {party.players * 3}
-          </Text>
-        </TouchableOpacity>
+        <Link href={`/chat/${chatPartyId}`} asChild>
+          <TouchableOpacity activeOpacity={0.85} className="items-center">
+            <View className="relative">
+              <View className={`${compact ? "h-10 w-10" : "h-12 w-12"} items-center justify-center rounded-full bg-white/15`}>
+                <MessageCircle color="#fff" size={compact ? 21 : 24} strokeWidth={2} />
+              </View>
+              {unread > 0 && (
+                <View
+                  className="absolute -top-1 -right-1 min-w-4.5 h-4.5 items-center justify-center rounded-full bg-red-500 px-1"
+                  style={{ borderWidth: 2, borderColor: "#101015" }}
+                >
+                  <Text className="text-white text-[10px] font-bold">
+                    {unread > 9 ? "9+" : unread}
+                  </Text>
+                </View>
+              )}
+            </View>
+            <Text className="mt-1 text-white text-[11px] font-semibold">
+              {party.players * 3}
+            </Text>
+          </TouchableOpacity>
+        </Link>
 
-        <TouchableOpacity activeOpacity={0.85} className="items-center">
+        <TouchableOpacity onPress={shareParty} activeOpacity={0.85} className="items-center">
           <View className={`${compact ? "h-10 w-10" : "h-12 w-12"} items-center justify-center rounded-full bg-white/15`}>
             <Share2 color="#fff" size={compact ? 21 : 24} strokeWidth={2} />
           </View>
@@ -158,11 +193,19 @@ const PartyCard = ({
             <Text className="text-white text-sm font-bold">{party.hostAvatar}</Text>
           </LinearGradient>
           <TouchableOpacity
+            onPress={toggleFollow}
             activeOpacity={0.85}
-            className="absolute h-5 w-5 items-center justify-center rounded-full bg-orange"
-            style={{ bottom: -4, left: "50%", marginLeft: -10 }}
+            accessibilityRole="button"
+            accessibilityLabel={following ? `Following ${party.host}` : `Follow ${party.host}`}
+            className={`absolute h-5 w-5 items-center justify-center rounded-full ${following ? "bg-green-500" : "bg-orange"
+              }`}
+            style={{ bottom: -4, left: "50%", marginLeft: -10, borderWidth: 2, borderColor: "#101015" }}
           >
-            <Plus color="#fff" size={12} strokeWidth={3} />
+            {following ? (
+              <Check color="#fff" size={11} strokeWidth={3} />
+            ) : (
+              <Plus color="#fff" size={12} strokeWidth={3} />
+            )}
           </TouchableOpacity>
         </View>
       </View>

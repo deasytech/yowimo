@@ -3,6 +3,7 @@ import { useFonts } from 'expo-font';
 import { SplashScreen, Stack, useGlobalSearchParams, usePathname } from 'expo-router';
 import { useEffect, useRef } from 'react';
 
+import { ChatProvider } from '@/context/ChatContext';
 import { PlayersProvider } from '@/context/PlayersContext';
 import { posthog } from '@/lib/posthog';
 import { ClerkProvider, useAuth } from '@clerk/expo';
@@ -87,8 +88,10 @@ function RootLayoutContent() {
       }}
     >
       <PlayersProvider>
-        <Stack screenOptions={{ headerShown: false }} />
-        <StatusBar barStyle='light-content' />
+        <ChatProvider>
+          <Stack screenOptions={{ headerShown: false }} />
+          <StatusBar barStyle='light-content' />
+        </ChatProvider>
       </PlayersProvider>
     </PostHogProvider>
   );

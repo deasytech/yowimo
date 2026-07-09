@@ -12,7 +12,6 @@ import {
   Lock,
   LogOut,
   Moon,
-  Palette,
   Shield,
   User
 } from "lucide-react-native";
@@ -48,27 +47,16 @@ export default function SettingsScreen() {
       ],
     },
     {
-      title: "APP",
-      items: [
-        { Icon: Palette, label: "Appearance", to: "/settings" },
-        { Icon: Globe, label: "Language · English", to: "/settings" },
-      ],
-    },
-    {
       title: "SUPPORT",
-      items: [{ Icon: HelpCircle, label: "Help center", to: "/help" }],
+      items: [{ Icon: HelpCircle, label: "Help center", to: "/profile/help" }],
     },
     {
       title: "EXPLORE",
       items: [
-        { Icon: Globe, label: "Public parties", to: "/public" },
-        { Icon: Globe, label: "Marketplace", to: "/marketplace" },
-        { Icon: Globe, label: "Sponsor management", to: "/sponsor" },
-        { Icon: Globe, label: "Audience view", to: "/audience" },
+        { Icon: Globe, label: "Public parties", to: "/play/public" },
+        { Icon: Globe, label: "Marketplace", to: "/market-place" },
+        { Icon: Globe, label: "Sponsor management", to: "/profile/sponsor-management" },
         { Icon: Globe, label: "Connect TV", to: "/play/connect-tv" },
-        { Icon: Globe, label: "Loading states", to: "/loading" },
-        { Icon: Globe, label: "Empty states", to: "/empty" },
-        { Icon: Globe, label: "Error states", to: "/error" },
       ],
     },
   ];

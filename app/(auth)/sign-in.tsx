@@ -64,52 +64,238 @@ export default function SignInScreen() {
   const handleSubmit = async () => {
     if (!formValid) return;
 
+    setAuthError("");
+    setCode("");
+
+    console.warn(
+      "[sign-in debug] handleSubmit fired, current status before password():",
+      signIn.status
+    );
+
     const { error } = await signIn.password({ emailAddress, password });
+
     if (error) {
-      posthog.capture('sign_in_failed', { method: 'email', error_code: error.code });
+      console.warn(
+        "[sign-in debug] password() error:",
+        JSON.stringify(error),
+        "status now:",
+        signIn.status
+      );
+      posthog.capture("sign_in_failed", {
+        method: "email",
+        error_code: error.code,
+      });
+      setAuthError(error.message ?? "Unable to sign in. Please try again.");
       return;
     }
 
+    console.warn("[sign-in debug] password() succeeded, status now:", signIn.status);
+    console.warn(
+      "[sign-in debug] factors:",
+      JSON.stringify({
+        first: signIn.supportedFirstFactors,
+        second: signIn.supportedSecondFactors,
+      })
+    );
+
     if (signIn.status === "complete") {
       posthog.identify(emailAddress, { $set: { email: emailAddress } });
-      posthog.capture('sign_in_completed', { method: 'email' });
+      posthog.capture("sign_in_completed", { method: "email" });
       await signIn.finalize({
         navigate: ({ session }) => {
           console.log(session?.currentTask);
         },
       });
-    } else if (signIn.status === "needs_client_trust") {
-      const emailCodeFactor = signIn.supportedSecondFactors.find(
-        (f) => f.strategy === "email_code"
-      );
-      if (emailCodeFactor) await signIn.mfa.sendEmailCode();
-    } else if (signIn.status === "needs_first_factor" || signIn.status === "needs_second_factor") {
-      // Email code challenge as a first/second factor — send the code and show OTP UI
-      await signIn.mfa.sendEmailCode();
-    } else {
-      console.error("Sign-in not complete:", signIn);
-    }
-  };
-
-
-  // ─── MFA verification ────────────────────────────────────────────────────
-  const handleVerify = async () => {
-    const { error } = await signIn.mfa.verifyEmailCode({ code });
-    if (error) {
-      console.error("MFA verification failed:", error);
       return;
     }
-    if (signIn.status === "complete") {
+
+    if (signIn.status === "needs_first_factor") {
+      const emailFactor = signIn.supportedFirstFactors.find(
+        (factor) => factor.strategy === "email_code"
+      );
+
+      if (!emailFactor) {
+        console.error(
+          "[sign-in debug] email_code is not a supported first factor:",
+          JSON.stringify(signIn.supportedFirstFactors)
+        );
+        setAuthError(
+          "This account does not support email-code verification. Check the Clerk test-user authentication factors."
+        );
+        return;
+      }
+
+      const { error: sendError } = await signIn.emailCode.sendCode();
+
+      if (sendError) {
+        console.error("[sign-in debug] first-factor code send failed:", sendError);
+        setAuthError(sendError.message ?? "Could not start email verification.");
+      }
+
+      return;
+    }
+
+    if (
+      signIn.status === "needs_second_factor" ||
+      signIn.status === "needs_client_trust"
+    ) {
+      const emailFactor = signIn.supportedSecondFactors.find(
+        (factor) => factor.strategy === "email_code"
+      );
+
+      if (!emailFactor) {
+        console.error(
+          "[sign-in debug] email_code is not a supported second factor:",
+          JSON.stringify(signIn.supportedSecondFactors)
+        );
+        setAuthError(
+          "This account does not support email-code MFA verification."
+        );
+        return;
+      }
+
+      const { error: sendError } = await signIn.mfa.sendEmailCode();
+
+      if (sendError) {
+        console.error("[sign-in debug] MFA code send failed:", sendError);
+        setAuthError(sendError.message ?? "Could not start MFA verification.");
+      }
+
+      return;
+    }
+
+    setAuthError(`Unsupported sign-in state: ${signIn.status}`);
+  };
+
+  // ─── Verification ────────────────────────────────────────────────────────
+  const handleVerify = async () => {
+    // Reading status through a function call resets TS's control-flow narrowing,
+    // since signIn.status can change at runtime across the awaits below even
+    // though TS otherwise treats it as fixed to the branch it was last checked in.
+    const getStatus = () => signIn.status;
+
+    console.warn(
+      "[sign-in debug] handleVerify fired, current status:",
+      getStatus()
+    );
+
+    setAuthError("");
+
+    let error;
+
+    if (signIn.status === "needs_first_factor") {
+      const emailFactor = signIn.supportedFirstFactors.find(
+        (factor) => factor.strategy === "email_code"
+      );
+
+      if (!emailFactor) {
+        console.error(
+          "[sign-in debug] Cannot verify email code. Supported first factors:",
+          JSON.stringify(signIn.supportedFirstFactors)
+        );
+        setAuthError(
+          "Email code is not a valid verification method for this account."
+        );
+        return;
+      }
+
+      ({ error } = await signIn.emailCode.verifyCode({ code }));
+    } else if (
+      signIn.status === "needs_second_factor" ||
+      signIn.status === "needs_client_trust"
+    ) {
+      const emailFactor = signIn.supportedSecondFactors.find(
+        (factor) => factor.strategy === "email_code"
+      );
+
+      if (!emailFactor) {
+        console.error(
+          "[sign-in debug] Cannot verify MFA email code. Supported second factors:",
+          JSON.stringify(signIn.supportedSecondFactors)
+        );
+        setAuthError(
+          "Email code is not a valid MFA method for this account."
+        );
+        return;
+      }
+
+      ({ error } = await signIn.mfa.verifyEmailCode({ code }));
+    } else {
+      setAuthError(`Unexpected verification state: ${signIn.status}`);
+      return;
+    }
+
+    if (error) {
+      console.error("[sign-in debug] verification failed:", error);
+      setAuthError(error.message ?? "Verification failed. Please try again.");
+      return;
+    }
+
+    console.warn(
+      "[sign-in debug] verification succeeded, status now:",
+      getStatus()
+    );
+
+    if (getStatus() === "complete") {
       posthog.identify(emailAddress, { $set: { email: emailAddress } });
-      posthog.capture('mfa_verified', { method: 'email_code' });
-      posthog.capture('sign_in_completed', { method: 'email_mfa' });
+      posthog.capture("mfa_verified", { method: "email_code" });
+      posthog.capture("sign_in_completed", {
+        method: "email_password_with_code",
+      });
+
       await signIn.finalize({
         navigate: ({ session }) => {
-          console.log(session.currentTask);
+          console.log(session?.currentTask);
         },
       });
-    } else {
-      console.error("Sign-in not complete:", signIn);
+
+      return;
+    }
+
+    console.error(
+      "[sign-in debug] verification returned non-complete status:",
+      getStatus()
+    );
+    setAuthError(`Verification requires another step: ${getStatus()}`);
+  };
+
+  const handleResendCode = async () => {
+    setAuthError("");
+
+    if (signIn.status === "needs_first_factor") {
+      const emailFactor = signIn.supportedFirstFactors.find(
+        (factor) => factor.strategy === "email_code"
+      );
+
+      if (!emailFactor) {
+        setAuthError("Email code is not available for this account.");
+        return;
+      }
+
+      const { error } = await signIn.emailCode.sendCode();
+      if (error) {
+        setAuthError(error.message ?? "Could not resend the code.");
+      }
+      return;
+    }
+
+    if (
+      signIn.status === "needs_second_factor" ||
+      signIn.status === "needs_client_trust"
+    ) {
+      const emailFactor = signIn.supportedSecondFactors.find(
+        (factor) => factor.strategy === "email_code"
+      );
+
+      if (!emailFactor) {
+        setAuthError("Email MFA is not available for this account.");
+        return;
+      }
+
+      const { error } = await signIn.mfa.sendEmailCode();
+      if (error) {
+        setAuthError(error.message ?? "Could not resend the code.");
+      }
     }
   };
 
@@ -207,6 +393,12 @@ export default function SignInScreen() {
                 </Text>
               )}
 
+              {authError ? (
+                <Text className="text-red-400 text-sm text-center">
+                  {authError}
+                </Text>
+              ) : null}
+
               <TouchableOpacity
                 onPress={handleVerify}
                 activeOpacity={0.85}
@@ -231,7 +423,7 @@ export default function SignInScreen() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                onPress={() => signIn.mfa.sendEmailCode()}
+                onPress={handleResendCode}
                 activeOpacity={0.7}
                 disabled={isLoading}
                 className="items-center py-3"
