@@ -42,7 +42,7 @@ export default function SignUpScreen() {
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [authError, setAuthError] = useState("");
-  const [ssoLoading, setSsoLoading] = useState(false);
+  const [ssoLoading, setSsoLoading] = useState<SSOStrategy | null>(null);
 
   const isLoading = fetchStatus === "fetching";
 
@@ -118,7 +118,7 @@ export default function SignUpScreen() {
 
   const handleSSO = async (strategy: SSOStrategy) => {
     setAuthError("");
-    setSsoLoading(true);
+    setSsoLoading(strategy);
     posthog.capture('sso_sign_up_initiated', { provider: strategy });
     try {
       const { createdSessionId, setActive } = await startSSOFlow({
@@ -137,7 +137,7 @@ export default function SignUpScreen() {
       posthog.capture('sign_up_failed', { method: strategy, error_message: message });
       setAuthError("Couldn't continue with social sign up. Please try again.");
     } finally {
-      setSsoLoading(false);
+      setSsoLoading(null);
     }
   };
 
@@ -427,13 +427,15 @@ export default function SignUpScreen() {
                 label="Google"
                 icon={<GoogleIcon />}
                 onPress={() => handleSSO("oauth_google")}
-                loading={ssoLoading}
+                loading={ssoLoading === "oauth_google"}
+                disabled={ssoLoading !== null && ssoLoading !== "oauth_google"}
               />
               <SocialBtn
                 label="Apple"
                 icon={<Apple color="#fff" size={16} strokeWidth={2} />}
                 onPress={() => handleSSO("oauth_apple")}
-                loading={ssoLoading}
+                loading={ssoLoading === "oauth_apple"}
+                disabled={ssoLoading !== null && ssoLoading !== "oauth_apple"}
               />
             </View>
 

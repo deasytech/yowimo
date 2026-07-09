@@ -20,18 +20,19 @@ Clerk already issues sessions/JWTs to the app. Laravel should **not** re-impleme
 **Recommendation: Laravel Reverb**, using Laravel's standard broadcasting abstraction (`broadcast(new Event(...))` for events implementing `ShouldBroadcast`) with **Laravel Echo** + the `laravel-echo` client in the RN app (`pusher-js` compatible transport, works fine in RN with a WebSocket polyfill — no extra native module needed).
 
 Why over alternatives:
+
 - **Pusher/Ably (hosted)**: no ops burden, but per-connection/message billing scales badly for a party app where every screen in a live session is a connection (lobby, chat, game, video-adjacent state) — cost grows with your best outcome (viral parties).
 - **Soketi**: also Pusher-protocol, community-maintained, viable, but Reverb is now the first-party Laravel option with tighter framework integration and Horizon-style observability coming from Laravel core, so default to it unless you hit a scaling wall Reverb can't handle (it can be horizontally scaled behind Redis pub/sub when needed).
 
 ### Channel design
 
-| Channel | Type | Used by |
-|---|---|---|
-| `presence-party.{id}` | Presence | Lobby roster, waiting room, video room participant list, "who's online in this party" |
-| `private-party.{id}.chat` | Private | Chat messages, typing indicators |
-| `private-party.{id}.game` | Private | Turn state, current card, timer, reactions, seating/teams changes |
-| `presence-friends.{userId}` | Presence | Home "Crew online" rail, friends list online/in-party status |
-| `private-user.{id}` | Private | Personal notifications feed, wallet balance changes, achievement unlocks |
+| Channel                     | Type     | Used by                                                                               |
+| --------------------------- | -------- | ------------------------------------------------------------------------------------- |
+| `presence-party.{id}`       | Presence | Lobby roster, waiting room, video room participant list, "who's online in this party" |
+| `private-party.{id}.chat`   | Private  | Chat messages, typing indicators                                                      |
+| `private-party.{id}.game`   | Private  | Turn state, current card, timer, reactions, seating/teams changes                     |
+| `presence-friends.{userId}` | Presence | Home "Crew online" rail, friends list online/in-party status                          |
+| `private-user.{id}`         | Private  | Personal notifications feed, wallet balance changes, achievement unlocks              |
 
 ### The timer rule (apply everywhere a countdown exists)
 
@@ -42,11 +43,13 @@ Every mock countdown today (`waiting-room.tsx`, `game.tsx`, `challenge.tsx`, `ac
 ## 3. Video/group call: LiveKit, not Zoom SDK
 
 `video-room.tsx` needs a fully custom tile grid (host badge, per-tile mic state, reaction overlays) — this is "programmable video," not "embed a meeting." Zoom Video SDK can technically be embedded, but:
+
 - It's priced and licensed around meeting minutes, not lightweight casual party sessions.
 - Customizing tile UI, overlays, and mixing it with your own game-state UI fights the SDK's opinions.
 - No natural story for the `connect-tv.tsx` cast/mirror flow.
 
 **Recommendation: LiveKit** (open-source SFU, self-hostable or LiveKit Cloud, first-class `@livekit/react-native` SDK).
+
 - Laravel's only responsibility: generate short-lived **room access tokens** (a signed JWT using your LiveKit API key/secret — trivial with any JWT library, no LiveKit PHP SDK required) via `POST /parties/{id}/video-token`, and track room lifecycle (`video_rooms` table: party_id, livekit_room_name, started_at, ended_at).
 - Participant list, mic/cam state, and join/leave are **native to LiveKit** (it already broadcasts this over its own data channel) — don't duplicate that state in Reverb. Only mirror host-designation and any app-specific overlay data (reactions, "open game" trigger) through Reverb since LiveKit's participant metadata isn't meant for your game-state.
 - `connect-tv.tsx`'s device discovery (Chromecast/AirPlay/FireTV) is a **native SDK concern on-device**, not a Laravel one — Laravel's role there is just issuing a `tv_pairing_code` (`GET /parties/{id}/tv-pairing-code`) that a paired TV/receiver app subscribes to on `private-party.{id}.game` to receive pushed game state.
@@ -56,7 +59,7 @@ Every mock countdown today (`waiting-room.tsx`, `game.tsx`, `challenge.tsx`, `ac
 
 ## 4. Core data model (entities every screen maps back to)
 
-```text
+```
 users                 (mirrors Clerk identity + profile fields)
 parties                (id, room_code, host_id, game_type_id, mode[online|in_person|hybrid],
                         visibility[public|private], status[draft|lobby|active|ended],
@@ -90,6 +93,7 @@ video_rooms             (party_id, livekit_room_name, started_at, ended_at)
 Grouped in the phased order I'd recommend building/wiring them in (see §6). Realtime items are marked ⚡.
 
 ### Phase 1 — Static catalogs + party creation shell
+
 Unlocks: Home (partial), Play/create-party, Marketplace browsing, Discover (read-only)
 
 - `GET /game-types` — deck catalog (`play.tsx` picker, Home recommended rail)
@@ -101,6 +105,7 @@ Unlocks: Home (partial), Play/create-party, Marketplace browsing, Discover (read
 - `POST /parties/{id}/like`, `DELETE /parties/{id}/like` — Discover heart action
 
 ### Phase 2 — Wallet & purchases
+
 Unlocks: Wallet tab, buy-token, transactions, marketplace purchase, pack ownership
 
 - `GET /wallet/balance` — single source of truth (currently hardcoded differently on 4 different screens — this alone fixes that bug)
@@ -112,6 +117,7 @@ Unlocks: Wallet tab, buy-token, transactions, marketplace purchase, pack ownersh
 - `GET /users/me/owned-packs` — marketplace "owned" badge
 
 ### Phase 3 — Party join + lobby realtime ⚡
+
 Unlocks: Lobby, QR-join, Invite, Waiting-room, In-person/local-register, Hybrid
 
 - `POST /parties/join` `{code}` — QR/manual code join (`qr-join.tsx`; validates against real `room_code`, not a hardcoded string)
@@ -123,6 +129,7 @@ Unlocks: Lobby, QR-join, Invite, Waiting-room, In-person/local-register, Hybrid
 - `PATCH /parties/{id}/players/{playerId}` `{is_ready}` — "I'm Ready" button
 
 ### Phase 4 — Chat ⚡
+
 Unlocks: `chat/[slug].tsx`, replaces `ChatContext`'s `setInterval` simulation entirely
 
 - `GET /parties/{id}/messages?cursor=` — message history
@@ -132,6 +139,7 @@ Unlocks: `chat/[slug].tsx`, replaces `ChatContext`'s `setInterval` simulation en
 - ⚡ `private-party.{id}.chat` — `message.created` events for live delivery + unread badge counts (used by `PartyCard`'s chat icon badge)
 
 ### Phase 5 — Game engine ⚡
+
 Unlocks: `game.tsx`, `card-reveal.tsx`, `challenge.tsx`, `active-player.tsx`, `seating.tsx`, `teams.tsx`
 
 - `PUT /parties/{id}/teams` `{assignments: {player_id: team_id}}` — currently only local tap-to-assign state
@@ -143,6 +151,7 @@ Unlocks: `game.tsx`, `card-reveal.tsx`, `challenge.tsx`, `active-player.tsx`, `s
 - ⚡ `private-party.{id}.game` — current card/prompt, whose turn, round number, `ends_at`, live reactions, seating/team changes — this is the channel every in-game screen subscribes to
 
 ### Phase 6 — Video ⚡ (see §3)
+
 Unlocks: `video-room.tsx`, `hybrid.tsx`, `connect-tv.tsx`
 
 - `POST /parties/{id}/video-token` — LiveKit room access token
@@ -150,6 +159,7 @@ Unlocks: `video-room.tsx`, `hybrid.tsx`, `connect-tv.tsx`
 - Participant list/mic/cam state: native LiveKit, not a Laravel endpoint (see §3)
 
 ### Phase 7 — Results & summary
+
 Unlocks: `results.tsx`, `end-party-summary.tsx`, `mvp-awards.tsx`, `results/highlights.tsx` (currently an empty stub — no data contract exists yet, flagged as an open design question, likely needs media capture during play)
 
 - `GET /parties/{id}/results` — MVP, standings, tokens awarded
@@ -158,6 +168,7 @@ Unlocks: `results.tsx`, `end-party-summary.tsx`, `mvp-awards.tsx`, `results/high
 - `GET /parties/{id}/highlights` — once the capture pipeline exists
 
 ### Phase 8 — Social layer
+
 Unlocks: friends, achievements, referrals, leaderboard, notifications, sponsor management, profile
 
 - `GET/PATCH /users/me`, `POST /users/me/avatar` — profile edit
