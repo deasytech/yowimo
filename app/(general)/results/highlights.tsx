@@ -132,28 +132,48 @@ export default function PartyHighlights() {
 
                 {/* Actions */}
                 <View className="absolute bottom-32 right-4 items-center gap-5">
-                  <TouchableOpacity activeOpacity={0.8} className="items-center">
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    className="items-center"
+                    accessibilityRole="button"
+                    accessibilityLabel="Like this clip"
+                  >
                     <Heart size={28} color="#FFFFFF" strokeWidth={2} />
                     <Text className="mt-1 font-sans-bold text-[10px] text-white">
                       2.4k
                     </Text>
                   </TouchableOpacity>
 
-                  <TouchableOpacity activeOpacity={0.8} className="items-center">
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    className="items-center"
+                    accessibilityRole="button"
+                    accessibilityLabel="View comments"
+                  >
                     <MessageCircle size={28} color="#FFFFFF" strokeWidth={2} />
                     <Text className="mt-1 font-sans-bold text-[10px] text-white">
                       128
                     </Text>
                   </TouchableOpacity>
 
-                  <TouchableOpacity activeOpacity={0.8} className="items-center">
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    className="items-center"
+                    accessibilityRole="button"
+                    accessibilityLabel="Share this clip"
+                  >
                     <Send size={28} color="#FFFFFF" strokeWidth={2} />
                     <Text className="mt-1 font-sans-bold text-[10px] text-white">
                       Share
                     </Text>
                   </TouchableOpacity>
 
-                  <TouchableOpacity activeOpacity={0.8} className="items-center">
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    className="items-center"
+                    accessibilityRole="button"
+                    accessibilityLabel="Save this clip"
+                  >
                     <Share2 size={28} color="#FFFFFF" strokeWidth={2} />
                     <Text className="mt-1 font-sans-bold text-[10px] text-white">
                       Save

@@ -17,7 +17,7 @@ Clerk already issues sessions/JWTs to the app. Laravel should **not** re-impleme
 
 ## 2. Realtime transport: Laravel Reverb
 
-**Recommendation: Laravel Reverb**, using Laravel's standard broadcasting abstraction (`event()->broadcast()`, `ShouldBroadcast`) with **Laravel Echo** + `@laravel-echo` client in the RN app (`pusher-js` compatible transport, works fine in RN with a WebSocket polyfill — no extra native module needed).
+**Recommendation: Laravel Reverb**, using Laravel's standard broadcasting abstraction (`broadcast(new Event(...))` for events implementing `ShouldBroadcast`) with **Laravel Echo** + the `laravel-echo` client in the RN app (`pusher-js` compatible transport, works fine in RN with a WebSocket polyfill — no extra native module needed).
 
 Why over alternatives:
 - **Pusher/Ably (hosted)**: no ops burden, but per-connection/message billing scales badly for a party app where every screen in a live session is a connection (lobby, chat, game, video-adjacent state) — cost grows with your best outcome (viral parties).
@@ -56,7 +56,7 @@ Every mock countdown today (`waiting-room.tsx`, `game.tsx`, `challenge.tsx`, `ac
 
 ## 4. Core data model (entities every screen maps back to)
 
-```
+```text
 users                 (mirrors Clerk identity + profile fields)
 parties                (id, room_code, host_id, game_type_id, mode[online|in_person|hybrid],
                         visibility[public|private], status[draft|lobby|active|ended],

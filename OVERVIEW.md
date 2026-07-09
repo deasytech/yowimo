@@ -19,7 +19,7 @@ Yowimo is a React Native (Expo) mobile app for hosting and playing social party 
 
 ## Directory structure
 
-```
+```text
 app/                          Screens (expo-router file-based routing)
 ├── _layout.tsx                Root layout: ClerkProvider, PostHog, fonts, splash screen
 ├── onboarding.tsx              First-run onboarding flow
