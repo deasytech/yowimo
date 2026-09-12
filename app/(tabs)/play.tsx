@@ -107,7 +107,7 @@ export default function CreatePartyScreen() {
           <View className="mt-10 items-center">
             <ActivityIndicator color="#B03BFF" />
           </View>
-        ) : isError || !selected || !gameTypes?.length ? (
+        ) : !selected || !gameTypes?.length ? (
           <View className="mt-10 items-center gap-3">
             <Text className="text-muted-foreground text-sm">Couldn&apos;t load games.</Text>
             {isError && (
@@ -121,6 +121,19 @@ export default function CreatePartyScreen() {
           </View>
         ) : (
           <>
+            {/* A refetch (e.g. pull-to-refresh elsewhere) failed, but we still have a
+                usable cached list — warn without blocking the picker. */}
+            {isError && (
+              <View className="mt-4 flex-row items-center justify-between rounded-xl border border-border bg-secondary/40 px-3.5 py-2.5">
+                <Text className="flex-1 text-muted-foreground text-xs pr-2">
+                  Couldn&apos;t refresh games. Showing the last loaded list.
+                </Text>
+                <TouchableOpacity onPress={() => refetch()} activeOpacity={0.8}>
+                  <Text className="text-violet-bright text-xs font-semibold">Retry</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
             {/* ── Game picker ── */}
             <View className="mt-6">
               <Text className="mb-3 text-foreground text-base font-semibold">

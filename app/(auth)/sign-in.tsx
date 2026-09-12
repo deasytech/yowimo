@@ -63,10 +63,16 @@ export default function SignInScreen() {
 
   // Dev-only: print the session token so it can be pasted into Postman/Insomnia as a
   // bearer token. __DEV__ keeps this out of release builds. Remove once the API is stable.
+  // Swallows its own errors so a getToken() failure here can never affect sign-in success
+  // or navigation for the password/MFA/SSO flows that call it.
   const logSessionTokenForTesting = async () => {
     if (!__DEV__) return;
-    const token = await getToken();
-    console.log("[dev] Clerk session token (Authorization: Bearer <token>):", token);
+    try {
+      const token = await getToken();
+      console.log("[dev] Clerk session token (Authorization: Bearer <token>):", token);
+    } catch (err) {
+      console.warn("[dev] Could not fetch session token for logging:", err);
+    }
   };
 
   // ─── Email / password sign-in ────────────────────────────────────────────
