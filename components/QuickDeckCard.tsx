@@ -1,12 +1,14 @@
 import { posthog } from "@/lib/posthog";
+import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import {
-  Image,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
+
+const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 const QuickDeckCard = ({
   game,
@@ -36,14 +38,24 @@ const QuickDeckCard = ({
         height,
       }}
     >
-      <Image
-        source={game.image}
-        resizeMode="cover"
-        style={{
-          width,
-          height,
-        }}
-      />
+      {game.image_url ? (
+        <Image
+          source={{ uri: game.image_url }}
+          contentFit="cover"
+          style={{
+            width,
+            height,
+          }}
+        />
+      ) : (
+        <LinearGradient
+          colors={game.gradient}
+          style={{
+            width,
+            height,
+          }}
+        />
+      )}
 
       {/* Color Overlay */}
       <LinearGradient
@@ -84,7 +96,7 @@ const QuickDeckCard = ({
           <View className="mt-1 flex-row gap-1.5">
             <View className="rounded-full bg-black px-2 py-0.5">
               <Text className="text-[10px] font-medium text-white">
-                {game.intensity}
+                {capitalize(game.intensity)}
               </Text>
             </View>
 

@@ -1,6 +1,7 @@
 import ProfileCover from "@/components/screens/profile/ProfileCover";
 import ListHeading from "@/components/shared/ListHeading";
 import { FRIENDS } from "@/data/mock";
+import { useProfile } from "@/hooks/api/useProfile";
 import { getInitials } from "@/lib/utils";
 import { useUser } from "@clerk/expo";
 import { LinearGradient as RNLinearGradient } from "expo-linear-gradient";
@@ -41,10 +42,12 @@ const SETTINGS_ROWS = [
 
 const ProfileScreen = () => {
   const { user } = useUser();
+  const { data: profile } = useProfile();
 
   const initials = getInitials(user);
 
-  const displayName = user?.fullName || user?.firstName || user?.emailAddresses[0]?.emailAddress || 'User';
+  const displayName =
+    profile?.display_name || user?.fullName || user?.firstName || user?.emailAddresses[0]?.emailAddress || 'User';
 
   return (
     <SafeAreaView className="flex-1 bg-background p-5">
@@ -54,7 +57,14 @@ const ProfileScreen = () => {
         showsVerticalScrollIndicator={false}
       >
         <View className="pt-14">
-          <ProfileCover displayName={displayName} initials={initials} />
+          <ProfileCover
+            displayName={displayName}
+            initials={initials}
+            avatarUrl={profile?.avatar_url}
+            username={profile?.username}
+            bio={profile?.bio}
+            joinedAt={profile?.created_at}
+          />
 
           <View
             className="mt-5 flex-row rounded-2xl overflow-hidden border border-white/10 bg-white/10"

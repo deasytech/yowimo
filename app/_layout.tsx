@@ -5,10 +5,11 @@ import { useEffect, useRef } from 'react';
 
 import { ChatProvider } from '@/context/ChatContext';
 import { PlayersProvider } from '@/context/PlayersContext';
+import { queryClient } from '@/lib/api/queryClient';
 import { posthog } from '@/lib/posthog';
 import { ClerkProvider, useAuth } from '@clerk/expo';
 import { tokenCache } from '@clerk/expo/token-cache';
-import Constants, { ExecutionEnvironment } from "expo-constants";
+import { QueryClientProvider } from '@tanstack/react-query';
 import { PostHogProvider } from 'posthog-react-native';
 import { StatusBar } from 'react-native';
 
@@ -17,8 +18,6 @@ const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY as string
 if (!publishableKey) {
   throw new Error('Add your Clerk Publishable Key to the .env file as EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY')
 }
-
-const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
 function RootLayoutContent() {
   const { isLoaded: authLoaded } = useAuth();
@@ -78,28 +77,30 @@ function RootLayoutContent() {
   if (!fontsLoaded || !authLoaded) return null;
 
   return (
-    <PostHogProvider
-      client={posthog}
-      autocapture={{
-        captureScreens: false,
-        captureTouches: true,
-        propsToCapture: ['testID'],
-        maxElementsCaptured: 20,
-      }}
-    >
-      <PlayersProvider>
-        <ChatProvider>
-          <Stack screenOptions={{ headerShown: false }} />
-          <StatusBar barStyle='light-content' />
-        </ChatProvider>
-      </PlayersProvider>
-    </PostHogProvider>
+    <QueryClientProvider client={queryClient}>
+      <PostHogProvider
+        client={posthog}
+        autocapture={{
+          captureScreens: false,
+          captureTouches: true,
+          propsToCapture: ['testID'],
+          maxElementsCaptured: 20,
+        }}
+      >
+        <PlayersProvider>
+          <ChatProvider>
+            <Stack screenOptions={{ headerShown: false }} />
+            <StatusBar barStyle='light-content' />
+          </ChatProvider>
+        </PlayersProvider>
+      </PostHogProvider>
+    </QueryClientProvider>
   );
 }
 
 export default function RootLayout() {
   return (
-    <ClerkProvider publishableKey={publishableKey} tokenCache={isExpoGo ? undefined : tokenCache}>
+    <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
       <RootLayoutContent />
     </ClerkProvider>
   );

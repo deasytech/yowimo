@@ -1,11 +1,12 @@
-import { GAME_TYPES } from "@/data/mock";
+import { useGameTypes } from "@/hooks/api/useGameTypes";
+import { Image } from "expo-image";
 import { LinearGradient as RNLinearGradient } from "expo-linear-gradient";
 import { Href, Link, useLocalSearchParams, useRouter } from "expo-router";
 import { Globe, Lock, Sparkles, Tv, Users } from "lucide-react-native";
 import { styled } from "nativewind";
 import { useEffect, useState } from "react";
 import {
-  Image,
+  ActivityIndicator,
   ScrollView,
   Text,
   TouchableOpacity,
@@ -16,6 +17,8 @@ import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
 
 const LinearGradient = styled(RNLinearGradient);
 const SafeAreaView = styled(RNSafeAreaView);
+
+const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 const GRID_PADDING = 20; // matches contentContainerStyle paddingHorizontal
 const GRID_GAP = 12; // matches gap-3
@@ -43,9 +46,8 @@ export default function CreatePartyScreen() {
   const router = useRouter();
   const { gameId } = useLocalSearchParams<{ gameId?: string }>();
   const { width: windowWidth } = useWindowDimensions();
-  const [game, setGame] = useState(
-    () => GAME_TYPES.find((item) => item.id === gameId)?.id ?? GAME_TYPES[0].id,
-  );
+  const { data: gameTypes, isLoading, isError, error, refetch } = useGameTypes();
+  const [game, setGame] = useState<number | null>(null);
   const [mode, setMode] = useState<"Online" | "In-person" | "Hybrid">("Online");
   const [visibility, setVisibility] = useState<"public" | "private">("private");
   const [gridWidth, setGridWidth] = useState(windowWidth - GRID_PADDING * 2);
@@ -53,15 +55,19 @@ export default function CreatePartyScreen() {
     windowWidth - GRID_PADDING * 2,
   );
 
-  const selected = GAME_TYPES.find((g) => g.id === game)!;
+  const selected = gameTypes?.find((g) => g.id === game) ?? gameTypes?.[0];
 
   useEffect(() => {
-    const requestedGame = GAME_TYPES.find((item) => item.id === gameId);
+    if (!gameTypes?.length) return;
+
+    const requestedGame = gameTypes.find((item) => String(item.id) === gameId);
 
     if (requestedGame) {
       setGame(requestedGame.id);
+    } else {
+      setGame((current) => current ?? gameTypes[0].id);
     }
-  }, [gameId]);
+  }, [gameId, gameTypes]);
   // Round down so three cards plus both gaps can never overflow and wrap.
   const cardSize = Math.floor(
     (gridWidth - GRID_GAP * (GRID_COLUMNS - 1)) / GRID_COLUMNS,
@@ -97,124 +103,166 @@ export default function CreatePartyScreen() {
           Pick the game. Set the vibe. Send it.
         </Text>
 
-        {/* ── Game picker ── */}
-        <View className="mt-6">
-          <Text className="mb-3 text-foreground text-base font-semibold">
-            Choose your game
-          </Text>
-
-          <View
-            className="flex-row flex-wrap gap-3"
-            onLayout={(event) => setGridWidth(event.nativeEvent.layout.width)}
-          >
-            {GAME_TYPES.map((g) => {
-              const active = g.id === game;
-
-              return (
-                <TouchableOpacity
-                  key={g.id}
-                  onPress={() => setGame(g.id)}
-                  activeOpacity={0.85}
-                  style={{
-                    width: cardSize,
-                    height: cardSize,
-                    borderRadius: 16,
-                    overflow: "hidden",
-                    opacity: active ? 1 : 0.8,
-                    transform: active ? [{ scale: 1.03 }] : undefined,
-                    borderWidth: active ? 2 : 0,
-                    borderColor: "#fff",
-                  }}
-                >
-                  {g.image && (
-                    <Image
-                      source={g.image}
-                      style={{ width: cardSize, height: cardSize }}
-                      resizeMode="cover"
-                    />
-                  )}
-
-                  {/* Bottom scrim for legible label text over the photo */}
-                  <LinearGradient
-                    colors={["transparent", "rgba(0,0,0,0.20)", "rgba(0,0,0,0.70)"]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 0, y: 1 }}
-                    style={{ position: "absolute", width: "100%", height: "100%" }}
-                  />
-
-                  <Text style={{ position: "absolute", top: 8, left: 8, fontSize: 22 }}>
-                    {g.emoji}
-                  </Text>
-
-                  <Text
-                    className="absolute text-white text-[10px] font-bold leading-tight"
-                    style={{ left: 8, right: 8, bottom: 8 }}
-                    numberOfLines={2}
-                  >
-                    {g.name}
-                  </Text>
-
-                  {g.cost > 0 && (
-                    <View
-                      className="absolute rounded-full bg-ink/60 px-1.5 py-0.5"
-                      style={{ top: 6, right: 6 }}
-                    >
-                      <Text className="text-white text-[9px] font-bold">
-                        🪙{g.cost}
-                      </Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              );
-            })}
+        {isLoading ? (
+          <View className="mt-10 items-center">
+            <ActivityIndicator color="#B03BFF" />
           </View>
-        </View>
-
-        {/* ── Selected detail ── */}
-        <View
-          className="relative mt-5 rounded-3xl overflow-hidden"
-          style={{ width: "100%", aspectRatio: 16 / 9, alignSelf: "stretch" }}
-        >
-          <View style={{ flex: 1, backgroundColor: "#19191F" }}>
-            {selected.image && (
-              <>
-                <Image
-                  key={selected.id}
-                  source={selected.image}
-                  style={{ position: "absolute", width: "100%", height: "100%" }}
-                  resizeMode="cover"
-                />
-                <LinearGradient
-                  colors={["rgba(0,0,0,0.10)", "rgba(0,0,0,0.30)", "rgba(0,0,0,0.75)"]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 0, y: 1 }}
-                  style={{ position: "absolute", width: "100%", height: "100%" }}
-                />
-              </>
+        ) : !selected || !gameTypes?.length ? (
+          <View className="mt-10 items-center gap-3">
+            <Text className="text-muted-foreground text-sm">Couldn&apos;t load games.</Text>
+            {isError && (
+              <Text className="text-muted-foreground/70 text-xs text-center px-6">
+                {error instanceof Error ? error.message : "Unknown error"}
+              </Text>
+            )}
+            <TouchableOpacity onPress={() => refetch()} activeOpacity={0.8}>
+              <Text className="text-violet-bright text-sm font-semibold">Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <>
+            {/* A refetch (e.g. pull-to-refresh elsewhere) failed, but we still have a
+                usable cached list — warn without blocking the picker. */}
+            {isError && (
+              <View className="mt-4 flex-row items-center justify-between rounded-xl border border-border bg-secondary/40 px-3.5 py-2.5">
+                <Text className="flex-1 text-muted-foreground text-xs pr-2">
+                  Couldn&apos;t refresh games. Showing the last loaded list.
+                </Text>
+                <TouchableOpacity onPress={() => refetch()} activeOpacity={0.8}>
+                  <Text className="text-violet-bright text-xs font-semibold">Retry</Text>
+                </TouchableOpacity>
+              </View>
             )}
 
-            <View
-              className="flex-row items-end justify-between p-5"
-              style={{ position: "absolute", width: "100%", height: "100%" }}
-            >
-              <View className="flex-1 pr-3">
-                <Text style={{ fontSize: 36 }}>{selected.emoji}</Text>
-                <Text className="mt-2 text-white text-xl font-bold">
-                  {selected.name}
-                </Text>
-                <Text className="text-white/85 text-sm">{selected.tagline}</Text>
-              </View>
+            {/* ── Game picker ── */}
+            <View className="mt-6">
+              <Text className="mb-3 text-foreground text-base font-semibold">
+                Choose your game
+              </Text>
 
-              <View className="rounded-full bg-ink/50 px-3 py-1">
-                <Text className="text-white text-xs font-bold">
-                  {selected.intensity}
-                </Text>
+              <View
+                className="flex-row flex-wrap gap-3"
+                onLayout={(event) => setGridWidth(event.nativeEvent.layout.width)}
+              >
+                {gameTypes.map((g) => {
+                  const active = g.id === game;
+
+                  return (
+                    <TouchableOpacity
+                      key={g.id}
+                      onPress={() => setGame(g.id)}
+                      activeOpacity={0.85}
+                      style={{
+                        width: cardSize,
+                        height: cardSize,
+                        borderRadius: 16,
+                        overflow: "hidden",
+                        opacity: active ? 1 : 0.8,
+                        transform: active ? [{ scale: 1.03 }] : undefined,
+                        borderWidth: active ? 2 : 0,
+                        borderColor: "#fff",
+                      }}
+                    >
+                      {g.image_url ? (
+                        <Image
+                          source={{ uri: g.image_url }}
+                          style={{ width: cardSize, height: cardSize }}
+                          contentFit="cover"
+                        />
+                      ) : (
+                        <LinearGradient
+                          colors={g.gradient}
+                          style={{ width: cardSize, height: cardSize }}
+                        />
+                      )}
+
+                      {/* Bottom scrim for legible label text over the photo */}
+                      <LinearGradient
+                        colors={["transparent", "rgba(0,0,0,0.20)", "rgba(0,0,0,0.70)"]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 0, y: 1 }}
+                        style={{ position: "absolute", width: "100%", height: "100%" }}
+                      />
+
+                      <Text style={{ position: "absolute", top: 8, left: 8, fontSize: 22 }}>
+                        {g.emoji}
+                      </Text>
+
+                      <Text
+                        className="absolute text-white text-[10px] font-bold leading-tight"
+                        style={{ left: 8, right: 8, bottom: 8 }}
+                        numberOfLines={2}
+                      >
+                        {g.name}
+                      </Text>
+
+                      {g.cost > 0 && (
+                        <View
+                          className="absolute rounded-full bg-ink/60 px-1.5 py-0.5"
+                          style={{ top: 6, right: 6 }}
+                        >
+                          <Text className="text-white text-[9px] font-bold">
+                            🪙{g.cost}
+                          </Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             </View>
-          </View>
-        </View>
 
-        {/* ── Mode ── */}
+            {/* ── Selected detail ── */}
+            <View
+              className="relative mt-5 rounded-3xl overflow-hidden"
+              style={{ width: "100%", aspectRatio: 16 / 9, alignSelf: "stretch" }}
+            >
+              <View style={{ flex: 1, backgroundColor: "#19191F" }}>
+                {selected.image_url ? (
+                  <>
+                    <Image
+                      key={selected.id}
+                      source={{ uri: selected.image_url }}
+                      style={{ position: "absolute", width: "100%", height: "100%" }}
+                      contentFit="cover"
+                    />
+                    <LinearGradient
+                      colors={["rgba(0,0,0,0.10)", "rgba(0,0,0,0.30)", "rgba(0,0,0,0.75)"]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 0, y: 1 }}
+                      style={{ position: "absolute", width: "100%", height: "100%" }}
+                    />
+                  </>
+                ) : (
+                  <LinearGradient
+                    key={selected.id}
+                    colors={selected.gradient}
+                    style={{ position: "absolute", width: "100%", height: "100%" }}
+                  />
+                )}
+
+                <View
+                  className="flex-row items-end justify-between p-5"
+                  style={{ position: "absolute", width: "100%", height: "100%" }}
+                >
+                  <View className="flex-1 pr-3">
+                    <Text style={{ fontSize: 36 }}>{selected.emoji}</Text>
+                    <Text className="mt-2 text-white text-xl font-bold">
+                      {selected.name}
+                    </Text>
+                    <Text className="text-white/85 text-sm">{selected.tagline}</Text>
+                  </View>
+
+                  <View className="rounded-full bg-ink/50 px-3 py-1">
+                    <Text className="text-white text-xs font-bold">
+                      {capitalize(selected.intensity)}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+
+            {/* ── Mode ── */}
         <View className="mt-6">
           <Text className="mb-3 text-foreground text-base font-semibold">
             How will you play?
@@ -360,6 +408,8 @@ export default function CreatePartyScreen() {
             </LinearGradient>
           </TouchableOpacity>
         </View>
+          </>
+          )}
       </ScrollView>
     </SafeAreaView>
   );

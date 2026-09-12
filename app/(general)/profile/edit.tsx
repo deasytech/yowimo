@@ -1,12 +1,25 @@
-import * as ImagePicker from "expo-image-picker";
+import { useProfile, useUpdateProfile } from "@/hooks/api/useProfile";
+import { ApiError } from "@/lib/api/types";
+import { COUNTRIES, type Country } from "@/data/countries";
+import DateTimePicker, {
+  type DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
 import { LinearGradient as RNLinearGradient } from "expo-linear-gradient";
 import { Link, useRouter } from "expo-router";
-import { ArrowLeft, Camera, Check, ChevronDown } from "lucide-react-native";
-import { styled } from "nativewind";
-import React, { useState } from "react";
 import {
+  ArrowLeft,
+  Calendar,
+  Camera,
+  Check,
+  ChevronDown,
+  Search,
+} from "lucide-react-native";
+import { styled } from "nativewind";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import {
+  ActivityIndicator,
   Alert,
-  Image,
+  FlatList,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -22,6 +35,31 @@ import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
 const LinearGradient = styled(RNLinearGradient);
 const SafeAreaView = styled(RNSafeAreaView);
 
+// ─── Date helpers (local calendar dates, no UTC drift) ─────────────────────────
+const toISODate = (d: Date) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+
+const parseISODate = (s: string): Date | null => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!match) return null;
+  const [, y, m, d] = match;
+  return new Date(Number(y), Number(m) - 1, Number(d));
+};
+
+const formatDisplayDate = (s: string) => {
+  const d = parseISODate(s);
+  if (!d) return s;
+  return d.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+};
+
 const INTERESTS = [
   "Truth or Dare",
   "Trivia",
@@ -34,23 +72,22 @@ const INTERESTS = [
   "Chill",
 ];
 
-const LANGUAGES = [
-  { value: "en", label: "English" },
-  { value: "es", label: "Español" },
-  { value: "fr", label: "Français" },
-  { value: "de", label: "Deutsch" },
-  { value: "ja", label: "日本語" },
-  { value: "pt", label: "Português" },
-];
-
-const PARTY_TYPES = ["Chill", "Medium", "Wild"];
-
 const PRIVACY_ROWS = [
   { key: "isPublic", label: "Public profile", sub: "Anyone can view your profile" },
   { key: "showOnLeaderboard", label: "Show on leaderboard", sub: "Appear in rankings" },
   { key: "allowFriendRequests", label: "Friend requests", sub: "Let others add you" },
   { key: "discoverable", label: "Discoverable", sub: "Suggest me to others" },
 ] as const;
+
+type PrivacyKey = (typeof PRIVACY_ROWS)[number]["key"];
+type PrivacySettings = Record<PrivacyKey, boolean>;
+
+const DEFAULT_PRIVACY: PrivacySettings = {
+  isPublic: true,
+  showOnLeaderboard: true,
+  allowFriendRequests: true,
+  discoverable: true,
+};
 
 // ─── Reusable field wrapper ───────────────────────────────────────────────────
 const Field = ({
@@ -73,6 +110,7 @@ const FormInput = ({
   maxLength,
   placeholder,
   keyboardType,
+  autoCapitalize,
   multiline,
   numberOfLines,
 }: {
@@ -81,6 +119,7 @@ const FormInput = ({
   maxLength?: number;
   placeholder?: string;
   keyboardType?: "default" | "email-address" | "phone-pad";
+  autoCapitalize?: "none" | "characters" | "words" | "sentences";
   multiline?: boolean;
   numberOfLines?: number;
 }) => (
@@ -93,88 +132,56 @@ const FormInput = ({
     placeholder={placeholder}
     placeholderTextColor="#a3a3ab"
     keyboardType={keyboardType ?? "default"}
+    autoCapitalize={autoCapitalize}
     multiline={multiline}
     numberOfLines={numberOfLines}
   />
 );
 
-// ─── Picker (Select replacement) ──────────────────────────────────────────────
-const FormPicker = ({
-  value,
-  options,
-  onSelect,
-}: {
-  value: string;
-  options: { value: string; label: string }[];
-  onSelect: (v: string) => void;
-}) => {
-  const [open, setOpen] = useState(false);
-  const selectedLabel = options.find((o) => o.value === value)?.label ?? value;
-
-  return (
-    <>
-      <TouchableOpacity
-        onPress={() => setOpen(true)}
-        activeOpacity={0.8}
-        className="flex-row items-center justify-between rounded-xl bg-input border border-border px-3.5 py-3"
-      >
-        <Text className="text-foreground text-sm">{selectedLabel}</Text>
-        <ChevronDown color="#a3a3ab" size={16} strokeWidth={2} />
-      </TouchableOpacity>
-
-      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-        <TouchableOpacity
-          className="flex-1 justify-end bg-black/60"
-          activeOpacity={1}
-          onPress={() => setOpen(false)}
-        >
-          <View className="bg-card rounded-t-3xl p-2 pb-8">
-            {options.map((o) => (
-              <TouchableOpacity
-                key={o.value}
-                onPress={() => {
-                  onSelect(o.value);
-                  setOpen(false);
-                }}
-                activeOpacity={0.7}
-                className="flex-row items-center justify-between px-4 py-3.5 rounded-xl"
-              >
-                <Text className="text-foreground text-sm">{o.label}</Text>
-                {o.value === value && <Check color="#B03BFF" size={16} strokeWidth={2.5} />}
-              </TouchableOpacity>
-            ))}
-          </View>
-        </TouchableOpacity>
-      </Modal>
-    </>
-  );
-};
-
 // ─── Edit Profile ─────────────────────────────────────────────────────────────
 export default function EditProfileScreen() {
   const router = useRouter();
-  const [avatar, setAvatar] = useState<string | null>(null);
+  const { data: profile, isLoading } = useProfile();
+  const updateProfile = useUpdateProfile();
 
   const [form, setForm] = useState({
-    displayName: "Alex Chen",
-    username: "alex",
-    pronouns: "they/them",
-    bio: "Designer by day, dare-survivor by night. #partytype",
-    email: "alex@yowimo.app",
-    phone: "+81 90 1234 5678",
-    birthday: "1998-04-12",
-    location: "Tokyo",
-    language: "en",
-    partyType: "Wild",
-    interests: ["Truth or Dare", "Wild"] as string[],
-    isPublic: true,
-    showOnLeaderboard: true,
-    allowFriendRequests: true,
-    discoverable: true,
+    displayName: "",
+    username: "",
+    bio: "",
+    dateOfBirth: "",
+    countryCode: "",
+    interests: [] as string[],
+    privacy: DEFAULT_PRIVACY,
   });
+
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [draftDate, setDraftDate] = useState(() => new Date());
+
+  const [showCountryPicker, setShowCountryPicker] = useState(false);
+  const [countrySearch, setCountrySearch] = useState("");
+
+  // Prefill once the real profile first loads — the ref guard stops a later refetch
+  // (focus refetch, background refresh) from clobbering in-progress edits.
+  const hasPrefilled = useRef(false);
+  useEffect(() => {
+    if (!profile || hasPrefilled.current) return;
+    hasPrefilled.current = true;
+    setForm({
+      displayName: profile.display_name ?? "",
+      username: profile.username ?? "",
+      bio: profile.bio ?? "",
+      dateOfBirth: profile.date_of_birth ?? "",
+      countryCode: profile.country_code ?? "",
+      interests: profile.interests ?? [],
+      privacy: { ...DEFAULT_PRIVACY, ...(profile.privacy_settings as Partial<PrivacySettings>) },
+    });
+  }, [profile]);
 
   const update = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
+
+  const updatePrivacy = (key: PrivacyKey, value: boolean) =>
+    setForm((f) => ({ ...f, privacy: { ...f.privacy, [key]: value } }));
 
   const toggleInterest = (i: string) =>
     update(
@@ -184,21 +191,47 @@ export default function EditProfileScreen() {
         : [...form.interests, i]
     );
 
-  const onPickAvatar = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") return;
+  const initials = (form.displayName || profile?.username || "U").charAt(0).toUpperCase();
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
+  const selectedCountry = COUNTRIES.find((c) => c.code === form.countryCode);
 
-    if (!result.canceled && result.assets[0]) {
-      // Optional: enforce a max size client-side once you read file size via expo-file-system
-      setAvatar(result.assets[0].uri);
+  const filteredCountries = useMemo(() => {
+    const q = countrySearch.trim().toLowerCase();
+    if (!q) return COUNTRIES;
+    return COUNTRIES.filter(
+      (c) => c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q)
+    );
+  }, [countrySearch]);
+
+  const openDatePicker = () => {
+    setDraftDate(parseISODate(form.dateOfBirth) ?? new Date(2000, 0, 1));
+    setShowDatePicker(true);
+  };
+
+  const onDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
+    if (Platform.OS === "android") {
+      setShowDatePicker(false);
+      if (event.type === "set" && selectedDate) {
+        update("dateOfBirth", toISODate(selectedDate));
+      }
+      return;
     }
+    if (selectedDate) setDraftDate(selectedDate);
+  };
+
+  const confirmIosDate = () => {
+    update("dateOfBirth", toISODate(draftDate));
+    setShowDatePicker(false);
+  };
+
+  const closeCountryPicker = () => {
+    setShowCountryPicker(false);
+    setCountrySearch("");
+  };
+
+  const selectCountry = (country: Country) => {
+    update("countryCode", country.code);
+    closeCountryPicker();
   };
 
   const onSave = () => {
@@ -206,8 +239,30 @@ export default function EditProfileScreen() {
       Alert.alert("Missing info", "Name and username are required.");
       return;
     }
-    Alert.alert("Success", "Profile updated.");
-    router.push("/profile");
+
+    updateProfile.mutate(
+      {
+        display_name: form.displayName.trim(),
+        username: form.username.trim(),
+        bio: form.bio.trim() || null,
+        date_of_birth: form.dateOfBirth.trim() || null,
+        country_code: form.countryCode.trim().toUpperCase() || null,
+        interests: form.interests,
+        privacy_settings: form.privacy,
+      },
+      {
+        onSuccess: () => {
+          router.replace("/profile");
+        },
+        onError: (error) => {
+          const message =
+            error instanceof ApiError
+              ? error.firstValidationError ?? error.message
+              : "Something went wrong. Please try again.";
+          Alert.alert("Couldn't save profile", message);
+        },
+      }
+    );
   };
 
   return (
@@ -241,236 +296,308 @@ export default function EditProfileScreen() {
             </View>
           </View>
 
-          {/* ── Avatar ── */}
-          <View className="mt-6 items-center">
-            <TouchableOpacity onPress={onPickAvatar} activeOpacity={0.85}>
-              <View className="rounded-full bg-background p-1.5">
-                {avatar ? (
-                  <Image
-                    source={{ uri: avatar }}
-                    className="h-28 w-28 rounded-full"
-                    resizeMode="cover"
-                  />
-                ) : (
+          {isLoading ? (
+            <View className="mt-10 items-center">
+              <ActivityIndicator color="#B03BFF" />
+            </View>
+          ) : (
+            <>
+              {/* ── Avatar ── */}
+              <View className="mt-6 items-center">
+                <View className="rounded-full bg-background p-1.5">
                   <LinearGradient
                     colors={["#7A1EFF", "#B03BFF"]}
                     className="h-28 w-28 items-center justify-center rounded-full"
                   >
-                    <Text className="text-white text-5xl font-black">
-                      {form.displayName.charAt(0).toUpperCase()}
-                    </Text>
+                    <Text className="text-white text-5xl font-black">{initials}</Text>
                   </LinearGradient>
-                )}
-              </View>
-
-              <LinearGradient
-                colors={["#7A1EFF", "#D84CFF", "#FF8A2A"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                className="absolute bottom-1 right-1 h-9 w-9 items-center justify-center rounded-full"
-                style={{ borderWidth: 3, borderColor: "#101015" }}
-              >
-                <Camera color="#fff" size={16} strokeWidth={2} />
-              </LinearGradient>
-            </TouchableOpacity>
-            <Text className="mt-3 text-muted-foreground text-xs">
-              Tap to change photo
-            </Text>
-          </View>
-
-          {/* ── About you ── */}
-          <View className="mt-7 gap-4">
-            <Text className="text-foreground text-base font-semibold">About you</Text>
-
-            <Field label="Display name">
-              <FormInput
-                value={form.displayName}
-                onChangeText={(v) => update("displayName", v)}
-                maxLength={50}
-              />
-            </Field>
-
-            <Field label="Username">
-              <View className="flex-row items-center rounded-xl bg-input border border-border px-3.5">
-                <Text className="text-muted-foreground text-sm">@</Text>
-                <TextInput
-                  className="flex-1 py-3 pl-1 text-foreground text-sm"
-                  value={form.username}
-                  maxLength={20}
-                  onChangeText={(v) =>
-                    update("username", v.replace(/[^a-z0-9_]/gi, "").toLowerCase())
-                  }
-                  placeholderTextColor="#a3a3ab"
-                />
-              </View>
-            </Field>
-
-            <Field label="Pronouns">
-              <FormInput
-                value={form.pronouns}
-                onChangeText={(v) => update("pronouns", v)}
-                maxLength={20}
-                placeholder="she/her, he/him, they/them..."
-              />
-            </Field>
-
-            <Field label="Bio">
-              <FormInput
-                value={form.bio}
-                onChangeText={(v) => update("bio", v)}
-                maxLength={160}
-                multiline
-                numberOfLines={3}
-              />
-              <Text className="text-muted-foreground text-[10px] text-right">
-                {form.bio.length}/160
-              </Text>
-            </Field>
-          </View>
-
-          {/* ── Contact ── */}
-          <View className="mt-7 gap-4">
-            <Text className="text-foreground text-base font-semibold">Contact</Text>
-
-            <Field label="Email">
-              <FormInput
-                value={form.email}
-                onChangeText={(v) => update("email", v)}
-                keyboardType="email-address"
-              />
-            </Field>
-
-            <Field label="Phone">
-              <FormInput
-                value={form.phone}
-                onChangeText={(v) => update("phone", v)}
-                keyboardType="phone-pad"
-              />
-            </Field>
-          </View>
-
-          {/* ── Personal ── */}
-          <View className="mt-7 gap-4">
-            <Text className="text-foreground text-base font-semibold">Personal</Text>
-
-            <Field label="Birthday">
-              {/* RN has no native date input — wire to a date picker library, e.g. @react-native-community/datetimepicker */}
-              <FormInput
-                value={form.birthday}
-                onChangeText={(v) => update("birthday", v)}
-                placeholder="YYYY-MM-DD"
-              />
-            </Field>
-
-            <Field label="Location">
-              <FormInput
-                value={form.location}
-                onChangeText={(v) => update("location", v)}
-                maxLength={60}
-              />
-            </Field>
-
-            <Field label="Language">
-              <FormPicker
-                value={form.language}
-                options={LANGUAGES}
-                onSelect={(v) => update("language", v)}
-              />
-            </Field>
-
-            <Field label="Party type">
-              <FormPicker
-                value={form.partyType}
-                options={PARTY_TYPES.map((p) => ({ value: p, label: p }))}
-                onSelect={(v) => update("partyType", v)}
-              />
-            </Field>
-          </View>
-
-          {/* ── Interests ── */}
-          <View className="mt-7">
-            <Text className="mb-3 text-foreground text-base font-semibold">Interests</Text>
-            <View className="flex-row flex-wrap gap-2">
-              {INTERESTS.map((i) => {
-                const active = form.interests.includes(i);
-                return (
-                  <TouchableOpacity
-                    key={i}
-                    onPress={() => toggleInterest(i)}
-                    activeOpacity={0.8}
-                    className={`flex-row items-center gap-1 rounded-full border px-3 py-1.5 ${active
-                      ? "border-violet-bright bg-violet/20"
-                      : "border-border bg-secondary/40"
-                      }`}
-                  >
-                    {active && <Check color="#fff" size={12} strokeWidth={2.5} />}
-                    <Text
-                      className={`text-xs font-semibold ${active ? "text-foreground" : "text-muted-foreground"
-                        }`}
-                    >
-                      {i}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-
-          {/* ── Privacy ── */}
-          <View className="mt-7 rounded-3xl bg-card overflow-hidden">
-            {PRIVACY_ROWS.map((row, idx) => (
-              <View
-                key={row.key}
-                className="flex-row items-center gap-3 p-4"
-                style={
-                  idx > 0
-                    ? { borderTopWidth: 1, borderTopColor: "#2e2e38" }
-                    : undefined
-                }
-              >
-                <View className="flex-1">
-                  <Text className="text-foreground text-sm font-semibold">{row.label}</Text>
-                  <Text className="text-muted-foreground text-[11px]">{row.sub}</Text>
                 </View>
-                <Switch
-                  value={form[row.key]}
-                  onValueChange={(v) => update(row.key, v)}
-                  trackColor={{ false: "#2c2c32", true: "#7A1EFF" }}
-                  thumbColor="#ffffff"
-                  ios_backgroundColor="#2c2c32"
-                />
+                <View
+                  className="absolute bottom-8 right-33 h-9 w-9 items-center justify-center rounded-full bg-secondary"
+                  style={{ borderWidth: 3, borderColor: "#101015" }}
+                >
+                  <Camera color="#a3a3ab" size={16} strokeWidth={2} />
+                </View>
+                <Text className="mt-3 text-muted-foreground text-xs text-center">
+                  Photo uploads aren&apos;t supported yet
+                </Text>
               </View>
-            ))}
-          </View>
 
-          {/* ── Actions ── */}
-          <View className="mt-8 flex-row gap-3">
-            <Link href="/profile" asChild>
-              <TouchableOpacity
-                activeOpacity={0.8}
-                className="flex-1 h-14 items-center justify-center rounded-2xl border border-border"
-              >
-                <Text className="text-foreground text-sm font-semibold">Cancel</Text>
-              </TouchableOpacity>
-            </Link>
+              {/* ── About you ── */}
+              <View className="mt-7 gap-4">
+                <Text className="text-foreground text-base font-semibold">About you</Text>
 
-            <TouchableOpacity
-              onPress={onSave}
-              activeOpacity={0.85}
-              style={{ flex: 1.4 }}
-            >
-              <LinearGradient
-                colors={["#7A1EFF", "#D84CFF", "#FF8A2A"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                className="h-14 items-center justify-center rounded-2xl"
-              >
-                <Text className="text-white text-sm font-semibold">Save changes</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
+                <Field label="Display name">
+                  <FormInput
+                    value={form.displayName}
+                    onChangeText={(v) => update("displayName", v)}
+                    maxLength={100}
+                  />
+                </Field>
+
+                <Field label="Username">
+                  <View className="flex-row items-center rounded-xl bg-input border border-border px-3.5">
+                    <Text className="text-muted-foreground text-sm">@</Text>
+                    <TextInput
+                      className="flex-1 py-3 pl-1 text-foreground text-sm"
+                      value={form.username}
+                      maxLength={32}
+                      autoCapitalize="none"
+                      onChangeText={(v) =>
+                        update("username", v.replace(/[^a-zA-Z0-9_.]/g, ""))
+                      }
+                      placeholderTextColor="#a3a3ab"
+                    />
+                  </View>
+                </Field>
+
+                <Field label="Bio">
+                  <FormInput
+                    value={form.bio}
+                    onChangeText={(v) => update("bio", v)}
+                    maxLength={1000}
+                    multiline
+                    numberOfLines={3}
+                  />
+                  <Text className="text-muted-foreground text-[10px] text-right">
+                    {form.bio.length}/1000
+                  </Text>
+                </Field>
+              </View>
+
+              {/* ── Personal ── */}
+              <View className="mt-7 gap-4">
+                <Text className="text-foreground text-base font-semibold">Personal</Text>
+
+                <Field label="Birthday">
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={openDatePicker}
+                    className="flex-row items-center justify-between rounded-xl bg-input border border-border px-3.5 py-3"
+                  >
+                    <Text
+                      className={`text-sm ${form.dateOfBirth ? "text-foreground" : "text-muted-foreground"}`}
+                    >
+                      {form.dateOfBirth ? formatDisplayDate(form.dateOfBirth) : "Select your birthday"}
+                    </Text>
+                    <Calendar color="#a3a3ab" size={16} strokeWidth={2} />
+                  </TouchableOpacity>
+                </Field>
+
+                <Field label="Country">
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={() => setShowCountryPicker(true)}
+                    className="flex-row items-center justify-between rounded-xl bg-input border border-border px-3.5 py-3"
+                  >
+                    <Text
+                      className={`text-sm ${selectedCountry ? "text-foreground" : "text-muted-foreground"}`}
+                    >
+                      {selectedCountry ? `${selectedCountry.name} (${selectedCountry.code})` : "Select your country"}
+                    </Text>
+                    <ChevronDown color="#a3a3ab" size={16} strokeWidth={2} />
+                  </TouchableOpacity>
+                </Field>
+              </View>
+
+              {/* ── Interests ── */}
+              <View className="mt-7">
+                <Text className="mb-3 text-foreground text-base font-semibold">Interests</Text>
+                <View className="flex-row flex-wrap gap-2">
+                  {INTERESTS.map((i) => {
+                    const active = form.interests.includes(i);
+                    return (
+                      <TouchableOpacity
+                        key={i}
+                        onPress={() => toggleInterest(i)}
+                        activeOpacity={0.8}
+                        className={`flex-row items-center gap-1 rounded-full border px-3 py-1.5 ${active
+                          ? "border-violet-bright bg-violet/20"
+                          : "border-border bg-secondary/40"
+                          }`}
+                      >
+                        {active && <Check color="#fff" size={12} strokeWidth={2.5} />}
+                        <Text
+                          className={`text-xs font-semibold ${active ? "text-foreground" : "text-muted-foreground"
+                            }`}
+                        >
+                          {i}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* ── Privacy ── */}
+              <View className="mt-7 rounded-3xl bg-card overflow-hidden">
+                {PRIVACY_ROWS.map((row, idx) => (
+                  <View
+                    key={row.key}
+                    className="flex-row items-center gap-3 p-4"
+                    style={
+                      idx > 0
+                        ? { borderTopWidth: 1, borderTopColor: "#2e2e38" }
+                        : undefined
+                    }
+                  >
+                    <View className="flex-1">
+                      <Text className="text-foreground text-sm font-semibold">{row.label}</Text>
+                      <Text className="text-muted-foreground text-[11px]">{row.sub}</Text>
+                    </View>
+                    <Switch
+                      value={form.privacy[row.key]}
+                      onValueChange={(v) => updatePrivacy(row.key, v)}
+                      trackColor={{ false: "#2c2c32", true: "#7A1EFF" }}
+                      thumbColor="#ffffff"
+                      ios_backgroundColor="#2c2c32"
+                    />
+                  </View>
+                ))}
+              </View>
+
+              {/* ── Actions ── */}
+              <View className="mt-8 flex-row gap-3">
+                <Link href="/profile" asChild>
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    className="flex-1 h-14 items-center justify-center rounded-2xl border border-border"
+                  >
+                    <Text className="text-foreground text-sm font-semibold">Cancel</Text>
+                  </TouchableOpacity>
+                </Link>
+
+                <TouchableOpacity
+                  onPress={onSave}
+                  activeOpacity={0.85}
+                  disabled={updateProfile.isPending}
+                  style={{ flex: 1.4 }}
+                >
+                  <LinearGradient
+                    colors={["#7A1EFF", "#D84CFF", "#FF8A2A"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    className="h-14 items-center justify-center rounded-2xl"
+                  >
+                    {updateProfile.isPending ? (
+                      <ActivityIndicator color="#fff" size="small" />
+                    ) : (
+                      <Text className="text-white text-sm font-semibold">Save changes</Text>
+                    )}
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* ── Date of birth picker ── */}
+      {Platform.OS === "android" ? (
+        showDatePicker && (
+          <DateTimePicker
+            value={draftDate}
+            mode="date"
+            display="default"
+            maximumDate={new Date()}
+            onChange={onDateChange}
+          />
+        )
+      ) : (
+        <Modal
+          visible={showDatePicker}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowDatePicker(false)}
+        >
+          <View style={{ flex: 1 }}>
+            <TouchableOpacity
+              style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }}
+              activeOpacity={1}
+              onPress={() => setShowDatePicker(false)}
+            />
+            <View className="bg-card rounded-t-3xl px-6 pt-6 pb-10">
+              <View className="flex-row items-center justify-between mb-4">
+                <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                  <Text className="text-muted-foreground text-sm font-semibold">Cancel</Text>
+                </TouchableOpacity>
+                <Text className="text-foreground text-base font-bold">Birthday</Text>
+                <TouchableOpacity onPress={confirmIosDate}>
+                  <Text className="text-violet-bright text-sm font-semibold">Done</Text>
+                </TouchableOpacity>
+              </View>
+              <DateTimePicker
+                value={draftDate}
+                mode="date"
+                display="spinner"
+                maximumDate={new Date()}
+                onChange={onDateChange}
+                textColor="#ffffff"
+                style={{ height: 200 }}
+              />
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {/* ── Country picker ── */}
+      <Modal
+        visible={showCountryPicker}
+        transparent
+        animationType="slide"
+        onRequestClose={closeCountryPicker}
+      >
+        <View style={{ flex: 1 }}>
+          <TouchableOpacity
+            style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }}
+            activeOpacity={1}
+            onPress={closeCountryPicker}
+          />
+          <View className="bg-card rounded-t-3xl px-6 pt-6 pb-6" style={{ maxHeight: "75%" }}>
+            <Text className="text-foreground text-lg font-bold mb-4">Select country</Text>
+
+            <View className="flex-row items-center rounded-xl bg-input border border-border px-3.5 mb-3">
+              <Search color="#a3a3ab" size={16} strokeWidth={2} />
+              <TextInput
+                className="flex-1 py-3 pl-2 text-foreground text-sm"
+                value={countrySearch}
+                onChangeText={setCountrySearch}
+                placeholder="Search countries"
+                placeholderTextColor="#a3a3ab"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+
+            <FlatList
+              data={filteredCountries}
+              keyExtractor={(item) => item.code}
+              keyboardShouldPersistTaps="handled"
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() => selectCountry(item)}
+                  className="flex-row items-center justify-between py-3"
+                  style={{ borderBottomWidth: 1, borderBottomColor: "#2e2e38" }}
+                >
+                  <Text className="text-foreground text-sm">{item.name}</Text>
+                  <View className="flex-row items-center gap-2">
+                    <Text className="text-muted-foreground text-xs">{item.code}</Text>
+                    {item.code === form.countryCode && (
+                      <Check color="#B03BFF" size={14} strokeWidth={2.5} />
+                    )}
+                  </View>
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={
+                <Text className="text-muted-foreground text-sm text-center py-8">
+                  No countries found
+                </Text>
+              }
+            />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

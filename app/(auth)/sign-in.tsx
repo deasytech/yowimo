@@ -1,4 +1,4 @@
-import { useSignIn, useSSO } from "@clerk/expo";
+import { useAuth, useSignIn, useSSO } from "@clerk/expo";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Linking from "expo-linking";
 import { Link, useRouter } from "expo-router";
@@ -34,6 +34,7 @@ const GoogleIcon = () => (
 export default function SignInScreen() {
   const { signIn, errors, fetchStatus } = useSignIn();
   const { startSSOFlow } = useSSO();
+  const { getToken } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -59,6 +60,20 @@ export default function SignInScreen() {
     signIn.status === "needs_client_trust" ||
     signIn.status === "needs_first_factor" ||
     signIn.status === "needs_second_factor";
+
+  // Dev-only: print the session token so it can be pasted into Postman/Insomnia as a
+  // bearer token. __DEV__ keeps this out of release builds. Remove once the API is stable.
+  // Swallows its own errors so a getToken() failure here can never affect sign-in success
+  // or navigation for the password/MFA/SSO flows that call it.
+  const logSessionTokenForTesting = async () => {
+    if (!__DEV__) return;
+    try {
+      const token = await getToken();
+      console.log("[dev] Clerk session token (Authorization: Bearer <token>):", token);
+    } catch (err) {
+      console.warn("[dev] Could not fetch session token for logging:", err);
+    }
+  };
 
   // ─── Email / password sign-in ────────────────────────────────────────────
   const handleSubmit = async () => {
@@ -106,6 +121,7 @@ export default function SignInScreen() {
           console.log(session?.currentTask);
         },
       });
+      await logSessionTokenForTesting();
       return;
     }
 
@@ -248,6 +264,7 @@ export default function SignInScreen() {
           console.log(session?.currentTask);
         },
       });
+      await logSessionTokenForTesting();
 
       return;
     }
@@ -310,6 +327,7 @@ export default function SignInScreen() {
       });
       if (createdSessionId && setActive) {
         await setActive({ session: createdSessionId });
+        await logSessionTokenForTesting();
         posthog.capture('sign_in_completed', { method: strategy });
         router.replace("/");
       }

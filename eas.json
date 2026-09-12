@@ -20,7 +20,10 @@
       "ios": {
         "ascAppId": "6761558235",
         "appleTeamId": "2R428742QC",
-        "bundleIdentifier": "com.deasytech.yowimo"
+        "bundleIdentifier": "com.deasytech.yowimo",
+        "ascApiKeyPath": "./AuthKey_REPLACE_ME.p8",
+        "ascApiKeyId": "REPLACE_ME",
+        "ascApiKeyIssuerId": "REPLACE_ME"
       }
     }
   }

@@ -1,3 +1,5 @@
+import dayjs from "dayjs";
+import { Image } from "expo-image";
 import { LinearGradient as RNLinearGradient } from "expo-linear-gradient";
 import { Link } from "expo-router";
 import { Settings, Share2 } from "lucide-react-native";
@@ -6,7 +8,27 @@ import { Text, TouchableOpacity, View } from "react-native";
 
 const LinearGradient = styled(RNLinearGradient);
 
-export default function ProfileCover({ displayName, initials }: { displayName: string; initials: string }) {
+interface ProfileCoverProps {
+  displayName: string;
+  initials: string;
+  avatarUrl?: string | null;
+  username?: string | null;
+  bio?: string | null;
+  joinedAt?: string | null;
+}
+
+export default function ProfileCover({
+  displayName,
+  initials,
+  avatarUrl,
+  username,
+  bio,
+  joinedAt,
+}: ProfileCoverProps) {
+  const metaLine = [username ? `@${username}` : null, joinedAt ? `joined ${dayjs(joinedAt).format("MMM YYYY")}` : null]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
     <>
       <View className="h-40 rounded-3xl overflow-hidden">
@@ -34,12 +56,20 @@ export default function ProfileCover({ displayName, initials }: { displayName: s
           <View
             className="rounded-full bg-background p-1.5"
           >
-            <LinearGradient
-              colors={["#7A1EFF", "#D84CFF"]}
-              className="h-24 w-24 items-center justify-center rounded-full"
-            >
-              <Text className="text-white text-5xl font-sans-extrabold">{initials}</Text>
-            </LinearGradient>
+            {avatarUrl ? (
+              <Image
+                source={{ uri: avatarUrl }}
+                style={{ height: 96, width: 96, borderRadius: 48 }}
+                contentFit="cover"
+              />
+            ) : (
+              <LinearGradient
+                colors={["#7A1EFF", "#D84CFF"]}
+                className="h-24 w-24 items-center justify-center rounded-full"
+              >
+                <Text className="text-white text-5xl font-sans-extrabold">{initials}</Text>
+              </LinearGradient>
+            )}
           </View>
           <View className="absolute bottom-1.5 right-1.5 h-5 w-5 items-center justify-center rounded-full border-[3px] border-background bg-accent">
             <View className="h-2 w-2 rounded-full bg-white" />
@@ -85,13 +115,12 @@ export default function ProfileCover({ displayName, initials }: { displayName: s
             </Text>
           </LinearGradient>
         </View>
-        <Text className="mt-0.5 text-white/50 text-sm">
-          @alex · Tokyo · joined Mar 2026
-        </Text>
-        <Text className="mt-2 text-white text-sm leading-relaxed">
-          Designer by day, dare-survivor by night.{" "}
-          <Text className="text-violet font-semibold">#partytype</Text>
-        </Text>
+        {!!metaLine && (
+          <Text className="mt-0.5 text-white/50 text-sm">{metaLine}</Text>
+        )}
+        {!!bio && (
+          <Text className="mt-2 text-white text-sm leading-relaxed">{bio}</Text>
+        )}
       </View>
     </>
   );

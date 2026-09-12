@@ -11,6 +11,9 @@ export default {
     ios: {
       supportsTablet: true,
       bundleIdentifier: 'com.deasytech.yowimo',
+      infoPlist: {
+        ITSAppUsesNonExemptEncryption: false,
+      },
     },
     android: {
       adaptiveIcon: {
@@ -62,6 +65,7 @@ export default {
       '@clerk/expo',
       'expo-secure-store',
       'expo-web-browser',
+      '@react-native-community/datetimepicker',
       [
         'expo-audio',
         {
