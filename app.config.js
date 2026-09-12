@@ -11,6 +11,9 @@ export default {
     ios: {
       supportsTablet: true,
       bundleIdentifier: 'com.deasytech.yowimo',
+      infoPlist: {
+        ITSAppUsesNonExemptEncryption: false,
+      },
     },
     android: {
       adaptiveIcon: {

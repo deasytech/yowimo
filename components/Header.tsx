@@ -9,6 +9,17 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const BlurView = styled(RNBlurView);
 
+// Logo row height (size passed to YowimoLogo below) + the header's own bottom padding (pb-3).
+// Kept in sync with the BlurView's content below — used by screens that render this floating
+// header to offset content/pull-to-refresh so it isn't drawn underneath the blur.
+const HEADER_CONTENT_HEIGHT = 56 + 12;
+
+/** Total on-screen height of the floating header, including the device's safe-area top inset. */
+export const useHeaderHeight = () => {
+  const insets = useSafeAreaInsets();
+  return Math.max(insets.top, 16) + HEADER_CONTENT_HEIGHT;
+};
+
 const IconBtn = ({ children }: { children: React.ReactNode }) => (
   <View
     className="h-10 w-10 items-center justify-center rounded-full border border-white/10"

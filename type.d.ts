@@ -1,3 +1,4 @@
+import { GameTypeResource } from "@/lib/api/types";
 import { LucideIcon } from "lucide-react-native";
 import { ImageSourcePropType } from "react-native";
 
@@ -29,7 +30,7 @@ declare global {
   }
 
   interface GameCardProps {
-    game: GameTypeProps;
+    game: GameTypeResource;
     width: number;
     height: number;
     onPress?: () => void;

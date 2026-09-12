@@ -61,6 +61,14 @@ export default function SignInScreen() {
     signIn.status === "needs_first_factor" ||
     signIn.status === "needs_second_factor";
 
+  // Dev-only: print the session token so it can be pasted into Postman/Insomnia as a
+  // bearer token. __DEV__ keeps this out of release builds. Remove once the API is stable.
+  const logSessionTokenForTesting = async () => {
+    if (!__DEV__) return;
+    const token = await getToken();
+    console.log("[dev] Clerk session token (Authorization: Bearer <token>):", token);
+  };
+
   // ─── Email / password sign-in ────────────────────────────────────────────
   const handleSubmit = async () => {
     if (!formValid) return;
@@ -107,6 +115,7 @@ export default function SignInScreen() {
           console.log(session?.currentTask);
         },
       });
+      await logSessionTokenForTesting();
       return;
     }
 
@@ -249,6 +258,7 @@ export default function SignInScreen() {
           console.log(session?.currentTask);
         },
       });
+      await logSessionTokenForTesting();
 
       return;
     }
@@ -311,8 +321,7 @@ export default function SignInScreen() {
       });
       if (createdSessionId && setActive) {
         await setActive({ session: createdSessionId });
-        const token = await getToken();
-        console.log("[sign-in debug] SSO getToken():", token);
+        await logSessionTokenForTesting();
         posthog.capture('sign_in_completed', { method: strategy });
         router.replace("/");
       }

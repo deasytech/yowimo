@@ -1,17 +1,19 @@
 import { GradientText } from "@/components/brand/GradientText";
 import CrewOnline from "@/components/CrewOnline";
+import { useHeaderHeight } from "@/components/Header";
 import HeroCard from "@/components/HeroCard";
 import QuickDeckCard from "@/components/QuickDeckCard";
 import QuickDiscoverCard from "@/components/QuickDiscoverCard";
 import ListHeading from "@/components/shared/ListHeading";
-import { FRIENDS, GAME_TYPES, PARTIES, QUICK_ACTIONS } from "@/data/mock";
+import { FRIENDS, PARTIES, QUICK_ACTIONS } from "@/data/mock";
+import { useGameTypes } from "@/hooks/api/useGameTypes";
 import { posthog } from "@/lib/posthog";
 import { useUser } from "@clerk/expo";
 import { LinearGradient as RNLinearGradient } from 'expo-linear-gradient';
 import { Link } from "expo-router";
 import { styled } from "nativewind";
-import { useState } from "react";
-import { FlatList, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { useCallback, useState } from "react";
+import { ActivityIndicator, FlatList, RefreshControl, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
 
 const LinearGradient = styled(RNLinearGradient);
@@ -20,13 +22,31 @@ const SafeAreaView = styled(RNSafeAreaView);
 // ─── Mock data fallbacks (remove if your mock exports are complete) ──────────
 const _FRIENDS = (FRIENDS ?? []).filter((f: any) => f.online);
 const _PARTIES = (PARTIES ?? []).filter((p: any) => p.isLive).concat((PARTIES ?? []).slice(0, 2));
-const _GAMES = (GAME_TYPES ?? []).slice(0, 4);
 
 export default function HomeScreen() {
     const [cardWidth, setCardWidth] = useState(0);
+    const [refreshing, setRefreshing] = useState(false);
     const { user } = useUser();
+    const headerHeight = useHeaderHeight();
+    const {
+        data: gameTypes,
+        isLoading: isLoadingGames,
+        isError: isGamesError,
+        error: gamesError,
+        refetch: refetchGameTypes,
+    } = useGameTypes();
+    const _GAMES = (gameTypes ?? []).slice(0, 4);
 
     const displayName = user?.firstName || user?.fullName || user?.emailAddresses[0]?.emailAddress || 'User';
+
+    const onRefresh = useCallback(async () => {
+        setRefreshing(true);
+        try {
+            await refetchGameTypes();
+        } finally {
+            setRefreshing(false);
+        }
+    }, [refetchGameTypes]);
 
     return (
         <SafeAreaView className="flex-1 bg-background">
@@ -34,6 +54,20 @@ export default function HomeScreen() {
                 className="flex-1"
                 contentContainerStyle={{ paddingTop: 20, paddingHorizontal: 20, paddingBottom: 100, gap: 28 }}
                 showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        tintColor="#B03BFF"
+                        colors={["#B03BFF"]}
+                        progressBackgroundColor="#1c1c22"
+                        // The floating blurred header overlays the very top of this ScrollView,
+                        // so on Android the default (offset 0) spinner draws underneath it —
+                        // push it down below the header instead. (iOS has no such prop; its
+                        // spinner surfaces naturally once the pull passes the header's height.)
+                        progressViewOffset={headerHeight}
+                    />
+                }
             >
                 <View className="gap-1 pt-20">
                     <Text className="text-sm text-muted-foreground">Tonight, {displayName}</Text>
@@ -113,23 +147,43 @@ export default function HomeScreen() {
 
                 <View>
                     <ListHeading title="Pick your deck" actionText="All games" link="/play" />
-                    <View
-                        style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}
-                        onLayout={(e) => setCardWidth((e.nativeEvent.layout.width - 12) / 2)}
-                    >
-                        {_GAMES.map((g) => {
-                            const cardHeight = cardWidth * (4 / 3);
+                    {isLoadingGames ? (
+                        <ActivityIndicator color="#B03BFF" style={{ marginVertical: 16 }} />
+                    ) : isGamesError ? (
+                        <View className="items-center gap-2 py-4">
+                            <Text className="text-sm font-sans-medium text-white/60">
+                                Couldn&apos;t load games.
+                            </Text>
+                            <Text className="text-xs text-white/40 text-center px-6">
+                                {gamesError instanceof Error ? gamesError.message : "Unknown error"}
+                            </Text>
+                            <TouchableOpacity onPress={() => refetchGameTypes()} activeOpacity={0.8}>
+                                <Text className="text-violet-bright text-sm font-sans-semibold">Retry</Text>
+                            </TouchableOpacity>
+                        </View>
+                    ) : _GAMES.length === 0 ? (
+                        <Text className="py-4 text-sm font-sans-medium text-white/60">
+                            No games available
+                        </Text>
+                    ) : (
+                        <View
+                            style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}
+                            onLayout={(e) => setCardWidth((e.nativeEvent.layout.width - 12) / 2)}
+                        >
+                            {_GAMES.map((g) => {
+                                const cardHeight = cardWidth * (4 / 3);
 
-                            return (
-                                <QuickDeckCard
-                                    key={g.id}
-                                    game={g}
-                                    width={cardWidth}
-                                    height={cardHeight}
-                                />
-                            );
-                        })}
-                    </View>
+                                return (
+                                    <QuickDeckCard
+                                        key={g.id}
+                                        game={g}
+                                        width={cardWidth}
+                                        height={cardHeight}
+                                    />
+                                );
+                            })}
+                        </View>
+                    )}
                 </View>
             </ScrollView>
         </SafeAreaView>

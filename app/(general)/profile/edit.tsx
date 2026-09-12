@@ -15,7 +15,7 @@ import {
   Search,
 } from "lucide-react-native";
 import { styled } from "nativewind";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -160,9 +160,12 @@ export default function EditProfileScreen() {
   const [showCountryPicker, setShowCountryPicker] = useState(false);
   const [countrySearch, setCountrySearch] = useState("");
 
-  // Prefill once the real profile loads — avoids clobbering in-progress edits on refetch.
+  // Prefill once the real profile first loads — the ref guard stops a later refetch
+  // (focus refetch, background refresh) from clobbering in-progress edits.
+  const hasPrefilled = useRef(false);
   useEffect(() => {
-    if (!profile) return;
+    if (!profile || hasPrefilled.current) return;
+    hasPrefilled.current = true;
     setForm({
       displayName: profile.display_name ?? "",
       username: profile.username ?? "",
@@ -249,7 +252,7 @@ export default function EditProfileScreen() {
       },
       {
         onSuccess: () => {
-          router.push("/profile");
+          router.replace("/profile");
         },
         onError: (error) => {
           const message =

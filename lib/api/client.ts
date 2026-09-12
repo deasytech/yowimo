@@ -19,15 +19,22 @@ export async function apiRequestPaginated<T>(
 ): Promise<{ data: T; meta?: CursorMeta }> {
   const { body, token, idempotencyKey, headers, ...rest } = options;
 
+  // Built as a Headers instance (rather than object-spreading `headers`) so caller-supplied
+  // headers in any HeadersInit shape — plain object, [key, value][] tuples, or a Headers
+  // instance — merge correctly instead of only the plain-object case.
+  const requestHeaders = new Headers({
+    Accept: 'application/json',
+    ...(body ? { 'Content-Type': 'application/json' } : {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
+  });
+  if (headers) {
+    new Headers(headers).forEach((value, key) => requestHeaders.set(key, value));
+  }
+
   const res = await fetch(`${API_URL}${path}`, {
     ...rest,
-    headers: {
-      Accept: 'application/json',
-      ...(body ? { 'Content-Type': 'application/json' } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
-      ...headers,
-    },
+    headers: requestHeaders,
     body: body ? JSON.stringify(body) : undefined,
   });
 
