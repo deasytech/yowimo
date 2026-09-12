@@ -1,4 +1,4 @@
-import { useSignIn, useSSO } from "@clerk/expo";
+import { useAuth, useSignIn, useSSO } from "@clerk/expo";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Linking from "expo-linking";
 import { Link, useRouter } from "expo-router";
@@ -34,6 +34,7 @@ const GoogleIcon = () => (
 export default function SignInScreen() {
   const { signIn, errors, fetchStatus } = useSignIn();
   const { startSSOFlow } = useSSO();
+  const { getToken } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -310,6 +311,8 @@ export default function SignInScreen() {
       });
       if (createdSessionId && setActive) {
         await setActive({ session: createdSessionId });
+        const token = await getToken();
+        console.log("[sign-in debug] SSO getToken():", token);
         posthog.capture('sign_in_completed', { method: strategy });
         router.replace("/");
       }

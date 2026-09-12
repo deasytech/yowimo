@@ -5,9 +5,11 @@ import { useEffect, useRef } from 'react';
 
 import { ChatProvider } from '@/context/ChatContext';
 import { PlayersProvider } from '@/context/PlayersContext';
+import { queryClient } from '@/lib/api/queryClient';
 import { posthog } from '@/lib/posthog';
 import { ClerkProvider, useAuth } from '@clerk/expo';
 import { tokenCache } from '@clerk/expo/token-cache';
+import { QueryClientProvider } from '@tanstack/react-query';
 import Constants, { ExecutionEnvironment } from "expo-constants";
 import { PostHogProvider } from 'posthog-react-native';
 import { StatusBar } from 'react-native';
@@ -78,22 +80,24 @@ function RootLayoutContent() {
   if (!fontsLoaded || !authLoaded) return null;
 
   return (
-    <PostHogProvider
-      client={posthog}
-      autocapture={{
-        captureScreens: false,
-        captureTouches: true,
-        propsToCapture: ['testID'],
-        maxElementsCaptured: 20,
-      }}
-    >
-      <PlayersProvider>
-        <ChatProvider>
-          <Stack screenOptions={{ headerShown: false }} />
-          <StatusBar barStyle='light-content' />
-        </ChatProvider>
-      </PlayersProvider>
-    </PostHogProvider>
+    <QueryClientProvider client={queryClient}>
+      <PostHogProvider
+        client={posthog}
+        autocapture={{
+          captureScreens: false,
+          captureTouches: true,
+          propsToCapture: ['testID'],
+          maxElementsCaptured: 20,
+        }}
+      >
+        <PlayersProvider>
+          <ChatProvider>
+            <Stack screenOptions={{ headerShown: false }} />
+            <StatusBar barStyle='light-content' />
+          </ChatProvider>
+        </PlayersProvider>
+      </PostHogProvider>
+    </QueryClientProvider>
   );
 }
 
