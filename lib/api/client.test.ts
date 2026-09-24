@@ -1,4 +1,4 @@
-import { apiRequest, apiRequestPaginated } from './client';
+import { apiRequest, apiRequestPaginated, toQueryString } from './client';
 import { ApiError } from './types';
 
 const mockFetch = (response: {
@@ -203,5 +203,26 @@ describe('ApiError.firstValidationError', () => {
   it('stringifies a non-array error value', () => {
     const error = new ApiError('Validation failed', 422, { username: 'taken' } as any);
     expect(error.firstValidationError).toBe('taken');
+  });
+});
+
+describe('toQueryString', () => {
+  it('returns an empty string when there are no usable params', () => {
+    expect(toQueryString({})).toBe('');
+    expect(toQueryString({ category: undefined, search: null, cursor: '' })).toBe('');
+  });
+
+  it('builds a query string from the given params', () => {
+    expect(toQueryString({ category: 'spicy', per_page: 20 })).toBe('?category=spicy&per_page=20');
+  });
+
+  it('drops only the missing params, keeping the rest', () => {
+    expect(toQueryString({ category: 'spicy', game_type_id: undefined, search: 'truth' })).toBe(
+      '?category=spicy&search=truth',
+    );
+  });
+
+  it('URL-encodes param values', () => {
+    expect(toQueryString({ search: 'truth or dare' })).toBe('?search=truth+or+dare');
   });
 });

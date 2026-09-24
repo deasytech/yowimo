@@ -1,10 +1,10 @@
+import { PackResource } from "@/lib/api/types";
+import { Image } from "expo-image";
 import { LinearGradient as RNLinearGradient } from "expo-linear-gradient";
 import { Check, Coins } from "lucide-react-native";
 import { styled } from "nativewind";
-import { useState } from "react";
 import {
   ActivityIndicator,
-  Image,
   Text,
   TouchableOpacity,
   View,
@@ -13,21 +13,11 @@ import {
 const LinearGradient = styled(RNLinearGradient);
 
 interface MarketplaceCardProps {
-  pack: {
-    id: number;
-    name: string;
-    cards: number;
-    price: number;
-    emoji: string;
-    tag?: string | null;
-    image: any;
-    colors?: [string, string];
-  };
+  pack: PackResource;
   onPress?: () => void;
   onBuy?: () => void;
   owned?: boolean;
   purchasing?: boolean;
-  onImageError?: () => void;
 }
 
 export default function MarketplaceCard({
@@ -36,15 +26,7 @@ export default function MarketplaceCard({
   onBuy,
   owned = false,
   purchasing = false,
-  onImageError,
 }: MarketplaceCardProps) {
-  const [imageFailed, setImageFailed] = useState(false);
-
-  const handleImageError = () => {
-    setImageFailed(true);
-    onImageError?.();
-  };
-
   return (
     <TouchableOpacity
       activeOpacity={0.9}
@@ -53,17 +35,17 @@ export default function MarketplaceCard({
       className="mb-4 w-[48%] overflow-hidden rounded-3xl border border-white/10 bg-card"
     >
       <View className="relative h-32 overflow-hidden">
-        {imageFailed ? (
-          <LinearGradient
-            colors={pack.colors ?? ["#7A1EFF", "#D84CFF"]}
-            className="absolute inset-0"
-          />
-        ) : (
+        {/* Gradient is the base layer so a failed/broken cover image still leaves a
+            filled background instead of blank space. */}
+        <LinearGradient
+          colors={pack.gradient}
+          className="absolute inset-0"
+        />
+        {pack.cover_image_url && (
           <Image
-            source={pack.image}
-            className="absolute inset-0 h-full w-full"
-            resizeMode="cover"
-            onError={handleImageError}
+            source={{ uri: pack.cover_image_url }}
+            style={{ position: "absolute", width: "100%", height: "100%" }}
+            contentFit="cover"
           />
         )}
 
@@ -95,7 +77,7 @@ export default function MarketplaceCard({
         </Text>
 
         <Text className="absolute bottom-2 left-3 text-[10px] font-sans-semibold uppercase tracking-wider text-white">
-          {pack.cards} Cards
+          {pack.cards_count} Cards
         </Text>
       </View>
 

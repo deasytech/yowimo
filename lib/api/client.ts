@@ -6,6 +6,16 @@ if (!API_URL) {
   throw new Error('Add your API base URL to the .env file as EXPO_PUBLIC_API_URL');
 }
 
+/** Builds a `?a=1&b=2` query string, dropping undefined/null/empty-string values. */
+export function toQueryString(params: Record<string, string | number | undefined | null>): string {
+  const entries = Object.entries(params).filter(
+    ([, value]) => value !== undefined && value !== null && value !== '',
+  );
+  if (!entries.length) return '';
+  const search = new URLSearchParams(entries.map(([key, value]) => [key, String(value)]));
+  return `?${search.toString()}`;
+}
+
 export interface ApiRequestOptions extends Omit<RequestInit, 'body'> {
   body?: object;
   token?: string | null;
