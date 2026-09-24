@@ -1,7 +1,8 @@
 import { LinearGradient as RNLinearGradient } from "expo-linear-gradient";
 import { PackageSearch } from "lucide-react-native";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import {
+  ActivityIndicator,
   FlatList,
   ScrollView,
   Text,
@@ -10,226 +11,74 @@ import {
 } from "react-native";
 import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
 
-import packCouplesDeluxe from "@/assets/images/pack-couples-deluxe.jpg";
-import packFamilyMovie from "@/assets/images/pack-family-movie.jpg";
-import packMidnightSpice from "@/assets/images/pack-midnight-spice.jpg";
-import packOfficeIcebreakers from "@/assets/images/pack-office-icebreakers.jpg";
-import packTruthBombs from "@/assets/images/pack-truth-bombs.jpg";
-import packWildCard from "@/assets/images/pack-wild-card.jpg";
 import MarketplaceCard from "@/components/MarketPlaceCard";
 import MarketplaceCardSkeleton from "@/components/MarketplaceCardSkeleton";
-import PackDetailModal, {
-  MarketplacePack,
-} from "@/components/PackDetailModal";
+import PackDetailModal from "@/components/PackDetailModal";
 import Toast from "@/components/shared/Toast";
 import TokenBadge from "@/components/TokenBadge";
+import { useFeaturedPacks, usePacks, usePurchasePack } from "@/hooks/api/usePacks";
+import { useWallet } from "@/hooks/api/useWallet";
 import { useToast } from "@/hooks/useToast";
+import { newIdempotencyKey } from "@/lib/api/idempotency";
+import { ApiError, PackCategory, PackResource } from "@/lib/api/types";
 import { styled } from "nativewind";
-
-import { getRandomBytesAsync } from "expo-crypto";
 
 const SafeAreaView = styled(RNSafeAreaView);
 const LinearGradient = styled(RNLinearGradient);
 
-const categories = [
+const CATEGORY_LABELS = [
   "Featured",
   "Spicy",
   "Couples",
   "Family",
   "Corporate",
   "Limited",
-];
+] as const;
+type CategoryLabel = (typeof CATEGORY_LABELS)[number];
 
-const STARTING_TOKEN_BALANCE = 180;
-const PURCHASE_FAILURE_RATE = 0.15;
-const SIMULATED_LATENCY_MS = 1100;
-
-const packs: MarketplacePack[] = [
-  {
-    id: 1,
-    name: "Midnight Spice",
-    cards: 60,
-    price: 120,
-    emoji: "🌶️",
-    tag: "Limited",
-    category: "Limited",
-    colors: ["#D84CFF", "#FF8A2A"],
-    image: packMidnightSpice,
-    description:
-      "Turn up the heat with confessions, dares, and spicy hypotheticals built for couples who want the temperature to rise fast.",
-    truths: 30,
-    dares: 30,
-    previewCards: [
-      { id: 1, kind: "truth", text: "What's the boldest thing you've ever wanted to try but haven't asked for?" },
-      { id: 2, kind: "dare", text: "Whisper your partner's name the way you'd say it in your favorite fantasy." },
-      { id: 3, kind: "truth", text: "On a scale of 1-10, how adventurous are you really?" },
-      { id: 4, kind: "dare", text: "Trade one item of clothing with the player to your left." },
-    ],
-  },
-  {
-    id: 2,
-    name: "Couples Deluxe",
-    cards: 80,
-    price: 200,
-    emoji: "💞",
-    tag: "Hot",
-    category: "Couples",
-    colors: ["#7A1EFF", "#D84CFF"],
-    image: packCouplesDeluxe,
-    description:
-      "A full night of connection games — from sweet confessions to playful dares designed to bring you closer.",
-    truths: 45,
-    dares: 35,
-    previewCards: [
-      { id: 1, kind: "truth", text: "What's a small thing I do that makes you feel loved?" },
-      { id: 2, kind: "dare", text: "Recreate your first date together in under 30 seconds." },
-      { id: 3, kind: "truth", text: "What's one thing you wish we did more of together?" },
-      { id: 4, kind: "dare", text: "Give your partner a 20-second compliment without repeating a word." },
-    ],
-  },
-  {
-    id: 3,
-    name: "Family Movie Night",
-    cards: 50,
-    price: 80,
-    emoji: "🍿",
-    tag: null,
-    category: "Family",
-    colors: ["#FF8A2A", "#7A1EFF"],
-    image: packFamilyMovie,
-    description:
-      "Trivia, would-you-rathers, and silly challenges the whole family can play between movie scenes.",
-    truths: 25,
-    dares: 25,
-    previewCards: [
-      { id: 1, kind: "truth", text: "What's the last movie that made you cry (even a little)?" },
-      { id: 2, kind: "dare", text: "Do your best impression of a movie villain for 10 seconds." },
-      { id: 3, kind: "truth", text: "If you could live inside one movie, which one and why?" },
-      { id: 4, kind: "dare", text: "Act out your favorite movie scene using only gestures." },
-    ],
-  },
-  {
-    id: 4,
-    name: "Office Icebreakers",
-    cards: 40,
-    price: 60,
-    emoji: "💼",
-    tag: "Corporate",
-    category: "Corporate",
-    colors: ["#2D2A8F", "#B03BFF"],
-    image: packOfficeIcebreakers,
-    description:
-      "Low-pressure prompts and light challenges that get a team laughing before the real meeting starts.",
-    truths: 22,
-    dares: 18,
-    previewCards: [
-      { id: 1, kind: "truth", text: "What's the most useless skill you're weirdly proud of?" },
-      { id: 2, kind: "dare", text: "Describe your most embarrassing childhood photo in vivid detail." },
-      { id: 3, kind: "truth", text: "What's one app you'd be lost without at work?" },
-      { id: 4, kind: "dare", text: "Give a 10-second elevator pitch for a completely made-up product." },
-    ],
-  },
-  {
-    id: 5,
-    name: "Wild Card Vol. 3",
-    cards: 100,
-    price: 250,
-    emoji: "🃏",
-    tag: "New",
-    category: "Spicy",
-    colors: ["#B03BFF", "#FF8A2A"],
-    image: packWildCard,
-    description:
-      "Unpredictable, chaotic, and a little unhinged — this deck mixes every category so no two rounds feel the same.",
-    truths: 50,
-    dares: 50,
-    previewCards: [
-      { id: 1, kind: "dare", text: "Speak only in movie quotes for the next two rounds." },
-      { id: 2, kind: "truth", text: "What's the weirdest rumor you've ever heard about yourself?" },
-      { id: 3, kind: "dare", text: "Let the group pick your profile picture for the next 24 hours." },
-      { id: 4, kind: "truth", text: "What's a decision you made that surprised everyone, including you?" },
-    ],
-  },
-  {
-    id: 6,
-    name: "Truth Bombs",
-    cards: 70,
-    price: 150,
-    emoji: "💣",
-    tag: null,
-    category: "Spicy",
-    colors: ["#D84CFF", "#7A1EFF"],
-    image: packTruthBombs,
-    description:
-      "Deep-cut confessions and no-filter questions for players who are ready to get real.",
-    truths: 60,
-    dares: 10,
-    previewCards: [
-      { id: 1, kind: "truth", text: "What's something you've never told anyone in this room?" },
-      { id: 2, kind: "truth", text: "What's the biggest lie you've told to keep the peace?" },
-      { id: 3, kind: "dare", text: "Text the last person you called and say 'I was just thinking about you.'" },
-      { id: 4, kind: "truth", text: "What's a compliment you wish you'd given someone sooner?" },
-    ],
-  },
-];
-
-const featuredPack: MarketplacePack = {
-  id: 999,
-  name: "Neon Confessions",
-  cards: 120,
-  price: 300,
-  emoji: "💫",
-  tag: "Drop of the Week",
-  category: "Limited",
-  colors: ["#7A1EFF", "#FF8A2A"],
-  image: packWildCard,
-  description:
-    "This week's exclusive drop — neon-lit confessions, blackout dares, and prompts that only surface for 48 hours.",
-  truths: 70,
-  dares: 50,
-  previewCards: [
-    { id: 1, kind: "truth", text: "What's a secret you'd only share under neon lights?" },
-    { id: 2, kind: "dare", text: "Send a voice note singing the chorus of your most-played song." },
-    { id: 3, kind: "truth", text: "What's the last confession that changed how someone saw you?" },
-    { id: 4, kind: "dare", text: "Let the group caption your last photo — no vetoes." },
-  ],
+// "Featured" here means "no filter, show the whole catalog" — matching this screen's
+// pre-existing tab behavior. The API's own notion of featured only drives the hero banner.
+const CATEGORY_TO_API: Partial<Record<CategoryLabel, PackCategory>> = {
+  Spicy: "spicy",
+  Couples: "couples",
+  Family: "family",
+  Corporate: "corporate",
+  Limited: "limited",
 };
 
-async function simulatePurchase(): Promise<void> {
-  const randomBytes = await getRandomBytesAsync(1);
-  const randomByte = randomBytes[0];
-
-  const failureThreshold = Math.floor(
-    PURCHASE_FAILURE_RATE * 256
-  );
-
-  await new Promise<void>((resolve) => {
-    setTimeout(resolve, SIMULATED_LATENCY_MS);
-  });
-
-  if (randomByte < failureThreshold) {
-    throw new Error("purchase_failed");
-  }
-}
-
 export default function MarketplaceScreen() {
-  const [selectedCategory, setSelectedCategory] =
-    useState("Featured");
-  const [isLoading, setIsLoading] = useState(true);
-  const [detailPack, setDetailPack] = useState<MarketplacePack | null>(null);
-  const [ownedPacks, setOwnedPacks] = useState<Set<number>>(new Set());
+  const [selectedCategory, setSelectedCategory] = useState<CategoryLabel>("Featured");
+  const apiCategory = CATEGORY_TO_API[selectedCategory];
+
+  const {
+    packs,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = usePacks(apiCategory);
+  const { data: featuredPacks } = useFeaturedPacks();
+  const heroPack = featuredPacks?.[0] ?? null;
+  const { data: wallet } = useWallet();
+  const tokenBalance = wallet?.balance ?? 0;
+
+  const [detailPackId, setDetailPackId] = useState<number | null>(null);
+  // `owned_by_me` on the list/featured/detail resources is the source of truth. This just
+  // covers the gap between a successful purchase and that query settling back to true —
+  // cleared once the pack shows up owned from the server (see the effect below).
+  const [ownedPackIds, setOwnedPackIds] = useState<Set<number>>(new Set());
   const [purchasingId, setPurchasingId] = useState<number | null>(null);
-  const [tokenBalance, setTokenBalance] = useState(STARTING_TOKEN_BALANCE);
+  // One key per pack, reused across retries of the same purchase attempt so a flaky
+  // connection can't double-charge the player — cleared once that attempt resolves.
+  const idempotencyKeys = useRef<Map<number, string>>(new Map());
+  const purchaseMutation = usePurchasePack();
 
   const [toastMessage, setToastMessage] = useState("");
   const [toastBg, setToastBg] = useState("bg-green-600");
   const toast = useToast();
-  const warnedImageIds = useRef<Set<number>>(new Set());
-
-  useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 900);
-    return () => clearTimeout(timer);
-  }, []);
 
   const notify = (message: string, variant: "success" | "error") => {
     setToastMessage(message);
@@ -237,43 +86,48 @@ export default function MarketplaceScreen() {
     toast.showToast();
   };
 
-  const handleImageError = (packId: number) => {
-    if (warnedImageIds.current.has(packId)) return;
-    warnedImageIds.current.add(packId);
-    notify("Some pack images failed to load", "error");
+  const getIdempotencyKey = (packId: number) => {
+    let key = idempotencyKeys.current.get(packId);
+    if (!key) {
+      key = newIdempotencyKey();
+      idempotencyKeys.current.set(packId, key);
+    }
+    return key;
   };
 
-  const buyPack = async (pack: MarketplacePack) => {
-    if (ownedPacks.has(pack.id) || purchasingId !== null) return;
+  const buyPack = async (pack: PackResource) => {
+    if (ownedPackIds.has(pack.id) || purchasingId !== null) return;
 
     if (pack.price > tokenBalance) {
-      notify(
-        `Not enough tokens — you need ${pack.price - tokenBalance} more`,
-        "error"
-      );
+      notify(`Not enough tokens — you need ${pack.price - tokenBalance} more`, "error");
       return;
     }
 
     setPurchasingId(pack.id);
     try {
-      await simulatePurchase();
-      setTokenBalance((balance) => balance - pack.price);
-      setOwnedPacks((prev) => new Set(prev).add(pack.id));
+      await purchaseMutation.mutateAsync({
+        packId: pack.id,
+        idempotencyKey: getIdempotencyKey(pack.id),
+      });
+      idempotencyKeys.current.delete(pack.id);
+      setOwnedPackIds((prev) => new Set(prev).add(pack.id));
       notify(`${pack.name} unlocked!`, "success");
-      setDetailPack(null);
-    } catch {
-      notify("Purchase failed — please try again", "error");
+      setDetailPackId(null);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        // Our idempotency key is unique per pack, so a 409 here means "already owned" —
+        // treat it as success so a stale grid can self-heal instead of showing an error.
+        idempotencyKeys.current.delete(pack.id);
+        setOwnedPackIds((prev) => new Set(prev).add(pack.id));
+        notify(err.message || `${pack.name} is already unlocked`, "success");
+      } else {
+        const message = err instanceof ApiError ? err.message : "Purchase failed — please try again";
+        notify(message, "error");
+      }
     } finally {
       setPurchasingId(null);
     }
   };
-
-  const filteredPacks =
-    selectedCategory === "Featured"
-      ? packs
-      : packs.filter(
-        (pack) => pack.category === selectedCategory
-      );
 
   return (
     <SafeAreaView className="flex-1 bg-background">
@@ -285,22 +139,21 @@ export default function MarketplaceScreen() {
       />
 
       <FlatList
-        data={isLoading ? Array.from({ length: 6 }) : filteredPacks}
+        data={isLoading ? Array.from({ length: 6 }) : packs}
         numColumns={2}
         keyExtractor={(item, index) =>
-          isLoading ? `skeleton-${index}` : (item as MarketplacePack).id.toString()
+          isLoading ? `skeleton-${index}` : (item as PackResource).id.toString()
         }
         renderItem={({ item }) =>
           isLoading ? (
             <MarketplaceCardSkeleton />
           ) : (
             <MarketplaceCard
-              pack={item as MarketplacePack}
-              owned={ownedPacks.has((item as MarketplacePack).id)}
-              purchasing={purchasingId === (item as MarketplacePack).id}
-              onPress={() => setDetailPack(item as MarketplacePack)}
-              onBuy={() => buyPack(item as MarketplacePack)}
-              onImageError={() => handleImageError((item as MarketplacePack).id)}
+              pack={item as PackResource}
+              owned={(item as PackResource).owned_by_me || ownedPackIds.has((item as PackResource).id)}
+              purchasing={purchasingId === (item as PackResource).id}
+              onPress={() => setDetailPackId((item as PackResource).id)}
+              onBuy={() => buyPack(item as PackResource)}
             />
           )
         }
@@ -312,8 +165,35 @@ export default function MarketplaceScreen() {
           paddingHorizontal: 20,
           paddingBottom: 120,
         }}
+        onEndReachedThreshold={0.4}
+        onEndReached={() => {
+          if (hasNextPage && !isFetchingNextPage) fetchNextPage();
+        }}
+        ListFooterComponent={
+          isFetchingNextPage ? (
+            <View className="items-center py-6">
+              <ActivityIndicator color="#B03BFF" />
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
-          isLoading ? null : (
+          isLoading ? null : isError ? (
+            <View className="mt-10 items-center gap-3 px-6 py-10">
+              <Text className="text-center text-sm text-muted-foreground">
+                Couldn&apos;t load packs.
+              </Text>
+              <Text className="text-center text-xs text-muted-foreground/70">
+                {error instanceof Error ? error.message : "Unknown error"}
+              </Text>
+              <TouchableOpacity
+                onPress={() => refetch()}
+                activeOpacity={0.85}
+                className="mt-1 rounded-full bg-secondary px-4 py-2"
+              >
+                <Text className="text-xs font-sans-semibold text-white">Retry</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
             <View className="mt-10 items-center px-6 py-10">
               <View className="h-16 w-16 items-center justify-center rounded-full bg-secondary">
                 <PackageSearch color="#a3a3ab" size={26} strokeWidth={1.8} />
@@ -364,7 +244,7 @@ export default function MarketplaceScreen() {
               }
               className="mt-5"
             >
-              {categories.map((category) => (
+              {CATEGORY_LABELS.map((category) => (
                 <TouchableOpacity
                   key={category}
                   onPress={() =>
@@ -392,42 +272,45 @@ export default function MarketplaceScreen() {
             </ScrollView>
 
             {/* Hero Banner */}
-            <LinearGradient
-              colors={[
-                "#7A1EFF",
-                "#D84CFF",
-                "#FF8A2A",
-              ]}
-              className="mt-5 rounded-3xl p-5"
-            >
-              <View className="self-start rounded-full bg-white/20 px-2 py-1">
-                <Text className="text-[10px] font-sans-bold uppercase tracking-wider text-white">
-                  🔥 Drop of the Week
-                </Text>
-              </View>
-
-              <Text className="mt-3 font-sg-extrabold text-3xl text-white">
-                Neon Confessions
-              </Text>
-
-              <Text className="mt-1 text-sm text-white/85">
-                120 Cards • Limited 48h
-              </Text>
-
-              <View className="mt-5 flex-row items-center justify-between">
-                <TokenBadge amount={300} />
-
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  onPress={() => setDetailPack(featuredPack)}
-                  className="rounded-2xl bg-white px-5 py-3"
-                >
-                  <Text className="font-sans-semibold text-background">
-                    Preview
+            {heroPack && (
+              <LinearGradient
+                colors={[
+                  "#7A1EFF",
+                  "#D84CFF",
+                  "#FF8A2A",
+                ]}
+                className="mt-5 rounded-3xl p-5"
+              >
+                <View className="self-start rounded-full bg-white/20 px-2 py-1">
+                  <Text className="text-[10px] font-sans-bold uppercase tracking-wider text-white">
+                    🔥 Drop of the Week
                   </Text>
-                </TouchableOpacity>
-              </View>
-            </LinearGradient>
+                </View>
+
+                <Text className="mt-3 font-sg-extrabold text-3xl text-white">
+                  {heroPack.name}
+                </Text>
+
+                <Text className="mt-1 text-sm text-white/85">
+                  {heroPack.cards_count} Cards
+                  {heroPack.tag ? ` • ${heroPack.tag}` : ""}
+                </Text>
+
+                <View className="mt-5 flex-row items-center justify-between">
+                  <TokenBadge amount={heroPack.price} />
+
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    onPress={() => setDetailPackId(heroPack.id)}
+                    className="rounded-2xl bg-white px-5 py-3"
+                  >
+                    <Text className="font-sans-semibold text-background">
+                      Preview
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </LinearGradient>
+            )}
 
             <View className="h-5" />
           </>
@@ -435,12 +318,12 @@ export default function MarketplaceScreen() {
       />
 
       <PackDetailModal
-        visible={detailPack !== null}
-        pack={detailPack}
-        onClose={() => setDetailPack(null)}
+        visible={detailPackId !== null}
+        packId={detailPackId}
+        onClose={() => setDetailPackId(null)}
         onBuy={buyPack}
-        owned={detailPack !== null && ownedPacks.has(detailPack.id)}
-        purchasing={detailPack !== null && purchasingId === detailPack.id}
+        ownedOverride={detailPackId !== null && ownedPackIds.has(detailPackId)}
+        purchasing={detailPackId !== null && purchasingId === detailPackId}
         tokenBalance={tokenBalance}
       />
     </SafeAreaView>

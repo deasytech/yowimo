@@ -129,7 +129,8 @@ export interface PackResource {
   is_featured: boolean;
   game_type: { id: number; slug: string } | null;
   preview_cards: PackCard[];
-  owned_by_me?: boolean;
+  /** Present on every pack endpoint (list, featured, detail) — batched per page, not per pack. */
+  owned_by_me: boolean;
   created_at: string;
   updated_at: string;
 }
