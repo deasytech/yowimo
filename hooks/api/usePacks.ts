@@ -1,6 +1,7 @@
 import { useApi } from '@/hooks/api/useApi';
 import { toQueryString } from '@/lib/api/client';
 import { PackCategory, PackPurchaseResult, PackResource } from '@/lib/api/types';
+import { useAuth } from '@clerk/expo';
 import {
   useInfiniteQuery,
   useMutation,
@@ -8,16 +9,23 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 
-export const packsQueryKey = (category?: PackCategory) => ['packs', category ?? 'all'] as const;
-export const FEATURED_PACKS_QUERY_KEY = ['packs', 'featured'] as const;
-export const packQueryKey = (packId: number | null) => ['packs', 'detail', packId] as const;
+// Scoped by user id — `owned_by_me` on every pack resource is per-account, so a
+// sign-out/sign-in-as-someone-else on the same device must never show the previous
+// account's cached ownership state.
+export const packsQueryKey = (userId: string | null | undefined, category?: PackCategory) =>
+  ['packs', userId, category ?? 'all'] as const;
+export const featuredPacksQueryKey = (userId: string | null | undefined) =>
+  ['packs', userId, 'featured'] as const;
+export const packQueryKey = (userId: string | null | undefined, packId: number | null) =>
+  ['packs', userId, 'detail', packId] as const;
 
 /** Cursor-paginated catalog, optionally filtered to one category. */
 export function usePacks(category?: PackCategory) {
   const { requestPaginated } = useApi();
+  const { userId, isLoaded, isSignedIn } = useAuth();
 
   const query = useInfiniteQuery({
-    queryKey: packsQueryKey(category),
+    queryKey: packsQueryKey(userId, category),
     queryFn: ({ pageParam }: { pageParam?: string }) =>
       requestPaginated<PackResource[]>(
         `/packs${toQueryString({ category, cursor: pageParam, per_page: 20 })}`,
@@ -25,6 +33,7 @@ export function usePacks(category?: PackCategory) {
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) =>
       lastPage.meta?.has_more_pages ? (lastPage.meta.next_cursor ?? undefined) : undefined,
+    enabled: isLoaded && isSignedIn,
   });
 
   return {
@@ -36,10 +45,12 @@ export function usePacks(category?: PackCategory) {
 /** Curated packs for the marketplace hero banner — first page only. */
 export function useFeaturedPacks() {
   const { request } = useApi();
+  const { userId, isLoaded, isSignedIn } = useAuth();
 
   return useQuery({
-    queryKey: FEATURED_PACKS_QUERY_KEY,
+    queryKey: featuredPacksQueryKey(userId),
     queryFn: () => request<PackResource[]>('/packs/featured'),
+    enabled: isLoaded && isSignedIn,
   });
 }
 
@@ -49,11 +60,12 @@ export function useFeaturedPacks() {
  */
 export function usePack(packId: number | null) {
   const { request } = useApi();
+  const { userId, isLoaded, isSignedIn } = useAuth();
 
   return useQuery({
-    queryKey: packQueryKey(packId),
+    queryKey: packQueryKey(userId, packId),
     queryFn: () => request<PackResource>(`/packs/${packId}`),
-    enabled: packId !== null,
+    enabled: packId !== null && isLoaded && isSignedIn,
   });
 }
 

@@ -26,7 +26,8 @@ interface PackDetailModalProps {
   /** Purchased this session, before the refetched detail confirms `owned_by_me`. */
   ownedOverride: boolean;
   purchasing: boolean;
-  tokenBalance: number;
+  /** Undefined while the wallet is still loading — don't treat that as a zero balance. */
+  tokenBalance: number | undefined;
 }
 
 const PERKS = [
@@ -50,7 +51,8 @@ export default function PackDetailModal({
   if (packId === null) return null;
 
   const owned = ownedOverride || !!pack?.owned_by_me;
-  const insufficientFunds = !!pack && !owned && tokenBalance < pack.price;
+  const insufficientFunds =
+    !!pack && !owned && typeof tokenBalance === "number" && tokenBalance < pack.price;
 
   const handleCtaPress = () => {
     if (!pack) return;
@@ -111,14 +113,15 @@ export default function PackDetailModal({
               >
                 {/* Hero */}
                 <View className="relative mt-4 h-40 overflow-hidden rounded-3xl">
-                  {pack.cover_image_url ? (
+                  {/* Gradient is the base layer so a failed/broken cover image still
+                      leaves a filled background instead of blank space. */}
+                  <LinearGradient colors={pack.gradient} className="absolute inset-0" />
+                  {pack.cover_image_url && (
                     <Image
                       source={{ uri: pack.cover_image_url }}
                       style={{ position: "absolute", width: "100%", height: "100%" }}
                       contentFit="cover"
                     />
-                  ) : (
-                    <LinearGradient colors={pack.gradient} className="absolute inset-0" />
                   )}
                   <LinearGradient
                     colors={["transparent", "rgba(0,0,0,0.8)"]}
@@ -213,7 +216,7 @@ export default function PackDetailModal({
               <View className="border-t border-white/10 px-5 pb-8 pt-4">
                 {insufficientFunds && (
                   <Text className="mb-2 text-center text-xs font-sans-medium text-destructive">
-                    You need {pack.price - tokenBalance} more tokens
+                    You need {pack.price - (tokenBalance ?? 0)} more tokens
                   </Text>
                 )}
 

@@ -35,16 +35,17 @@ export default function MarketplaceCard({
       className="mb-4 w-[48%] overflow-hidden rounded-3xl border border-white/10 bg-card"
     >
       <View className="relative h-32 overflow-hidden">
-        {pack.cover_image_url ? (
+        {/* Gradient is the base layer so a failed/broken cover image still leaves a
+            filled background instead of blank space. */}
+        <LinearGradient
+          colors={pack.gradient}
+          className="absolute inset-0"
+        />
+        {pack.cover_image_url && (
           <Image
             source={{ uri: pack.cover_image_url }}
             style={{ position: "absolute", width: "100%", height: "100%" }}
             contentFit="cover"
-          />
-        ) : (
-          <LinearGradient
-            colors={pack.gradient}
-            className="absolute inset-0"
           />
         )}
 

@@ -63,7 +63,9 @@ export default function MarketplaceScreen() {
   const { data: featuredPacks } = useFeaturedPacks();
   const heroPack = featuredPacks?.[0] ?? null;
   const { data: wallet } = useWallet();
-  const tokenBalance = wallet?.balance ?? 0;
+  // Undefined (not 0) until the real balance loads, so a purchase attempted before it
+  // resolves isn't wrongly blocked by a "not enough tokens" check against a fake zero.
+  const tokenBalance = wallet?.balance;
 
   const [detailPackId, setDetailPackId] = useState<number | null>(null);
   // `owned_by_me` on the list/featured/detail resources is the source of truth. This just
@@ -98,7 +100,7 @@ export default function MarketplaceScreen() {
   const buyPack = async (pack: PackResource) => {
     if (ownedPackIds.has(pack.id) || purchasingId !== null) return;
 
-    if (pack.price > tokenBalance) {
+    if (typeof tokenBalance === "number" && pack.price > tokenBalance) {
       notify(`Not enough tokens — you need ${pack.price - tokenBalance} more`, "error");
       return;
     }
@@ -232,7 +234,7 @@ export default function MarketplaceScreen() {
                   </Text>
                 </View>
 
-                <TokenBadge amount={tokenBalance} size="sm" />
+                <TokenBadge amount={tokenBalance ?? 0} size="sm" />
               </View>
             </View>
 
