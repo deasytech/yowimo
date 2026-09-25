@@ -104,6 +104,13 @@ export function formatDayLabel(iso: string): string {
   return date.format("MMM D");
 }
 
+/** 999 -> "999", 1000 -> "1k+", 45900 -> "45k+", 2500000 -> "2m+". */
+export function formatTokenAmount(value: number): string {
+  if (value >= 1_000_000) return `${Math.floor(value / 1_000_000)}m+`;
+  if (value >= 1_000) return `${Math.floor(value / 1_000)}k+`;
+  return value.toLocaleString();
+}
+
 export const getInitials = (user: any) => {
   if (!user) return "U";
   const first = user.firstName ? user.firstName.charAt(0) : "";

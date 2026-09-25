@@ -1,3 +1,4 @@
+import { formatTokenAmount } from "@/lib/utils";
 import { LinearGradient as RNLinearGradient } from "expo-linear-gradient";
 import { Coins } from "lucide-react-native";
 import { styled } from "nativewind";
@@ -58,7 +59,7 @@ export function TokenBadge({
       <Text
         className={`font-sans-bold ${current.text} text-ink`}
       >
-        {amount.toLocaleString()}
+        {formatTokenAmount(amount)}
       </Text>
     </LinearGradient>
   );

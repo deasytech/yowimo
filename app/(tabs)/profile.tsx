@@ -1,6 +1,7 @@
 import ProfileCover from "@/components/screens/profile/ProfileCover";
 import ListHeading from "@/components/shared/ListHeading";
 import { FRIENDS } from "@/data/mock";
+import { useEarnedBadges } from "@/hooks/api/useBadges";
 import { useProfile } from "@/hooks/api/useProfile";
 import { getInitials } from "@/lib/utils";
 import { useUser } from "@clerk/expo";
@@ -13,18 +14,11 @@ import {
   Trophy
 } from "lucide-react-native";
 import { styled } from "nativewind";
-import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
 
 const SafeAreaView = styled(RNSafeAreaView);
 const LinearGradient = styled(RNLinearGradient);
-
-const ACHIEVEMENTS = [
-  { emoji: "🔥", label: "Fire Streak", desc: "5 nights in a row" },
-  { emoji: "👑", label: "Triple MVP", desc: "Won 3 MVPs" },
-  { emoji: "🎴", label: "Deck Master", desc: "Played all 15 games" },
-  { emoji: "🌟", label: "Influencer", desc: "5 friends joined via you" },
-];
 
 const STATS = [
   { label: "Parties", value: 47 },
@@ -43,6 +37,8 @@ const SETTINGS_ROWS = [
 const ProfileScreen = () => {
   const { user } = useUser();
   const { data: profile } = useProfile();
+  const { data: earnedBadges, isLoading: isBadgesLoading } = useEarnedBadges();
+  const recentBadges = (earnedBadges ?? []).slice(0, 4);
 
   const initials = getInitials(user);
 
@@ -104,22 +100,30 @@ const ProfileScreen = () => {
               iconStroke={2.2}
             />
 
-            <View className="flex-row flex-wrap justify-between">
-              {ACHIEVEMENTS.map((a) => (
-                <View
-                  key={a.label}
-                  className="mb-3 w-[48%] rounded-2xl border border-white/10 bg-white/5 p-3"
-                >
-                  <Text className="text-2xl">{a.emoji}</Text>
-                  <Text className="mt-1 text-sm font-sans-semibold text-white">
-                    {a.label}
-                  </Text>
-                  <Text className="text-xs text-white/40">
-                    {a.desc}
-                  </Text>
-                </View>
-              ))}
-            </View>
+            {isBadgesLoading ? (
+              <ActivityIndicator color="#B03BFF" style={{ marginVertical: 16 }} />
+            ) : recentBadges.length === 0 ? (
+              <Text className="py-2 text-sm text-white/40">
+                Play a game to earn your first badge.
+              </Text>
+            ) : (
+              <View className="flex-row flex-wrap justify-between">
+                {recentBadges.map((eb) => (
+                  <View
+                    key={eb.id}
+                    className="mb-3 w-[48%] rounded-2xl border border-white/10 bg-white/5 p-3"
+                  >
+                    <Text className="text-2xl">{eb.badge.icon}</Text>
+                    <Text className="mt-1 text-sm font-sans-semibold text-white">
+                      {eb.badge.name}
+                    </Text>
+                    <Text className="text-xs text-white/40" numberOfLines={2}>
+                      {eb.badge.description}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
           </View>
 
           <View>

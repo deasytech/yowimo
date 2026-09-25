@@ -1,25 +1,27 @@
 import GoBack from "@/components/shared/GoBack";
+import { useBadges, useEarnedBadges } from "@/hooks/api/useBadges";
+import { formatRelativeTime } from "@/lib/utils";
 import { LinearGradient as RNLinearGradient } from "expo-linear-gradient";
 import { Lock } from "lucide-react-native";
 import { styled } from "nativewind";
-import { ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
 
 const SafeAreaView = styled(RNSafeAreaView);
 const LinearGradient = styled(RNLinearGradient);
 
-const BADGES = [
-  { id: 1, name: "First Party", emoji: "🎉", progress: 1, total: 1, unlocked: true },
-  { id: 2, name: "Truth Bomber", emoji: "💣", progress: 24, total: 25, unlocked: false },
-  { id: 3, name: "Dare Devil", emoji: "🔥", progress: 12, total: 20, unlocked: false },
-  { id: 4, name: "Social Butterfly", emoji: "🦋", progress: 7, total: 10, unlocked: false, reward: 50 },
-  { id: 5, name: "Night Owl", emoji: "🌙", progress: 4, total: 5, unlocked: false },
-  { id: 6, name: "Streak Master", emoji: "⚡", progress: 6, total: 7, unlocked: false, reward: 100 },
-  { id: 7, name: "Token Tycoon", emoji: "🪙", progress: 142, total: 1000, unlocked: false },
-  { id: 8, name: "Party Legend", emoji: "👑", progress: 0, total: 50, unlocked: false },
-];
-
 export default function AchievementsScreen() {
+  const {
+    data: badges,
+    isLoading: isBadgesLoading,
+    isError: isBadgesError,
+    refetch: refetchBadges,
+  } = useBadges();
+  const { data: earnedBadges, isLoading: isEarnedLoading } = useEarnedBadges();
+
+  const isLoading = isBadgesLoading || isEarnedLoading;
+  const earnedAtByBadgeId = new Map((earnedBadges ?? []).map((eb) => [eb.badge.id, eb.earned_at]));
+
   return (
     <SafeAreaView className="flex-1 bg-background">
       <ScrollView
@@ -46,77 +48,82 @@ export default function AchievementsScreen() {
             Your collection
           </Text>
 
-          <View className="mt-2 flex-row items-end justify-between">
-            <View className="flex-row items-end">
-              <Text className="text-white text-4xl font-extrabold">1</Text>
-              <Text className="text-white text-xl font-extrabold mb-0.5">/24</Text>
-            </View>
-            <Text
-              className="text-white/80 text-[10px] uppercase"
-              style={{ letterSpacing: 0.5 }}
-            >
-              Next: Truth Bomber 96%
+          <View className="mt-2 flex-row items-end">
+            <Text className="text-white text-4xl font-extrabold">
+              {earnedBadges?.length ?? 0}
+            </Text>
+            <Text className="text-white text-xl font-extrabold mb-0.5">
+              /{badges?.length ?? 0}
             </Text>
           </View>
           <Text className="text-white text-xs -mt-1">badges unlocked</Text>
         </LinearGradient>
 
         {/* ── Badge grid ── */}
-        <View className="mt-5 flex-row flex-wrap gap-3">
-          {BADGES.map((b) => (
-            <View
-              key={b.id}
-              className={`relative rounded-3xl p-4 ${b.unlocked
-                ? "bg-card border border-violet-bright/40"
-                : "bg-card/60"
-                }`}
-              style={{ width: "47%" }}
-            >
-              <Text
-                style={{
-                  fontSize: 36,
-                  opacity: b.unlocked ? 1 : 0.4,
-                }}
-              >
-                {b.emoji}
-              </Text>
+        {isLoading ? (
+          <View className="mt-10 items-center">
+            <ActivityIndicator color="#B03BFF" />
+          </View>
+        ) : isBadgesError || !badges?.length ? (
+          <View className="mt-10 items-center gap-3">
+            <Text className="text-muted-foreground text-sm">
+              Couldn&apos;t load achievements.
+            </Text>
+            <TouchableOpacity onPress={() => refetchBadges()} activeOpacity={0.8}>
+              <Text className="text-violet-bright text-sm font-semibold">Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View className="mt-5 flex-row flex-wrap gap-3">
+            {badges.map((b) => {
+              const earnedAt = earnedAtByBadgeId.get(b.id);
+              const unlocked = earnedAt !== undefined;
 
-              {!b.unlocked && (
-                <View className="absolute right-3 top-3">
-                  <Lock color="#a3a3ab" size={14} strokeWidth={2} />
-                </View>
-              )}
-
-              <Text className="mt-2 text-foreground text-sm font-bold">
-                {b.name}
-              </Text>
-
-              {/* Progress bar */}
-              <View className="mt-2 h-1.5 rounded-full bg-secondary overflow-hidden">
-                <LinearGradient
-                  colors={["#7A1EFF", "#D84CFF", "#FF8A2A"]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={{
-                    height: "100%",
-                    width: `${(b.progress / b.total) * 100}%`,
-                  }}
-                />
-              </View>
-
-              <View className="mt-1 flex-row items-center justify-between">
-                <Text className="text-muted-foreground text-[10px]">
-                  {b.progress}/{b.total}
-                </Text>
-                {b.reward && (
-                  <Text className="text-orange text-[10px] font-bold">
-                    +{b.reward} 🪙
+              return (
+                <View
+                  key={b.id}
+                  className={`relative rounded-3xl p-4 ${unlocked
+                    ? "bg-card border border-violet-bright/40"
+                    : "bg-card/60"
+                    }`}
+                  style={{ width: "47%" }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 36,
+                      opacity: unlocked ? 1 : 0.4,
+                    }}
+                  >
+                    {b.icon}
                   </Text>
-                )}
-              </View>
-            </View>
-          ))}
-        </View>
+
+                  {!unlocked && (
+                    <View className="absolute right-3 top-3">
+                      <Lock color="#a3a3ab" size={14} strokeWidth={2} />
+                    </View>
+                  )}
+
+                  <Text className="mt-2 text-foreground text-sm font-bold">
+                    {b.name}
+                  </Text>
+                  <Text
+                    className="mt-0.5 text-muted-foreground text-[11px]"
+                    numberOfLines={2}
+                  >
+                    {b.description}
+                  </Text>
+
+                  <Text
+                    className={`mt-2 text-[10px] font-semibold ${unlocked ? "text-violet-bright" : "text-muted-foreground"
+                      }`}
+                  >
+                    {unlocked ? `Earned ${formatRelativeTime(earnedAt)}` : "Locked"}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
