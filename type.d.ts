@@ -66,7 +66,6 @@ declare global {
   }
 
   interface AppHeaderProps {
-    tokens?: number;
     title?: string;
     showLogo?: boolean;
   }

@@ -1,5 +1,6 @@
 import { TokenBadge } from "@/components/brand/TokenBadge";
 import { YowimoLogo } from "@/components/brand/YowimoLogo";
+import { useWallet } from "@/hooks/api/useWallet";
 import { BlurView as RNBlurView } from "expo-blur";
 import { Link } from "expo-router";
 import { Bell, Search } from "lucide-react-native";
@@ -30,11 +31,11 @@ const IconBtn = ({ children }: { children: React.ReactNode }) => (
 );
 
 const Header = ({
-  tokens = 142,
   title,
   showLogo = true,
 }: AppHeaderProps) => {
   const insets = useSafeAreaInsets();
+  const { data: wallet, isLoading: isWalletLoading } = useWallet();
 
   return (
     <BlurView
@@ -55,7 +56,7 @@ const Header = ({
 
         <Link href="/wallet" asChild>
           <TouchableOpacity activeOpacity={0.8}>
-            <TokenBadge amount={tokens} />
+            <TokenBadge amount={wallet?.balance} loading={isWalletLoading} />
           </TouchableOpacity>
         </Link>
 
