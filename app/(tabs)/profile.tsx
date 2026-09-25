@@ -37,7 +37,12 @@ const SETTINGS_ROWS = [
 const ProfileScreen = () => {
   const { user } = useUser();
   const { data: profile } = useProfile();
-  const { data: earnedBadges, isLoading: isBadgesLoading } = useEarnedBadges();
+  const {
+    data: earnedBadges,
+    isLoading: isBadgesLoading,
+    isError: isBadgesError,
+    refetch: refetchBadges,
+  } = useEarnedBadges();
   const recentBadges = (earnedBadges ?? []).slice(0, 4);
 
   const initials = getInitials(user);
@@ -102,6 +107,13 @@ const ProfileScreen = () => {
 
             {isBadgesLoading ? (
               <ActivityIndicator color="#B03BFF" style={{ marginVertical: 16 }} />
+            ) : isBadgesError ? (
+              <View className="flex-row items-center justify-between py-2">
+                <Text className="text-sm text-white/40">Couldn&apos;t load achievements.</Text>
+                <TouchableOpacity onPress={() => refetchBadges()} activeOpacity={0.8}>
+                  <Text className="text-sm font-sans-semibold text-violet-bright">Retry</Text>
+                </TouchableOpacity>
+              </View>
             ) : recentBadges.length === 0 ? (
               <Text className="py-2 text-sm text-white/40">
                 Play a game to earn your first badge.

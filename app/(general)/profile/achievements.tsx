@@ -17,10 +17,21 @@ export default function AchievementsScreen() {
     isError: isBadgesError,
     refetch: refetchBadges,
   } = useBadges();
-  const { data: earnedBadges, isLoading: isEarnedLoading } = useEarnedBadges();
+  const {
+    data: earnedBadges,
+    isLoading: isEarnedLoading,
+    isError: isEarnedError,
+    refetch: refetchEarned,
+  } = useEarnedBadges();
 
   const isLoading = isBadgesLoading || isEarnedLoading;
+  const isError = isBadgesError || isEarnedError;
   const earnedAtByBadgeId = new Map((earnedBadges ?? []).map((eb) => [eb.badge.id, eb.earned_at]));
+
+  const retry = () => {
+    if (isBadgesError) refetchBadges();
+    if (isEarnedError) refetchEarned();
+  };
 
   return (
     <SafeAreaView className="flex-1 bg-background">
@@ -50,7 +61,7 @@ export default function AchievementsScreen() {
 
           <View className="mt-2 flex-row items-end">
             <Text className="text-white text-4xl font-extrabold">
-              {earnedBadges?.length ?? 0}
+              {isEarnedError ? "–" : (earnedBadges?.length ?? 0)}
             </Text>
             <Text className="text-white text-xl font-extrabold mb-0.5">
               /{badges?.length ?? 0}
@@ -64,12 +75,12 @@ export default function AchievementsScreen() {
           <View className="mt-10 items-center">
             <ActivityIndicator color="#B03BFF" />
           </View>
-        ) : isBadgesError || !badges?.length ? (
+        ) : isError || !badges?.length ? (
           <View className="mt-10 items-center gap-3">
             <Text className="text-muted-foreground text-sm">
               Couldn&apos;t load achievements.
             </Text>
-            <TouchableOpacity onPress={() => refetchBadges()} activeOpacity={0.8}>
+            <TouchableOpacity onPress={retry} activeOpacity={0.8}>
               <Text className="text-violet-bright text-sm font-semibold">Retry</Text>
             </TouchableOpacity>
           </View>

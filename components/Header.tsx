@@ -35,7 +35,7 @@ const Header = ({
   showLogo = true,
 }: AppHeaderProps) => {
   const insets = useSafeAreaInsets();
-  const { data: wallet } = useWallet();
+  const { data: wallet, isLoading: isWalletLoading } = useWallet();
 
   return (
     <BlurView
@@ -56,7 +56,7 @@ const Header = ({
 
         <Link href="/wallet" asChild>
           <TouchableOpacity activeOpacity={0.8}>
-            <TokenBadge amount={wallet?.balance ?? 0} />
+            <TokenBadge amount={wallet?.balance} loading={isWalletLoading} />
           </TouchableOpacity>
         </Link>
 

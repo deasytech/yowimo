@@ -2,18 +2,23 @@ import { formatTokenAmount } from "@/lib/utils";
 import { LinearGradient as RNLinearGradient } from "expo-linear-gradient";
 import { Coins } from "lucide-react-native";
 import { styled } from "nativewind";
-import { Text } from "react-native";
+import { ActivityIndicator, Text } from "react-native";
 
 const LinearGradient = styled(RNLinearGradient);
 
 interface TokenBadgeProps {
-  amount: number;
+  /** null/undefined renders "—" — use only once the real balance is known, never as a
+   * stand-in for zero. */
+  amount: number | null | undefined;
+  /** Shows a spinner in place of the amount while the balance is still loading. */
+  loading?: boolean;
   size?: "sm" | "md" | "lg";
   className?: string;
 }
 
 export function TokenBadge({
   amount,
+  loading = false,
   size = "md",
   className = "",
 }: TokenBadgeProps) {
@@ -56,11 +61,15 @@ export function TokenBadge({
         strokeWidth={2.5}
       />
 
-      <Text
-        className={`font-sans-bold ${current.text} text-ink`}
-      >
-        {formatTokenAmount(amount)}
-      </Text>
+      {loading ? (
+        <ActivityIndicator size="small" color="#1E1E24" />
+      ) : (
+        <Text
+          className={`font-sans-bold ${current.text} text-ink`}
+        >
+          {amount == null ? "—" : formatTokenAmount(amount)}
+        </Text>
+      )}
     </LinearGradient>
   );
 }
