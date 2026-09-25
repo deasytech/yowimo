@@ -125,14 +125,20 @@ function BuyTokensContent({
   const toast = useToast();
 
   useEffect(() => {
-    if (paymentSelection !== null || paymentMethods === undefined) return;
-    if (!paymentMethods.length) {
-      setPaymentSelection({ type: "new" });
-      return;
-    }
-    const defaultMethod = paymentMethods.find((m) => m.is_default) ?? paymentMethods[0];
-    setPaymentSelection({ type: "saved", id: defaultMethod.id });
-  }, [paymentMethods, paymentSelection]);
+    if (paymentMethods === undefined) return;
+    setPaymentSelection((current) => {
+      // An explicit "new card" choice, or a saved card that's still in the list, stays as-is.
+      if (current?.type === "new") return current;
+      if (current?.type === "saved" && paymentMethods.some((m) => m.id === current.id)) {
+        return current;
+      }
+      // Otherwise (first load, or the previously-selected card is gone — e.g. removed via
+      // Manage) fall back to the default/first saved card, or "new" if there are none.
+      if (!paymentMethods.length) return { type: "new" };
+      const defaultMethod = paymentMethods.find((m) => m.is_default) ?? paymentMethods[0];
+      return { type: "saved", id: defaultMethod.id };
+    });
+  }, [paymentMethods]);
 
   const selection = paymentSelection ?? { type: "new" as const };
   const isPendingConfirmation = !!bundle && pendingReference?.bundleId === bundle.id;
@@ -150,6 +156,14 @@ function BuyTokensContent({
       idempotencyKeys.current.set(bundleId, key);
     }
     return key;
+  };
+
+  // Switching payment method mid-attempt means whatever key was cached for the current
+  // bundle belonged to a different request (a different card, or none yet charged) — drop it
+  // so the next attempt gets a fresh one instead of reusing a stale reference.
+  const selectPaymentMethod = (next: PaymentSelection) => {
+    if (bundle) idempotencyKeys.current.delete(bundle.id);
+    setPaymentSelection(next);
   };
 
   const confirmPurchase = async (
@@ -215,8 +229,14 @@ function BuyTokensContent({
         setIsCheckingOut(false);
         await confirmPurchase(bundle.id, reference, undefined, reference);
       },
-      onCancel: () => setIsCheckingOut(false),
+      onCancel: () => {
+        // No charge happened — drop the reference so the next attempt starts fresh
+        // instead of reopening checkout with an already-used one.
+        idempotencyKeys.current.delete(bundle.id);
+        setIsCheckingOut(false);
+      },
       onError: (err) => {
+        idempotencyKeys.current.delete(bundle.id);
         setIsCheckingOut(false);
         notify(err?.message || "Payment failed — please try again", "error");
       },
@@ -373,7 +393,7 @@ function BuyTokensContent({
               <TouchableOpacity
                 key={method.id}
                 activeOpacity={0.8}
-                onPress={() => setPaymentSelection({ type: "saved", id: method.id })}
+                onPress={() => selectPaymentMethod({ type: "saved", id: method.id })}
                 className={`mb-3 flex-row items-center justify-between rounded-2xl p-4 ${selected
                   ? "border border-primary bg-primary/10"
                   : "bg-secondary"
@@ -402,7 +422,7 @@ function BuyTokensContent({
 
           <TouchableOpacity
             activeOpacity={0.8}
-            onPress={() => setPaymentSelection({ type: "new" })}
+            onPress={() => selectPaymentMethod({ type: "new" })}
             className={`flex-row items-center justify-between rounded-2xl p-4 ${selection.type === "new"
               ? "border border-primary bg-primary/10"
               : "bg-secondary"
