@@ -1,4 +1,6 @@
-import { TOKEN_BUNDLES } from "@/data/tokenBundles";
+import { useTokenBundles } from "@/hooks/api/useTokenBundles";
+import { useWallet, useWalletTransactions } from "@/hooks/api/useWallet";
+import { formatCurrency, formatRelativeTime, walletTransactionTypeLabel } from "@/lib/utils";
 import { LinearGradient as RNLinearGradient } from "expo-linear-gradient";
 import { Link } from "expo-router";
 import {
@@ -13,6 +15,7 @@ import {
 import { styled } from "nativewind";
 import { useState } from "react";
 import {
+  ActivityIndicator,
   ScrollView,
   Text,
   TouchableOpacity,
@@ -26,14 +29,6 @@ const LinearGradient = styled(RNLinearGradient);
 const PACK_GAP = 12;
 const NARROW_GRID_BREAKPOINT = 320;
 
-const TX = [
-  { type: "earn", label: "MVP — Friday Night Chaos", amount: 25, time: "2h ago" },
-  { type: "spend", label: "Wild Challenge pack", amount: -20, time: "Yesterday" },
-  { type: "earn", label: "Referral · @leop joined", amount: 50, time: "2d ago" },
-  { type: "earn", label: "Sponsored party · Acme", amount: 30, time: "3d ago" },
-  { type: "spend", label: "Gift to @priyan", amount: -10, time: "5d ago" },
-];
-
 const WalletScreen = () => {
   const { width: windowWidth } = useWindowDimensions();
   const [packGridWidth, setPackGridWidth] = useState(windowWidth - 40);
@@ -41,6 +36,11 @@ const WalletScreen = () => {
   const packWidth = Math.floor(
     (packGridWidth - PACK_GAP * (packColumns - 1)) / packColumns,
   );
+
+  const { data: wallet, isLoading: isWalletLoading } = useWallet();
+  const { data: bundles, isLoading: isBundlesLoading } = useTokenBundles();
+  const { transactions, isLoading: isTxLoading } = useWalletTransactions();
+  const recentTransactions = transactions.slice(0, 5);
 
   return (
     <SafeAreaView className="flex-1 bg-background p-5">
@@ -74,13 +74,17 @@ const WalletScreen = () => {
                 Token balance
               </Text>
               <View className="mt-1 min-h-16 flex-row items-center gap-3">
-                <Text
-                  className="font-sans-extrabold text-5xl text-ink"
-                  numberOfLines={1}
-                  style={{ lineHeight: 64 }}
-                >
-                  142
-                </Text>
+                {isWalletLoading ? (
+                  <ActivityIndicator color="#1e1e24" />
+                ) : (
+                  <Text
+                    className="font-sans-extrabold text-5xl text-ink"
+                    numberOfLines={1}
+                    style={{ lineHeight: 64 }}
+                  >
+                    {(wallet?.balance ?? 0).toLocaleString()}
+                  </Text>
+                )}
                 <Coins color="#1e1e24" size={40} strokeWidth={2.5} />
               </View>
 
@@ -141,74 +145,78 @@ const WalletScreen = () => {
         <View className="mt-7">
           <Text className="my-5 font-sans-bold text-lg text-white">Top up</Text>
 
-          <View
-            className="flex-row flex-wrap gap-3"
-            onLayout={(event) => setPackGridWidth(event.nativeEvent.layout.width)}
-          >
-            {TOKEN_BUNDLES.map((p) => (
-              <Link
-                key={p.id}
-                href={{
-                  pathname: "/wallet/buy-token",
-                  params: { bundle: p.id },
-                }}
-                asChild
-              >
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  style={{ width: packWidth }}
+          {isBundlesLoading ? (
+            <ActivityIndicator color="#B03BFF" style={{ marginVertical: 16 }} />
+          ) : (
+            <View
+              className="flex-row flex-wrap gap-3"
+              onLayout={(event) => setPackGridWidth(event.nativeEvent.layout.width)}
+            >
+              {(bundles ?? []).map((p) => (
+                <Link
+                  key={p.id}
+                  href={{
+                    pathname: "/wallet/buy-token",
+                    params: { bundle: p.id },
+                  }}
+                  asChild
                 >
-                  <LinearGradient
-                    colors={p.colors}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    className="relative rounded-3xl p-4 overflow-hidden"
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    style={{ width: packWidth }}
                   >
-                    <View className="min-h-5 flex-row items-start justify-between gap-2">
-                      <Text
-                        className="shrink font-sans-bold text-xs uppercase text-white/80"
-                        numberOfLines={1}
-                        style={{ letterSpacing: 0.5 }}
-                      >
-                        {p.name}
-                      </Text>
+                    <LinearGradient
+                      colors={p.gradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      className="relative rounded-3xl p-4 overflow-hidden"
+                    >
+                      <View className="min-h-5 flex-row items-start justify-between gap-2">
+                        <Text
+                          className="shrink font-sans-bold text-xs uppercase text-white/80"
+                          numberOfLines={1}
+                          style={{ letterSpacing: 0.5 }}
+                        >
+                          {p.name}
+                        </Text>
 
-                      {p.badge && (
-                        <View className="shrink-0 rounded-full bg-ink/40 px-2 py-0.5">
-                          <Text
-                            className="font-sans-bold text-[9px] uppercase text-white"
-                            style={{ letterSpacing: 0.5 }}
-                          >
-                            {p.badge}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
+                        {p.badge && (
+                          <View className="shrink-0 rounded-full bg-ink/40 px-2 py-0.5">
+                            <Text
+                              className="font-sans-bold text-[9px] uppercase text-white"
+                              style={{ letterSpacing: 0.5 }}
+                            >
+                              {p.badge}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
 
-                    <View className="mt-1 h-10 flex-row items-center gap-2">
-                      <Text
-                        adjustsFontSizeToFit
-                        className="min-w-0 shrink font-sans-extrabold text-3xl text-white"
-                        minimumFontScale={0.65}
-                        numberOfLines={1}
-                        style={{ lineHeight: 40 }}
-                      >
-                        {p.tokens.toLocaleString()}
+                      <View className="mt-1 h-10 flex-row items-center gap-2">
+                        <Text
+                          adjustsFontSizeToFit
+                          className="min-w-0 shrink font-sans-extrabold text-3xl text-white"
+                          minimumFontScale={0.65}
+                          numberOfLines={1}
+                          style={{ lineHeight: 40 }}
+                        >
+                          {p.tokens.toLocaleString()}
+                        </Text>
+                        <Coins
+                          color="#fff"
+                          size={24}
+                          strokeWidth={2.5}
+                        />
+                      </View>
+                      <Text className="mt-3 font-sans-bold text-sm text-white">
+                        {formatCurrency(p.price, p.currency)}
                       </Text>
-                      <Coins
-                        color="#fff"
-                        size={24}
-                        strokeWidth={2.5}
-                      />
-                    </View>
-                    <Text className="mt-3 font-sans-bold text-sm text-white">
-                      ${p.price.toFixed(2)}
-                    </Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              </Link>
-            ))}
-          </View>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </Link>
+              ))}
+            </View>
+          )}
         </View>
 
         {/* ── Marketplace shortcut ── */}
@@ -243,47 +251,53 @@ const WalletScreen = () => {
         <View className="mt-7">
           <Text className="my-5 font-sans-bold text-lg text-white">Activity</Text>
 
-          <View className="rounded-3xl border border-white/10 bg-white/5 overflow-hidden">
-            {TX.map((t, i) => (
-              <View
-                key={i}
-                className="flex-row items-center gap-3 p-4"
-                style={
-                  i > 0
-                    ? { borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.08)" }
-                    : undefined
-                }
-              >
+          {isTxLoading ? (
+            <ActivityIndicator color="#B03BFF" style={{ marginVertical: 16 }} />
+          ) : recentTransactions.length === 0 ? (
+            <Text className="text-sm text-muted-foreground">No transactions yet.</Text>
+          ) : (
+            <View className="rounded-3xl border border-white/10 bg-white/5 overflow-hidden">
+              {recentTransactions.map((t, i) => (
                 <View
-                  className={`h-10 w-10 items-center justify-center rounded-full ${t.type === "earn" ? "bg-orange/20" : "bg-violet/20"
-                    }`}
+                  key={t.id}
+                  className="flex-row items-center gap-3 p-4"
+                  style={
+                    i > 0
+                      ? { borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.08)" }
+                      : undefined
+                  }
                 >
-                  {t.type === "earn" ? (
-                    <ArrowDownLeft color="#FF8A2A" size={16} strokeWidth={2} />
-                  ) : (
-                    <ArrowUpRight color="#B03BFF" size={16} strokeWidth={2} />
-                  )}
-                </View>
+                  <View
+                    className={`h-10 w-10 items-center justify-center rounded-full ${t.amount > 0 ? "bg-orange/20" : "bg-violet/20"
+                      }`}
+                  >
+                    {t.amount > 0 ? (
+                      <ArrowDownLeft color="#FF8A2A" size={16} strokeWidth={2} />
+                    ) : (
+                      <ArrowUpRight color="#B03BFF" size={16} strokeWidth={2} />
+                    )}
+                  </View>
 
-                <View className="flex-1">
-                  <Text className="font-sans-medium text-sm text-foreground">
-                    {t.label}
-                  </Text>
-                  <Text className="font-sans text-[11px] text-muted-foreground">
-                    {t.time}
+                  <View className="flex-1">
+                    <Text numberOfLines={1} className="font-sans-medium text-sm text-foreground">
+                      {t.description}
+                    </Text>
+                    <Text className="font-sans text-[11px] text-muted-foreground">
+                      {walletTransactionTypeLabel(t.type)} · {formatRelativeTime(t.created_at)}
+                    </Text>
+                  </View>
+
+                  <Text
+                    className={`font-sans-bold text-base ${t.amount > 0 ? "text-orange" : "text-foreground"
+                      }`}
+                  >
+                    {t.amount > 0 ? "+" : ""}
+                    {t.amount}
                   </Text>
                 </View>
-
-                <Text
-                  className={`font-sans-bold text-base ${t.amount > 0 ? "text-orange" : "text-foreground"
-                    }`}
-                >
-                  {t.amount > 0 ? "+" : ""}
-                  {t.amount}
-                </Text>
-              </View>
-            ))}
-          </View>
+              ))}
+            </View>
+          )}
         </View>
 
         {/* ── See full history ── */}

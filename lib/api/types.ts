@@ -156,6 +156,24 @@ export interface TokenBundleResource {
   updated_at: string;
 }
 
+/** At most one of these — give neither to charge the caller's default saved card. */
+export interface PurchaseTokenBundlePayload {
+  payment_reference?: string;
+  payment_method_id?: number;
+}
+
+export interface PaymentMethodResource {
+  id: number;
+  provider: string;
+  card_type: string;
+  last4: string;
+  exp_month: string;
+  exp_year: string;
+  bank: string;
+  is_default: boolean;
+  created_at: string;
+}
+
 export type WalletTransactionType =
   | 'top_up'
   | 'purchase'
