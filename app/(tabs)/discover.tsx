@@ -1,3 +1,4 @@
+import MyPartiesView from "@/components/MyPartiesView";
 import PartyCard from "@/components/PartyCard";
 import { useDiscoverFeed, useLikeParty, useUnlikeParty } from "@/hooks/api/useParties";
 import { PartyDetail } from "@/lib/api/types";
@@ -30,7 +31,7 @@ const LinearGradient = styled(RNLinearGradient);
 // "Tonight"/"Couples"/"Family"/"Teams"/"Wild" from the old mock had no real field to filter
 // on (parties only carry freeform tags + a game_type slug, no fixed vibe taxonomy) — kept
 // only the filters that map to a real, reliable field.
-const FILTERS = ["For you", "Live now", "Sponsored"] as const;
+const FILTERS = ["For you", "Live now", "Sponsored", "Mine"] as const;
 type Filter = (typeof FILTERS)[number];
 
 const SEARCH_DEBOUNCE_MS = 350;
@@ -51,6 +52,8 @@ export default function DiscoverScreen() {
     return () => clearTimeout(timer);
   }, [query]);
 
+  const isMine = filter === "Mine";
+
   const {
     parties,
     isLoading,
@@ -59,7 +62,7 @@ export default function DiscoverScreen() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useDiscoverFeed({ search: debouncedQuery || undefined });
+  } = useDiscoverFeed({ search: debouncedQuery || undefined, enabled: !isMine });
 
   const visible = useMemo(() => {
     switch (filter) {
@@ -76,10 +79,11 @@ export default function DiscoverScreen() {
   // already loaded. If that filters down to zero, keep paging until a match turns up or the
   // feed genuinely ends, instead of showing "No parties match" while more pages are unread.
   useEffect(() => {
+    if (isMine) return;
     if (!isLoading && !isError && visible.length === 0 && hasNextPage && !isFetchingNextPage) {
       fetchNextPage();
     }
-  }, [visible.length, hasNextPage, isFetchingNextPage, isLoading, isError, fetchNextPage]);
+  }, [isMine, visible.length, hasNextPage, isFetchingNextPage, isLoading, isError, fetchNextPage]);
 
   const likeParty = useLikeParty();
   const unlikeParty = useUnlikeParty();
@@ -121,7 +125,9 @@ export default function DiscoverScreen() {
   return (
     <View className="flex-1 bg-background" onLayout={handleFeedLayout}>
       {/* ── Feed ── */}
-      {isLoading ? (
+      {isMine ? (
+        <MyPartiesView topInset={headerHeight} />
+      ) : isLoading ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator color="#B03BFF" />
         </View>
@@ -205,40 +211,44 @@ export default function DiscoverScreen() {
             <Text className="text-violet text-2xl font-bold tracking-tight">
               Discover
             </Text>
-            <View className="ml-1 rounded-full bg-white/10 px-2 py-0.5">
-              <Text className="text-white/70 text-[10px] font-semibold">
-                {visible.length} {visible.length === 1 ? "party" : "parties"}
-              </Text>
-            </View>
+            {!isMine && (
+              <View className="ml-1 rounded-full bg-white/10 px-2 py-0.5">
+                <Text className="text-white/70 text-[10px] font-semibold">
+                  {visible.length} {visible.length === 1 ? "party" : "parties"}
+                </Text>
+              </View>
+            )}
 
-            <View className="ml-auto flex-row items-center gap-2">
-              <TouchableOpacity
-                onPress={() => setMuted((m) => !m)}
-                activeOpacity={0.8}
-                className="h-9 w-9 items-center justify-center rounded-full bg-white/10 border border-white/10"
-              >
-                {muted ? (
-                  <VolumeX color="rgba(255,255,255,0.80)" size={16} strokeWidth={2} />
-                ) : (
-                  <Volume2 color="rgba(255,255,255,0.80)" size={16} strokeWidth={2} />
-                )}
-              </TouchableOpacity>
+            {!isMine && (
+              <View className="ml-auto flex-row items-center gap-2">
+                <TouchableOpacity
+                  onPress={() => setMuted((m) => !m)}
+                  activeOpacity={0.8}
+                  className="h-9 w-9 items-center justify-center rounded-full bg-white/10 border border-white/10"
+                >
+                  {muted ? (
+                    <VolumeX color="rgba(255,255,255,0.80)" size={16} strokeWidth={2} />
+                  ) : (
+                    <Volume2 color="rgba(255,255,255,0.80)" size={16} strokeWidth={2} />
+                  )}
+                </TouchableOpacity>
 
-              <TouchableOpacity
-                onPress={() => setSearchOpen((s) => !s)}
-                activeOpacity={0.8}
-                className="h-9 w-9 items-center justify-center rounded-full bg-white/10 border border-white/10"
-              >
-                {searchOpen ? (
-                  <X color="rgba(255,255,255,0.80)" size={16} strokeWidth={2} />
-                ) : (
-                  <Search color="rgba(255,255,255,0.80)" size={16} strokeWidth={2} />
-                )}
-              </TouchableOpacity>
-            </View>
+                <TouchableOpacity
+                  onPress={() => setSearchOpen((s) => !s)}
+                  activeOpacity={0.8}
+                  className="h-9 w-9 items-center justify-center rounded-full bg-white/10 border border-white/10"
+                >
+                  {searchOpen ? (
+                    <X color="rgba(255,255,255,0.80)" size={16} strokeWidth={2} />
+                  ) : (
+                    <Search color="rgba(255,255,255,0.80)" size={16} strokeWidth={2} />
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
 
-          {searchOpen && (
+          {!isMine && searchOpen && (
             <View className="mt-3 flex-row items-center gap-2 rounded-full bg-white/10 border border-white/10 px-4 py-2.5">
               <Search color="rgba(255,255,255,0.60)" size={16} strokeWidth={2} />
               <TextInput

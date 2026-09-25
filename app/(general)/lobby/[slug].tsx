@@ -1,6 +1,7 @@
 import GoBack from "@/components/shared/GoBack";
 import Toast from "@/components/shared/Toast";
 import {
+  useCancelParty,
   useEndParty,
   useJoinParty,
   useLeaveParty,
@@ -29,7 +30,7 @@ import {
 } from "lucide-react-native";
 import { styled } from "nativewind";
 import { useRef, useState } from "react";
-import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
 
 const LinearGradient = styled(RNLinearGradient);
@@ -61,6 +62,7 @@ export default function LobbyScreen() {
   const leaveParty = useLeaveParty();
   const startParty = useStartParty();
   const endParty = useEndParty();
+  const cancelParty = useCancelParty();
 
   const [busy, setBusy] = useState<string | null>(null);
   // setBusy is async, so `busy` state alone can't stop two taps landing in the same tick
@@ -128,7 +130,9 @@ export default function LobbyScreen() {
   const isHost = profile?.id === party.host.id;
   const canStart = isHost && (party.status === "draft" || party.status === "scheduled");
   const canEnd = isHost && party.status === "live";
-  const canJoin = !isHost && !party.joined_by_me && party.status !== "ended";
+  const canCancel = isHost && (party.status === "draft" || party.status === "scheduled");
+  const canJoin =
+    !isHost && !party.joined_by_me && (party.status === "scheduled" || party.status === "live");
   const canLeave = !isHost && party.joined_by_me;
   const roomCode = "room_code" in party ? party.room_code : undefined;
 
@@ -353,6 +357,35 @@ export default function LobbyScreen() {
             )}
           </TouchableOpacity>
         )}
+
+        {canCancel && (
+          <TouchableOpacity
+            onPress={() =>
+              Alert.alert(
+                "Cancel this party?",
+                `"${party.title}" will be marked canceled — this can't be undone.`,
+                [
+                  { text: "Keep it", style: "cancel" },
+                  {
+                    text: "Cancel party",
+                    style: "destructive",
+                    onPress: () =>
+                      runAction("cancel", () => cancelParty.mutateAsync(party.id), "Party canceled"),
+                  },
+                ],
+              )
+            }
+            disabled={busy === "cancel"}
+            activeOpacity={0.8}
+            className="mt-7 h-12 items-center justify-center rounded-2xl border border-destructive/40"
+          >
+            {busy === "cancel" ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text className="text-destructive text-sm font-semibold">Cancel party</Text>
+            )}
+          </TouchableOpacity>
+        )}
       </ScrollView>
 
       <View className="border-t border-white/10 bg-background px-5 pb-3">
@@ -420,7 +453,11 @@ export default function LobbyScreen() {
         ) : (
           <View className="mt-8 h-14 w-full items-center justify-center rounded-2xl bg-secondary/40">
             <Text className="text-muted-foreground text-sm font-semibold">
-              {party.status === "ended" ? "This party has ended" : "Waiting to start"}
+              {party.status === "ended"
+                ? "This party has ended"
+                : party.status === "cancelled"
+                  ? "This party was canceled"
+                  : "Waiting to start"}
             </Text>
           </View>
         )}

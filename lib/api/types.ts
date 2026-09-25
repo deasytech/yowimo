@@ -208,7 +208,8 @@ export interface UserBadgeResource {
 
 export type PartyMode = 'online' | 'hybrid' | 'in_person';
 export type PartyVisibility = 'public' | 'private';
-export type PartyStatus = 'draft' | 'scheduled' | 'live' | 'ended';
+export type PartyStatus = 'draft' | 'scheduled' | 'live' | 'ended' | 'cancelled';
+export type PartyMembershipStatus = 'active' | 'left' | 'removed';
 
 export interface PartyLocation {
   venue_name?: string;
@@ -230,6 +231,14 @@ export interface PartySummary {
   liked_by_me: boolean;
   joined_by_me: boolean;
   host: { id: number; username: string };
+}
+
+/** A row from GET /users/me/parties/joined — the membership record, not a bare party. */
+export interface PartyMembership {
+  membership_status: PartyMembershipStatus;
+  joined_at: string;
+  left_at: string | null;
+  party: PartyDetail;
 }
 
 export interface PartyDetail extends Omit<PartySummary, 'host'> {
