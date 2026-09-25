@@ -5,8 +5,9 @@ import HeroCard from "@/components/HeroCard";
 import QuickDeckCard from "@/components/QuickDeckCard";
 import QuickDiscoverCard from "@/components/QuickDiscoverCard";
 import ListHeading from "@/components/shared/ListHeading";
-import { FRIENDS, PARTIES, QUICK_ACTIONS } from "@/data/mock";
+import { FRIENDS, QUICK_ACTIONS } from "@/data/mock";
 import { useGameTypes } from "@/hooks/api/useGameTypes";
+import { useDiscoverFeed } from "@/hooks/api/useParties";
 import { posthog } from "@/lib/posthog";
 import { useUser } from "@clerk/expo";
 import { LinearGradient as RNLinearGradient } from 'expo-linear-gradient';
@@ -21,7 +22,6 @@ const SafeAreaView = styled(RNSafeAreaView);
 
 // ─── Mock data fallbacks (remove if your mock exports are complete) ──────────
 const _FRIENDS = (FRIENDS ?? []).filter((f: any) => f.online);
-const _PARTIES = (PARTIES ?? []).filter((p: any) => p.isLive).concat((PARTIES ?? []).slice(0, 2));
 
 export default function HomeScreen() {
     const [cardWidth, setCardWidth] = useState(0);
@@ -37,16 +37,28 @@ export default function HomeScreen() {
     } = useGameTypes();
     const _GAMES = (gameTypes ?? []).slice(0, 4);
 
+    const {
+        parties,
+        isLoading: isLoadingParties,
+        isError: isPartiesError,
+        error: partiesError,
+        refetch: refetchParties,
+    } = useDiscoverFeed();
+    // Live parties first, then whatever's scheduled next, matching what this rail is for.
+    const _PARTIES = [...parties]
+        .sort((a, b) => Number(b.status === "live") - Number(a.status === "live"))
+        .slice(0, 6);
+
     const displayName = user?.firstName || user?.fullName || user?.emailAddresses[0]?.emailAddress || 'User';
 
     const onRefresh = useCallback(async () => {
         setRefreshing(true);
         try {
-            await refetchGameTypes();
+            await Promise.all([refetchGameTypes(), refetchParties()]);
         } finally {
             setRefreshing(false);
         }
-    }, [refetchGameTypes]);
+    }, [refetchGameTypes, refetchParties]);
 
     return (
         <SafeAreaView className="flex-1 bg-background">
@@ -133,16 +145,32 @@ export default function HomeScreen() {
 
                 <View>
                     <ListHeading iconSet={true} title="Live now" actionText="Discover" link="/discover" />
+                    {isLoadingParties ? (
+                        <ActivityIndicator color="#B03BFF" style={{ marginVertical: 16 }} />
+                    ) : isPartiesError ? (
+                        <View className="items-center gap-2 py-4">
+                            <Text className="text-sm font-sans-medium text-white/60">
+                                Couldn&apos;t load parties.
+                            </Text>
+                            <Text className="text-xs text-white/40 text-center px-6">
+                                {partiesError instanceof Error ? partiesError.message : "Unknown error"}
+                            </Text>
+                            <TouchableOpacity onPress={() => refetchParties()} activeOpacity={0.8}>
+                                <Text className="text-violet-bright text-sm font-sans-semibold">Retry</Text>
+                            </TouchableOpacity>
+                        </View>
+                    ) : (
                     <FlatList
                         data={_PARTIES}
                         horizontal
                         showsHorizontalScrollIndicator={false}
                         style={{ marginHorizontal: -20 }}
                         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 8 }}
-                        keyExtractor={(item, index) => item.id + index}
+                        keyExtractor={(item) => String(item.id)}
                         renderItem={({ item }) => <QuickDiscoverCard data={item} />}
-                        ListEmptyComponent={<Text className="py-4 text-lg font-sans-medium text-white/60">No Live Party</Text>}
+                        ListEmptyComponent={<Text className="py-4 text-lg font-sans-medium text-white/60">No live parties right now</Text>}
                     />
+                    )}
                 </View>
 
                 <View>

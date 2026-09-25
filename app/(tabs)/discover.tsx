@@ -1,5 +1,6 @@
 import PartyCard from "@/components/PartyCard";
-import { PARTIES } from "@/data/mock";
+import { useDiscoverFeed, useLikeParty, useUnlikeParty } from "@/hooks/api/useParties";
+import { PartyDetail } from "@/lib/api/types";
 import { LinearGradient as RNLinearGradient } from "expo-linear-gradient";
 import {
   Search,
@@ -9,8 +10,9 @@ import {
   X
 } from "lucide-react-native";
 import { styled } from "nativewind";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   FlatList,
   LayoutChangeEvent,
   ScrollView,
@@ -25,71 +27,80 @@ import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
 const SafeAreaView = styled(RNSafeAreaView);
 const LinearGradient = styled(RNLinearGradient);
 
-const FILTERS = [
-  "For you",
-  "Live now",
-  "Tonight",
-  "Couples",
-  "Family",
-  "Teams",
-  "Sponsored",
-  "Wild",
-];
+// "Tonight"/"Couples"/"Family"/"Teams"/"Wild" from the old mock had no real field to filter
+// on (parties only carry freeform tags + a game_type slug, no fixed vibe taxonomy) — kept
+// only the filters that map to a real, reliable field.
+const FILTERS = ["For you", "Live now", "Sponsored"] as const;
+type Filter = (typeof FILTERS)[number];
 
-// Expand the mock feed so the swipe experience feels rich
-const FEED: PartyProps[] = Array.from({ length: 3 }).flatMap((_, i) =>
-  PARTIES.map((p) => ({ ...p, id: `${p.id}-${i}` }))
-);
+const SEARCH_DEBOUNCE_MS = 350;
 
 export default function DiscoverScreen() {
-  const [filter, setFilter] = useState("For you");
+  const [filter, setFilter] = useState<Filter>("For you");
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [muted, setMuted] = useState(true);
-  const [liked, setLiked] = useState<Record<string, boolean>>({});
+  const [likedOverrides, setLikedOverrides] = useState<Record<number, boolean>>({});
   const [activeIdx, setActiveIdx] = useState(0);
   const [feedHeight, setFeedHeight] = useState(0);
   const [headerHeight, setHeaderHeight] = useState(0);
 
-  const visible = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return FEED.filter((p) => {
-      if (
-        q &&
-        !`${p.title} ${p.host} ${p.type} ${p.tags.join(" ")}`
-          .toLowerCase()
-          .includes(q)
-      )
-        return false;
-      switch (filter) {
-        case "Live now":
-          return !!p.isLive;
-        case "Tonight":
-          return (
-            p.startsIn.toLowerCase().includes("live") ||
-            p.startsIn.includes("m") ||
-            p.startsIn.includes("h")
-          );
-        case "Couples":
-          return p.tags.includes("Couples") || p.type.includes("Couple");
-        case "Family":
-          return (
-            p.type.toLowerCase().includes("family") || p.tags.includes("Family")
-          );
-        case "Teams":
-          return p.tags.includes("Teams") || p.type.includes("Corporate");
-        case "Sponsored":
-          return !!p.sponsored;
-        case "Wild":
-          return p.tags.includes("Spicy") || p.type.includes("Wild");
-        default:
-          return true;
-      }
-    });
-  }, [filter, query]);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(query.trim()), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [query]);
 
-  const toggleLike = (id: string) =>
-    setLiked((s) => ({ ...s, [id]: !s[id] }));
+  const {
+    parties,
+    isLoading,
+    isError,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useDiscoverFeed({ search: debouncedQuery || undefined });
+
+  const visible = useMemo(() => {
+    switch (filter) {
+      case "Live now":
+        return parties.filter((p) => p.status === "live");
+      case "Sponsored":
+        return parties.filter((p) => p.is_sponsored);
+      default:
+        return parties;
+    }
+  }, [parties, filter]);
+
+  // "Live now"/"Sponsored" have no server-side query param — they filter whatever pages are
+  // already loaded. If that filters down to zero, keep paging until a match turns up or the
+  // feed genuinely ends, instead of showing "No parties match" while more pages are unread.
+  useEffect(() => {
+    if (!isLoading && !isError && visible.length === 0 && hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
+    }
+  }, [visible.length, hasNextPage, isFetchingNextPage, isLoading, isError, fetchNextPage]);
+
+  const likeParty = useLikeParty();
+  const unlikeParty = useUnlikeParty();
+
+  const isLiked = (party: PartyDetail) => likedOverrides[party.id] ?? party.liked_by_me;
+
+  // Optimistic locally (the list cache isn't touched by the mutation itself — only the
+  // single-party detail cache is), then reconciled with the server's actual liked_by_me, or
+  // reverted if the request fails.
+  const toggleLike = async (party: PartyDetail) => {
+    const nextLiked = !isLiked(party);
+    setLikedOverrides((s) => ({ ...s, [party.id]: nextLiked }));
+    try {
+      const updated = nextLiked
+        ? await likeParty.mutateAsync(party.id)
+        : await unlikeParty.mutateAsync(party.id);
+      setLikedOverrides((s) => ({ ...s, [party.id]: updated.liked_by_me }));
+    } catch {
+      setLikedOverrides((s) => ({ ...s, [party.id]: !nextLiked }));
+    }
+  };
 
   // FlatList viewability tracking — replaces the web's onScroll handler
   const onViewableItemsChanged = useRef(
@@ -110,7 +121,25 @@ export default function DiscoverScreen() {
   return (
     <View className="flex-1 bg-background" onLayout={handleFeedLayout}>
       {/* ── Feed ── */}
-      {visible.length === 0 ? (
+      {isLoading ? (
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator color="#B03BFF" />
+        </View>
+      ) : isError ? (
+        <View className="flex-1 items-center justify-center gap-3 px-8">
+          <Text className="text-muted-foreground text-sm text-center">
+            Couldn&apos;t load the discover feed.
+          </Text>
+          <TouchableOpacity onPress={() => refetch()} activeOpacity={0.8}>
+            <Text className="text-violet-bright text-sm font-semibold">Retry</Text>
+          </TouchableOpacity>
+        </View>
+      ) : visible.length === 0 && hasNextPage ? (
+        // Still paging through the feed looking for a match against the active filter.
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator color="#B03BFF" />
+        </View>
+      ) : visible.length === 0 ? (
         <View className="flex-1 items-center justify-center px-8">
           <Sparkles color="#D84CFF" size={40} strokeWidth={2} />
           <Text className="mt-3 text-foreground text-xl font-bold text-center">
@@ -123,15 +152,15 @@ export default function DiscoverScreen() {
       ) : (
         <FlatList
           data={visible}
-          keyExtractor={(p) => p.id}
+          keyExtractor={(p) => String(p.id)}
           renderItem={({ item, index }) => (
             <PartyCard
               party={item}
               height={feedHeight}
               statusTop={headerHeight}
               active={index === activeIdx}
-              liked={!!liked[item.id]}
-              onLike={() => toggleLike(item.id)}
+              liked={isLiked(item)}
+              onLike={() => toggleLike(item)}
             />
           )}
           pagingEnabled
@@ -146,6 +175,17 @@ export default function DiscoverScreen() {
             offset: feedHeight * index,
             index,
           }) : undefined}
+          onEndReachedThreshold={0.5}
+          onEndReached={() => {
+            if (hasNextPage && !isFetchingNextPage) fetchNextPage();
+          }}
+          ListFooterComponent={
+            isFetchingNextPage ? (
+              <View style={{ height: feedHeight }} className="items-center justify-center">
+                <ActivityIndicator color="#B03BFF" />
+              </View>
+            ) : null
+          }
         />
       )}
 
@@ -167,7 +207,7 @@ export default function DiscoverScreen() {
             </Text>
             <View className="ml-1 rounded-full bg-white/10 px-2 py-0.5">
               <Text className="text-white/70 text-[10px] font-semibold">
-                {visible.length} live
+                {visible.length} {visible.length === 1 ? "party" : "parties"}
               </Text>
             </View>
 
@@ -205,7 +245,7 @@ export default function DiscoverScreen() {
                 autoFocus
                 value={query}
                 onChangeText={setQuery}
-                placeholder="Search parties, hosts, vibes…"
+                placeholder="Search parties or hosts…"
                 placeholderTextColor="rgba(255,255,255,0.40)"
                 className="flex-1 text-white text-sm"
               />

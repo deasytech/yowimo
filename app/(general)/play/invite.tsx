@@ -4,7 +4,7 @@ import { FRIENDS } from '@/data/mock';
 import { useToast } from '@/hooks/useToast';
 import * as Clipboard from 'expo-clipboard';
 import { LinearGradient as RNLinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Copy, Link2, MessageCircle, QrCode, Send, Share2 } from 'lucide-react-native';
 import { styled } from 'nativewind';
 import { useState } from 'react';
@@ -13,7 +13,6 @@ import { SafeAreaView as RNSafeAreaView } from 'react-native-safe-area-context';
 
 const SafeAreaView = styled(RNSafeAreaView);
 const LinearGradient = styled(RNLinearGradient);
-const inviteLink = 'https://yowimo.app/p/FRD9X2';
 
 const channels = [
   { id: "wa", label: "WhatsApp", icon: MessageCircle, colors: ["#10B981", "#059669"] as const },
@@ -26,16 +25,28 @@ const channels = [
 
 const InviteFriendsScreen = () => {
   const router = useRouter();
+  const { roomCode, title, partyId } = useLocalSearchParams<{
+    roomCode?: string;
+    title?: string;
+    partyId?: string;
+  }>();
+  const hasLink = Boolean(roomCode);
+  const inviteLink = hasLink ? `https://yowimo.app/p/${roomCode}` : '';
   const [picked, setPicked] = useState<string[]>([]);
   const toast = useToast();
   const toggle = (id: string) => setPicked((p) => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
   const copyInviteLink = async () => {
+    if (!hasLink) return;
     await Clipboard.setStringAsync(inviteLink);
     toast.showToast();
   };
-  const shareInvite = (channel: string) => channel === 'link'
-    ? copyInviteLink()
-    : Share.share({ message: `Join my Yowimo party: ${inviteLink}`, url: inviteLink });
+  const shareInvite = (channel: string) => {
+    if (!hasLink) return;
+    const message = title
+      ? `Join my Yowimo party "${title}": ${inviteLink}`
+      : `Join my Yowimo party: ${inviteLink}`;
+    return channel === 'link' ? copyInviteLink() : Share.share({ message, url: inviteLink });
+  };
 
   return (
     <SafeAreaView className="flex-1 bg-background">
@@ -70,11 +81,13 @@ const InviteFriendsScreen = () => {
               numberOfLines={1}
               className="flex-1 text-lg font-sans-bold text-white"
             >
-              {inviteLink.replace('https://', '')}
+              {hasLink ? inviteLink.replace('https://', '') : 'Link unavailable for this party'}
             </Text>
 
             <TouchableOpacity
               onPress={copyInviteLink}
+              disabled={!hasLink}
+              style={{ opacity: hasLink ? 1 : 0.5 }}
               className="ml-3 h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-white/10"
             >
               <Copy color="#fff" size={16} />
@@ -93,7 +106,9 @@ const InviteFriendsScreen = () => {
               <TouchableOpacity
                 key={item.id}
                 onPress={() => shareInvite(item.id)}
+                disabled={!hasLink}
                 activeOpacity={0.8}
+                style={{ opacity: hasLink ? 1 : 0.4 }}
                 className="mb-5 w-1/3 items-center"
               >
                 <LinearGradient
@@ -197,7 +212,7 @@ const InviteFriendsScreen = () => {
           <TouchableOpacity
             className="h-14 items-center justify-center"
             activeOpacity={0.9}
-            onPress={() => router.push("/lobby/p1")}
+            onPress={() => (partyId ? router.push(`/lobby/${partyId}`) : router.back())}
           >
             <Text className="text-base font-sans-bold text-white">
               Send Invites ({picked.length || "Skip"})

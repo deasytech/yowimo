@@ -73,6 +73,13 @@ export default {
             'Allow $(PRODUCT_NAME) to access your microphone to send voice notes.',
         },
       ],
+      [
+        'expo-image-picker',
+        {
+          photosPermission:
+            'Allow $(PRODUCT_NAME) to access your photos to set a party cover image.',
+        },
+      ],
     ],
     experiments: {
       typedRoutes: true,

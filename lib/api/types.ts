@@ -248,6 +248,14 @@ export interface PartyDetail extends Omit<PartySummary, 'host'> {
   updated_at: string;
 }
 
+/** A locally-picked file, shaped for a multipart FormData part (RN's fetch expects this exact
+ * `{ uri, name, type }` object rather than a real File/Blob). */
+export interface LocalImageFile {
+  uri: string;
+  name: string;
+  type: string;
+}
+
 export interface CreatePartyPayload {
   title: string;
   description?: string | null;
@@ -260,6 +268,8 @@ export interface CreatePartyPayload {
   save_as_draft?: boolean;
   location?: PartyLocation;
   tags?: string[];
+  /** jpeg/png/webp, max 8MB. Sending this forces the request into multipart/form-data. */
+  cover_image?: LocalImageFile | null;
 }
 
 export interface GameCard {

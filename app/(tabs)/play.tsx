@@ -1,14 +1,37 @@
+import Toast from "@/components/shared/Toast";
 import { useGameTypes } from "@/hooks/api/useGameTypes";
+import { useCreateParty } from "@/hooks/api/useParties";
+import { useToast } from "@/hooks/useToast";
+import { ApiError, CreatePartyPayload, LocalImageFile, PartyMode } from "@/lib/api/types";
+import DateTimePicker, {
+  type DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
 import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
 import { LinearGradient as RNLinearGradient } from "expo-linear-gradient";
-import { Href, Link, useLocalSearchParams, useRouter } from "expo-router";
-import { Globe, Lock, Sparkles, Tv, Users } from "lucide-react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import {
+  Calendar,
+  Camera,
+  CheckCircle2,
+  Globe,
+  Lock,
+  Minus,
+  Plus,
+  Sparkles,
+  Tv,
+  Users,
+  X,
+} from "lucide-react-native";
 import { styled } from "nativewind";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Modal,
+  Platform,
   ScrollView,
   Text,
+  TextInput,
   TouchableOpacity,
   useWindowDimensions,
   View,
@@ -23,23 +46,14 @@ const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const GRID_PADDING = 20; // matches contentContainerStyle paddingHorizontal
 const GRID_GAP = 12; // matches gap-3
 const GRID_COLUMNS = 3;
-const ADVANCED_LINK_GAP = 8; // matches gap-2
+const MIN_PLAYERS = 2;
+const MAX_PLAYERS = 200;
+const DEFAULT_PLAYERS = 8;
 
-const MODES = [
-  { id: "Online" as const, Icon: Globe },
-  { id: "In-person" as const, Icon: Users },
-  { id: "Hybrid" as const, Icon: Tv },
-];
-
-const ADVANCED_LINKS: { to: Href; label: string; emoji: string }[] = [
-  { to: "/play/party-type", label: "Party type", emoji: "🎴" },
-  { to: "/play/schedule", label: "Schedule", emoji: "🗓️" },
-  { to: "/play/invite", label: "Invite friends", emoji: "👥" },
-  { to: "/play/public", label: "Browse public", emoji: "🌍" },
-  { to: "/play/in-person", label: "In-person setup", emoji: "🪑" },
-  { to: "/play/hybrid", label: "Hybrid setup", emoji: "📺" },
-  { to: "/play/connect-tv", label: "Connect TV", emoji: "📡" },
-  { to: "/play/qr-join", label: "QR / Code", emoji: "🔳" },
+const MODES: { id: PartyMode; label: string; Icon: typeof Globe }[] = [
+  { id: "online", label: "Online", Icon: Globe },
+  { id: "in_person", label: "In-person", Icon: Users },
+  { id: "hybrid", label: "Hybrid", Icon: Tv },
 ];
 
 export default function CreatePartyScreen() {
@@ -47,13 +61,29 @@ export default function CreatePartyScreen() {
   const { gameId } = useLocalSearchParams<{ gameId?: string }>();
   const { width: windowWidth } = useWindowDimensions();
   const { data: gameTypes, isLoading, isError, error, refetch } = useGameTypes();
+  const createParty = useCreateParty();
+
   const [game, setGame] = useState<number | null>(null);
-  const [mode, setMode] = useState<"Online" | "In-person" | "Hybrid">("Online");
+  const [title, setTitle] = useState("");
+  const [coverImage, setCoverImage] = useState<LocalImageFile | null>(null);
+  const [mode, setMode] = useState<PartyMode>("online");
   const [visibility, setVisibility] = useState<"public" | "private">("private");
+  const [maxPlayers, setMaxPlayers] = useState(DEFAULT_PLAYERS);
+  const [maxPlayersDraft, setMaxPlayersDraft] = useState(String(DEFAULT_PLAYERS));
+  const [venueName, setVenueName] = useState("");
+  const [address, setAddress] = useState("");
+  const [isScheduled, setIsScheduled] = useState(false);
+  const [startsAt, setStartsAt] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [draftDate, setDraftDate] = useState(() => new Date());
+  const [scheduledModalVisible, setScheduledModalVisible] = useState(false);
+  const [scheduledFor, setScheduledFor] = useState<Date | null>(null);
+
+  const [toastMessage, setToastMessage] = useState("");
+  const [toastBg, setToastBg] = useState("bg-green-600");
+  const toast = useToast();
+
   const [gridWidth, setGridWidth] = useState(windowWidth - GRID_PADDING * 2);
-  const [advancedLinksWidth, setAdvancedLinksWidth] = useState(
-    windowWidth - GRID_PADDING * 2,
-  );
 
   const selected = gameTypes?.find((g) => g.id === game) ?? gameTypes?.[0];
 
@@ -72,25 +102,143 @@ export default function CreatePartyScreen() {
   const cardSize = Math.floor(
     (gridWidth - GRID_GAP * (GRID_COLUMNS - 1)) / GRID_COLUMNS,
   );
-  const advancedLinkWidth = Math.floor(
-    (advancedLinksWidth - ADVANCED_LINK_GAP) / 2,
-  );
 
-  // RN's <Image> + FlatList/ScrollView windowing handles preloading/caching
-  // automatically — no manual `new Image()` preload step needed like on web.
+  const notify = (message: string, variant: "success" | "error") => {
+    setToastMessage(message);
+    setToastBg(variant === "success" ? "bg-green-600" : "bg-red-600");
+    toast.showToast();
+  };
 
-  const handleLaunch = () => {
-    const dest =
-      mode === "In-person"
-        ? "/play/in-person"
-        : mode === "Hybrid"
-          ? "/play/hybrid"
-          : "/lobby/new";
-    router.push(dest);
+  const needsLocation = mode === "in_person" || mode === "hybrid";
+
+  const clampPlayers = (value: number) => Math.min(MAX_PLAYERS, Math.max(MIN_PLAYERS, value));
+
+  const commitMaxPlayers = (value: number) => {
+    const clamped = clampPlayers(value);
+    setMaxPlayers(clamped);
+    setMaxPlayersDraft(String(clamped));
+  };
+
+  const stepMaxPlayers = (delta: number) => commitMaxPlayers(maxPlayers + delta);
+
+  // The draft can hold a value the user just typed but hasn't blurred/submitted yet — resolve
+  // from it directly rather than the last-committed `maxPlayers`, so a fast tap straight from
+  // the field to a submit button doesn't silently drop what's on screen.
+  const resolveMaxPlayers = () => {
+    const parsed = parseInt(maxPlayersDraft, 10);
+    return Number.isFinite(parsed) ? clampPlayers(parsed) : maxPlayers;
+  };
+
+  const onMaxPlayersChangeText = (text: string) => {
+    setMaxPlayersDraft(text.replace(/[^0-9]/g, "").slice(0, 3));
+  };
+
+  const onMaxPlayersBlur = () => commitMaxPlayers(resolveMaxPlayers());
+
+  const pickCoverImage = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      notify("Allow photo access to set a cover image", "error");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      aspect: [16, 9],
+      quality: 0.8,
+    });
+    if (result.canceled || !result.assets[0]) return;
+
+    const asset = result.assets[0];
+    const extension = asset.uri.split(".").pop()?.toLowerCase() ?? "jpg";
+    const type = asset.mimeType ?? (extension === "png" ? "image/png" : extension === "webp" ? "image/webp" : "image/jpeg");
+    setCoverImage({ uri: asset.uri, name: asset.fileName ?? `cover.${extension}`, type });
+  };
+
+  const buildPayload = (saveAsDraft: boolean): CreatePartyPayload | null => {
+    if (!title.trim()) {
+      notify("Give your party a title first", "error");
+      return null;
+    }
+    if (needsLocation && !venueName.trim()) {
+      notify("Add a venue for an in-person or hybrid party", "error");
+      return null;
+    }
+
+    return {
+      title: title.trim(),
+      game_type_id: selected?.id ?? null,
+      mode,
+      visibility,
+      max_players: resolveMaxPlayers(),
+      starts_at: isScheduled && startsAt ? startsAt.toISOString() : null,
+      save_as_draft: saveAsDraft,
+      location: needsLocation
+        ? { venue_name: venueName.trim(), address: address.trim() || undefined }
+        : undefined,
+      cover_image: coverImage,
+    };
+  };
+
+  const handleCreate = async (saveAsDraft: boolean) => {
+    if (createParty.isPending) return;
+    const payload = buildPayload(saveAsDraft);
+    if (!payload) return;
+
+    try {
+      const party = await createParty.mutateAsync(payload);
+      // A scheduled party isn't ready to host yet — landing in its lobby would surface a
+      // "Start party" action that doesn't make sense until closer to starts_at, so confirm
+      // and send the host home instead of into the lobby.
+      if (!saveAsDraft && isScheduled && startsAt) {
+        setScheduledFor(startsAt);
+        setScheduledModalVisible(true);
+        return;
+      }
+      router.replace(`/lobby/${party.id}`);
+    } catch (err) {
+      notify(err instanceof ApiError ? err.message : "Couldn't create the party — please try again", "error");
+    }
+  };
+
+  const dismissScheduledModal = () => {
+    setScheduledModalVisible(false);
+    router.replace("/");
+  };
+
+  const openDatePicker = () => {
+    setDraftDate(startsAt ?? new Date(Date.now() + 60 * 60 * 1000));
+    setShowDatePicker(true);
+  };
+
+  const onDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
+    if (Platform.OS === "android") {
+      setShowDatePicker(false);
+      if (event.type === "set" && selectedDate) {
+        setStartsAt(selectedDate);
+        setIsScheduled(true);
+      }
+      return;
+    }
+    if (selectedDate) setDraftDate(selectedDate);
+  };
+
+  const confirmIosDate = () => {
+    setStartsAt(draftDate);
+    setIsScheduled(true);
+    setShowDatePicker(false);
   };
 
   return (
     <SafeAreaView className="flex-1 bg-background">
+      <Toast
+        opacity={toast.opacity}
+        isVisible={toast.isVisible}
+        message={toastMessage}
+        bgClass={toastBg}
+      />
+
       <ScrollView
         className="flex-1"
         contentContainerStyle={{ paddingTop: 20, paddingHorizontal: 20, paddingBottom: 100 }}
@@ -133,6 +281,67 @@ export default function CreatePartyScreen() {
                 </TouchableOpacity>
               </View>
             )}
+
+            {/* ── Title ── */}
+            <View className="mt-6 gap-1.5">
+              <Text className="text-foreground text-base font-semibold">
+                Party title
+              </Text>
+              <TextInput
+                value={title}
+                onChangeText={setTitle}
+                maxLength={100}
+                placeholder="Friday night chaos"
+                placeholderTextColor="#a3a3ab"
+                className="rounded-xl bg-input border border-border px-3.5 py-3 text-foreground text-sm"
+              />
+            </View>
+
+            {/* ── Cover image ── */}
+            <View className="mt-6 gap-1.5">
+              <Text className="text-foreground text-base font-semibold">
+                Cover image
+              </Text>
+              <Text className="text-muted-foreground text-xs">
+                Optional. Shown in Discover instead of the default game art.
+              </Text>
+
+              {coverImage ? (
+                <View className="mt-1.5 overflow-hidden rounded-2xl" style={{ aspectRatio: 16 / 9 }}>
+                  <Image
+                    source={{ uri: coverImage.uri }}
+                    style={{ width: "100%", height: "100%" }}
+                    contentFit="cover"
+                  />
+                  <TouchableOpacity
+                    onPress={() => setCoverImage(null)}
+                    activeOpacity={0.8}
+                    className="absolute right-2 top-2 h-8 w-8 items-center justify-center rounded-full bg-ink/70"
+                  >
+                    <X color="#fff" size={16} strokeWidth={2.5} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={pickCoverImage}
+                    activeOpacity={0.8}
+                    className="absolute bottom-2 right-2 flex-row items-center gap-1.5 rounded-full bg-ink/70 px-3 py-1.5"
+                  >
+                    <Camera color="#fff" size={14} strokeWidth={2} />
+                    <Text className="text-white text-xs font-semibold">Change</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  onPress={pickCoverImage}
+                  activeOpacity={0.8}
+                  className="mt-1.5 flex-row items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-secondary/40 py-6"
+                >
+                  <Camera color="#fff" size={18} strokeWidth={2} />
+                  <Text className="text-foreground text-sm font-semibold">
+                    Add a cover photo
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
 
             {/* ── Game picker ── */}
             <View className="mt-6">
@@ -263,154 +472,350 @@ export default function CreatePartyScreen() {
             </View>
 
             {/* ── Mode ── */}
-        <View className="mt-6">
-          <Text className="mb-3 text-foreground text-base font-semibold">
-            How will you play?
-          </Text>
+            <View className="mt-6">
+              <Text className="mb-3 text-foreground text-base font-semibold">
+                How will you play?
+              </Text>
 
-          <View className="flex-row gap-2">
-            {MODES.map((m) => {
-              const active = mode === m.id;
-              return (
+              <View className="flex-row gap-2">
+                {MODES.map((m) => {
+                  const active = mode === m.id;
+                  return (
+                    <TouchableOpacity
+                      key={m.id}
+                      onPress={() => setMode(m.id)}
+                      activeOpacity={0.85}
+                      style={{ flex: 1 }}
+                      className={`items-center gap-1.5 rounded-2xl border p-3 ${active
+                        ? "border-violet-bright bg-violet/15"
+                        : "border-border bg-secondary/40"
+                        }`}
+                    >
+                      <m.Icon color="#fff" size={20} strokeWidth={2} />
+                      <Text className="text-foreground text-xs font-semibold">{m.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* ── Location (hybrid / in-person only) ── */}
+            {needsLocation && (
+              <View className="mt-6 gap-3">
+                <Text className="text-foreground text-base font-semibold">
+                  Where&apos;s it happening?
+                </Text>
+                <TextInput
+                  value={venueName}
+                  onChangeText={setVenueName}
+                  maxLength={100}
+                  placeholder="Venue name"
+                  placeholderTextColor="#a3a3ab"
+                  className="rounded-xl bg-input border border-border px-3.5 py-3 text-foreground text-sm"
+                />
+                <TextInput
+                  value={address}
+                  onChangeText={setAddress}
+                  maxLength={200}
+                  placeholder="Address (optional)"
+                  placeholderTextColor="#a3a3ab"
+                  className="rounded-xl bg-input border border-border px-3.5 py-3 text-foreground text-sm"
+                />
+              </View>
+            )}
+
+            {/* ── Players ── */}
+            <View className="mt-6">
+              <Text className="mb-3 text-foreground text-base font-semibold">
+                Max players
+              </Text>
+              <View className="flex-row items-center justify-between rounded-2xl border border-border bg-secondary/40 p-3">
                 <TouchableOpacity
-                  key={m.id}
-                  onPress={() => setMode(m.id)}
+                  onPress={() => stepMaxPlayers(-1)}
+                  activeOpacity={0.8}
+                  className="h-10 w-10 items-center justify-center rounded-full bg-secondary"
+                >
+                  <Minus color="#fff" size={16} strokeWidth={2.5} />
+                </TouchableOpacity>
+                <TextInput
+                  value={maxPlayersDraft}
+                  onChangeText={onMaxPlayersChangeText}
+                  onBlur={onMaxPlayersBlur}
+                  onSubmitEditing={onMaxPlayersBlur}
+                  keyboardType="number-pad"
+                  maxLength={3}
+                  selectTextOnFocus
+                  className="text-foreground text-lg font-bold"
+                  // textAlign is set via `style`, not `className` — this preview build of
+                  // react-native-css/nativewind crashes ("path.split is not a function")
+                  // resolving `textAlign` through its TextInput nativeStyleMapping when it
+                  // comes from a class like `text-center` instead.
+                  style={{ minWidth: 48, textAlign: "center" }}
+                />
+                <TouchableOpacity
+                  onPress={() => stepMaxPlayers(1)}
+                  activeOpacity={0.8}
+                  className="h-10 w-10 items-center justify-center rounded-full bg-secondary"
+                >
+                  <Plus color="#fff" size={16} strokeWidth={2.5} />
+                </TouchableOpacity>
+              </View>
+              <Text className="mt-1.5 text-muted-foreground text-[11px] text-center">
+                {MIN_PLAYERS}–{MAX_PLAYERS} players
+              </Text>
+            </View>
+
+            {/* ── Schedule ── */}
+            <View className="mt-6">
+              <Text className="mb-3 text-foreground text-base font-semibold">
+                When?
+              </Text>
+              <View className="flex-row gap-2">
+                <TouchableOpacity
+                  onPress={() => setIsScheduled(false)}
                   activeOpacity={0.85}
                   style={{ flex: 1 }}
-                  className={`items-center gap-1.5 rounded-2xl border p-3 ${active
+                  className={`items-center rounded-2xl border p-3.5 ${!isScheduled
                     ? "border-violet-bright bg-violet/15"
                     : "border-border bg-secondary/40"
                     }`}
                 >
-                  <m.Icon color="#fff" size={20} strokeWidth={2} />
-                  <Text className="text-foreground text-xs font-semibold">{m.id}</Text>
+                  <Text className="text-foreground text-sm font-semibold">Right now</Text>
                 </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
 
-        {/* ── Visibility ── */}
-        <View className="mt-6">
-          <Text className="mb-3 text-foreground text-base font-semibold">
-            {"Who's invited?"}
-          </Text>
-
-          <View className="flex-row gap-2">
-            <TouchableOpacity
-              onPress={() => setVisibility("private")}
-              activeOpacity={0.85}
-              style={{ flex: 1 }}
-              className={`flex-row items-center gap-2 rounded-2xl border p-4 ${visibility === "private"
-                ? "border-violet-bright bg-violet/15"
-                : "border-border bg-secondary/40"
-                }`}
-            >
-              <Lock color="#fff" size={16} strokeWidth={2} />
-              <View>
-                <Text className="text-foreground text-sm font-semibold">Private</Text>
-                <Text className="text-muted-foreground text-[11px]">Invite only</Text>
+                <TouchableOpacity
+                  onPress={openDatePicker}
+                  activeOpacity={0.85}
+                  style={{ flex: 1.4 }}
+                  className={`flex-row items-center justify-center gap-1.5 rounded-2xl border p-3.5 ${isScheduled
+                    ? "border-violet-bright bg-violet/15"
+                    : "border-border bg-secondary/40"
+                    }`}
+                >
+                  <Calendar color="#fff" size={16} strokeWidth={2} />
+                  <Text className="text-foreground text-sm font-semibold" numberOfLines={1}>
+                    {isScheduled && startsAt
+                      ? startsAt.toLocaleString(undefined, {
+                        month: "short",
+                        day: "numeric",
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })
+                      : "Schedule for later"}
+                  </Text>
+                </TouchableOpacity>
               </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => setVisibility("public")}
-              activeOpacity={0.85}
-              style={{ flex: 1 }}
-              className={`flex-row items-center gap-2 rounded-2xl border p-4 ${visibility === "public"
-                ? "border-violet-bright bg-violet/15"
-                : "border-border bg-secondary/40"
-                }`}
-            >
-              <Globe color="#fff" size={16} strokeWidth={2} />
-              <View>
-                <Text className="text-foreground text-sm font-semibold">Public</Text>
-                <Text className="text-muted-foreground text-[11px]">In Discover</Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* ── AI assist ── */}
-        <View className="mt-6 rounded-3xl border border-border bg-card p-4">
-          <View className="flex-row items-center gap-2">
-            <LinearGradient
-              colors={["#7A1EFF", "#D84CFF", "#FF8A2A"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              className="h-9 w-9 items-center justify-center rounded-full"
-            >
-              <Sparkles color="#fff" size={16} strokeWidth={2} />
-            </LinearGradient>
-
-            <View className="flex-1">
-              <Text className="text-foreground text-sm font-semibold">
-                AI Host enabled
-              </Text>
-              <Text className="text-muted-foreground text-[11px]">
-                Custom challenges, MVPs, and a recap at the end.
-              </Text>
             </View>
 
-            <Text className="text-violet-bright text-xs font-bold">FREE</Text>
-          </View>
-        </View>
+            {/* ── Visibility ── */}
+            <View className="mt-6">
+              <Text className="mb-3 text-foreground text-base font-semibold">
+                {"Who's invited?"}
+              </Text>
 
-        {/* ── Advanced setup links ── */}
-        <View
-          className="mt-6 flex-row flex-wrap gap-2"
-          onLayout={(event) =>
-            setAdvancedLinksWidth(event.nativeEvent.layout.width)
-          }
-        >
-          {ADVANCED_LINKS.map((l) => (
-            <Link key={l.label} href={l.to} asChild>
-              <TouchableOpacity
-                activeOpacity={0.8}
-                style={{ width: advancedLinkWidth }}
-                className="flex-row items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-3"
-              >
-                <Text style={{ fontSize: 16 }}>{l.emoji}</Text>
-                <Text
-                  className="flex-1 text-foreground text-xs font-semibold"
-                  numberOfLines={1}
+              <View className="flex-row gap-2">
+                <TouchableOpacity
+                  onPress={() => setVisibility("private")}
+                  activeOpacity={0.85}
+                  style={{ flex: 1 }}
+                  className={`flex-row items-center gap-2 rounded-2xl border p-4 ${visibility === "private"
+                    ? "border-violet-bright bg-violet/15"
+                    : "border-border bg-secondary/40"
+                    }`}
                 >
-                  {l.label}
-                </Text>
+                  <Lock color="#fff" size={16} strokeWidth={2} />
+                  <View>
+                    <Text className="text-foreground text-sm font-semibold">Private</Text>
+                    <Text className="text-muted-foreground text-[11px]">Invite only</Text>
+                  </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => setVisibility("public")}
+                  activeOpacity={0.85}
+                  style={{ flex: 1 }}
+                  className={`flex-row items-center gap-2 rounded-2xl border p-4 ${visibility === "public"
+                    ? "border-violet-bright bg-violet/15"
+                    : "border-border bg-secondary/40"
+                    }`}
+                >
+                  <Globe color="#fff" size={16} strokeWidth={2} />
+                  <View>
+                    <Text className="text-foreground text-sm font-semibold">Public</Text>
+                    <Text className="text-muted-foreground text-[11px]">In Discover</Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* ── AI assist ── */}
+            <View className="mt-6 rounded-3xl border border-border bg-card p-4">
+              <View className="flex-row items-center gap-2">
+                <LinearGradient
+                  colors={["#7A1EFF", "#D84CFF", "#FF8A2A"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  className="h-9 w-9 items-center justify-center rounded-full"
+                >
+                  <Sparkles color="#fff" size={16} strokeWidth={2} />
+                </LinearGradient>
+
+                <View className="flex-1">
+                  <Text className="text-foreground text-sm font-semibold">
+                    AI Host enabled
+                  </Text>
+                  <Text className="text-muted-foreground text-[11px]">
+                    Custom challenges, MVPs, and a recap at the end.
+                  </Text>
+                </View>
+
+                <Text className="text-violet-bright text-xs font-bold">FREE</Text>
+              </View>
+            </View>
+
+            {/* ── Actions ── */}
+            <View className="mt-8 flex-row gap-3">
+              <TouchableOpacity
+                onPress={() => handleCreate(true)}
+                activeOpacity={0.8}
+                disabled={createParty.isPending}
+                style={{ flex: 1 }}
+                className="h-14 items-center justify-center rounded-2xl border border-border"
+              >
+                <Text className="text-foreground text-sm font-semibold">Save draft</Text>
               </TouchableOpacity>
-            </Link>
-          ))}
-        </View>
 
-        {/* ── Actions ── */}
-        <View className="mt-8 flex-row gap-3">
-          <TouchableOpacity
-            onPress={() => { }}
-            activeOpacity={0.8}
-            style={{ flex: 1 }}
-            className="h-14 items-center justify-center rounded-2xl border border-border"
-          >
-            <Text className="text-foreground text-sm font-semibold">Save draft</Text>
-          </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => handleCreate(false)}
+                activeOpacity={0.85}
+                disabled={createParty.isPending}
+                style={{ flex: 1.4 }}
+              >
+                <LinearGradient
+                  colors={["#7A1EFF", "#D84CFF", "#FF8A2A"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  className="h-14 items-center justify-center rounded-2xl"
+                  style={{ opacity: createParty.isPending ? 0.7 : 1 }}
+                >
+                  {createParty.isPending ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text className="text-white text-sm font-semibold">
+                      {isScheduled ? "Schedule party" : "Launch party"}
+                    </Text>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
+      </ScrollView>
 
-          <TouchableOpacity
-            onPress={handleLaunch}
-            activeOpacity={0.85}
-            style={{ flex: 1.4 }}
-          >
+      {/* ── Start date/time picker ── */}
+      {Platform.OS === "android" ? (
+        showDatePicker && (
+          <DateTimePicker
+            value={draftDate}
+            mode="datetime"
+            display="default"
+            minimumDate={new Date()}
+            onChange={onDateChange}
+          />
+        )
+      ) : (
+        <Modal
+          visible={showDatePicker}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowDatePicker(false)}
+        >
+          <View style={{ flex: 1 }}>
+            <TouchableOpacity
+              style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }}
+              activeOpacity={1}
+              onPress={() => setShowDatePicker(false)}
+            />
+            <View className="bg-card rounded-t-3xl px-6 pt-6 pb-10">
+              <View className="flex-row items-center justify-between mb-4">
+                <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                  <Text className="text-muted-foreground text-sm font-semibold">Cancel</Text>
+                </TouchableOpacity>
+                <Text className="text-foreground text-base font-bold">Starts at</Text>
+                <TouchableOpacity onPress={confirmIosDate}>
+                  <Text className="text-violet-bright text-sm font-semibold">Done</Text>
+                </TouchableOpacity>
+              </View>
+              <DateTimePicker
+                value={draftDate}
+                mode="datetime"
+                display="spinner"
+                minimumDate={new Date()}
+                onChange={onDateChange}
+                textColor="#ffffff"
+                style={{ height: 200 }}
+              />
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {/* ── Scheduled confirmation ── */}
+      <Modal
+        visible={scheduledModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={dismissScheduledModal}
+      >
+        <View
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)" }}
+          className="items-center justify-center px-8"
+        >
+          <View className="w-full items-center rounded-3xl border border-border bg-card p-6">
             <LinearGradient
               colors={["#7A1EFF", "#D84CFF", "#FF8A2A"]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
-              className="h-14 items-center justify-center rounded-2xl"
+              className="h-14 w-14 items-center justify-center rounded-full"
             >
-              <Text className="text-white text-sm font-semibold">Launch party</Text>
+              <CheckCircle2 color="#fff" size={28} strokeWidth={2} />
             </LinearGradient>
-          </TouchableOpacity>
+
+            <Text className="mt-4 text-foreground text-lg font-bold text-center">
+              Party scheduled!
+            </Text>
+            <Text className="mt-2 text-muted-foreground text-sm text-center leading-relaxed">
+              {scheduledFor
+                ? `It kicks off ${scheduledFor.toLocaleString(undefined, {
+                  weekday: "short",
+                  month: "short",
+                  day: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                })}. `
+                : ""}
+              We&apos;ll count you down and notify you via WhatsApp and push notification
+              starting 7 days out.
+            </Text>
+
+            <TouchableOpacity
+              onPress={dismissScheduledModal}
+              activeOpacity={0.85}
+              style={{ width: "100%" }}
+              className="mt-6"
+            >
+              <LinearGradient
+                colors={["#7A1EFF", "#D84CFF", "#FF8A2A"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                className="h-12 w-full items-center justify-center rounded-2xl"
+              >
+                <Text className="text-white text-sm font-semibold">Done</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
         </View>
-          </>
-          )}
-      </ScrollView>
+      </Modal>
     </SafeAreaView>
   );
 }
