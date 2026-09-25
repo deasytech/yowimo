@@ -28,7 +28,7 @@ import {
   Video,
 } from "lucide-react-native";
 import { styled } from "nativewind";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
 
@@ -63,6 +63,9 @@ export default function LobbyScreen() {
   const endParty = useEndParty();
 
   const [busy, setBusy] = useState<string | null>(null);
+  // setBusy is async, so `busy` state alone can't stop two taps landing in the same tick
+  // before the first render commits — this ref is the synchronous guard.
+  const busyRef = useRef<string | null>(null);
   const [toastMessage, setToastMessage] = useState("");
   const [toastBg, setToastBg] = useState("bg-green-600");
   const toast = useToast();
@@ -74,7 +77,8 @@ export default function LobbyScreen() {
   };
 
   const runAction = async (key: string, action: () => Promise<unknown>, successMessage?: string) => {
-    if (busy) return;
+    if (busyRef.current) return;
+    busyRef.current = key;
     setBusy(key);
     try {
       await action();
@@ -82,6 +86,7 @@ export default function LobbyScreen() {
     } catch (err) {
       notify(err instanceof ApiError ? err.message : "Something went wrong — please try again", "error");
     } finally {
+      busyRef.current = null;
       setBusy(null);
     }
   };
@@ -144,14 +149,14 @@ export default function LobbyScreen() {
 
         {/* ── Hero card ── */}
         <View className="mt-4 min-h-52.5 overflow-hidden rounded-3xl">
-          {party.cover_image_url && (
+          {party.cover_image_url ? (
             <Image
               source={{ uri: party.cover_image_url }}
               contentFit="cover"
               accessibilityLabel={`${party.title} party`}
               style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
             />
-          )}
+          ) : null}
           <LinearGradient
             colors={
               party.cover_image_url
@@ -284,11 +289,11 @@ export default function LobbyScreen() {
           </View>
         )}
 
-        {party.description && (
+        {party.description ? (
           <Text className="mt-4 text-muted-foreground text-sm leading-relaxed">
             {party.description}
           </Text>
-        )}
+        ) : null}
 
         {/* ── Settings rows ── */}
         {isHost && (

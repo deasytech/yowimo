@@ -111,22 +111,29 @@ export default function CreatePartyScreen() {
 
   const needsLocation = mode === "in_person" || mode === "hybrid";
 
+  const clampPlayers = (value: number) => Math.min(MAX_PLAYERS, Math.max(MIN_PLAYERS, value));
+
   const commitMaxPlayers = (value: number) => {
-    const clamped = Math.min(MAX_PLAYERS, Math.max(MIN_PLAYERS, value));
+    const clamped = clampPlayers(value);
     setMaxPlayers(clamped);
     setMaxPlayersDraft(String(clamped));
   };
 
   const stepMaxPlayers = (delta: number) => commitMaxPlayers(maxPlayers + delta);
 
+  // The draft can hold a value the user just typed but hasn't blurred/submitted yet — resolve
+  // from it directly rather than the last-committed `maxPlayers`, so a fast tap straight from
+  // the field to a submit button doesn't silently drop what's on screen.
+  const resolveMaxPlayers = () => {
+    const parsed = parseInt(maxPlayersDraft, 10);
+    return Number.isFinite(parsed) ? clampPlayers(parsed) : maxPlayers;
+  };
+
   const onMaxPlayersChangeText = (text: string) => {
     setMaxPlayersDraft(text.replace(/[^0-9]/g, "").slice(0, 3));
   };
 
-  const onMaxPlayersBlur = () => {
-    const parsed = parseInt(maxPlayersDraft, 10);
-    commitMaxPlayers(Number.isFinite(parsed) ? parsed : maxPlayers);
-  };
+  const onMaxPlayersBlur = () => commitMaxPlayers(resolveMaxPlayers());
 
   const pickCoverImage = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -164,7 +171,7 @@ export default function CreatePartyScreen() {
       game_type_id: selected?.id ?? null,
       mode,
       visibility,
-      max_players: maxPlayers,
+      max_players: resolveMaxPlayers(),
       starts_at: isScheduled && startsAt ? startsAt.toISOString() : null,
       save_as_draft: saveAsDraft,
       location: needsLocation

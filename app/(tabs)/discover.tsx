@@ -1,5 +1,5 @@
 import PartyCard from "@/components/PartyCard";
-import { useDiscoverFeed } from "@/hooks/api/useParties";
+import { useDiscoverFeed, useLikeParty, useUnlikeParty } from "@/hooks/api/useParties";
 import { PartyDetail } from "@/lib/api/types";
 import { LinearGradient as RNLinearGradient } from "expo-linear-gradient";
 import {
@@ -72,9 +72,35 @@ export default function DiscoverScreen() {
     }
   }, [parties, filter]);
 
+  // "Live now"/"Sponsored" have no server-side query param — they filter whatever pages are
+  // already loaded. If that filters down to zero, keep paging until a match turns up or the
+  // feed genuinely ends, instead of showing "No parties match" while more pages are unread.
+  useEffect(() => {
+    if (!isLoading && !isError && visible.length === 0 && hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
+    }
+  }, [visible.length, hasNextPage, isFetchingNextPage, isLoading, isError, fetchNextPage]);
+
+  const likeParty = useLikeParty();
+  const unlikeParty = useUnlikeParty();
+
   const isLiked = (party: PartyDetail) => likedOverrides[party.id] ?? party.liked_by_me;
-  const toggleLike = (party: PartyDetail) =>
-    setLikedOverrides((s) => ({ ...s, [party.id]: !isLiked(party) }));
+
+  // Optimistic locally (the list cache isn't touched by the mutation itself — only the
+  // single-party detail cache is), then reconciled with the server's actual liked_by_me, or
+  // reverted if the request fails.
+  const toggleLike = async (party: PartyDetail) => {
+    const nextLiked = !isLiked(party);
+    setLikedOverrides((s) => ({ ...s, [party.id]: nextLiked }));
+    try {
+      const updated = nextLiked
+        ? await likeParty.mutateAsync(party.id)
+        : await unlikeParty.mutateAsync(party.id);
+      setLikedOverrides((s) => ({ ...s, [party.id]: updated.liked_by_me }));
+    } catch {
+      setLikedOverrides((s) => ({ ...s, [party.id]: !nextLiked }));
+    }
+  };
 
   // FlatList viewability tracking — replaces the web's onScroll handler
   const onViewableItemsChanged = useRef(
@@ -107,6 +133,11 @@ export default function DiscoverScreen() {
           <TouchableOpacity onPress={() => refetch()} activeOpacity={0.8}>
             <Text className="text-violet-bright text-sm font-semibold">Retry</Text>
           </TouchableOpacity>
+        </View>
+      ) : visible.length === 0 && hasNextPage ? (
+        // Still paging through the feed looking for a match against the active filter.
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator color="#B03BFF" />
         </View>
       ) : visible.length === 0 ? (
         <View className="flex-1 items-center justify-center px-8">

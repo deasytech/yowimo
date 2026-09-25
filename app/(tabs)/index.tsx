@@ -40,6 +40,8 @@ export default function HomeScreen() {
     const {
         parties,
         isLoading: isLoadingParties,
+        isError: isPartiesError,
+        error: partiesError,
         refetch: refetchParties,
     } = useDiscoverFeed();
     // Live parties first, then whatever's scheduled next, matching what this rail is for.
@@ -145,6 +147,18 @@ export default function HomeScreen() {
                     <ListHeading iconSet={true} title="Live now" actionText="Discover" link="/discover" />
                     {isLoadingParties ? (
                         <ActivityIndicator color="#B03BFF" style={{ marginVertical: 16 }} />
+                    ) : isPartiesError ? (
+                        <View className="items-center gap-2 py-4">
+                            <Text className="text-sm font-sans-medium text-white/60">
+                                Couldn&apos;t load parties.
+                            </Text>
+                            <Text className="text-xs text-white/40 text-center px-6">
+                                {partiesError instanceof Error ? partiesError.message : "Unknown error"}
+                            </Text>
+                            <TouchableOpacity onPress={() => refetchParties()} activeOpacity={0.8}>
+                                <Text className="text-violet-bright text-sm font-sans-semibold">Retry</Text>
+                            </TouchableOpacity>
+                        </View>
                     ) : (
                     <FlatList
                         data={_PARTIES}
