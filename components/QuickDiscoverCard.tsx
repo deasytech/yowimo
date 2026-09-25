@@ -1,32 +1,36 @@
+import { PartyDetail } from "@/lib/api/types";
+import { formatStartsIn, partyModeLabel, titleCaseSlug } from "@/lib/utils";
 import { posthog } from "@/lib/posthog";
-import clsx from 'clsx';
+import { Image } from "expo-image";
 import { LinearGradient as RNLinearGradient } from 'expo-linear-gradient';
 import { Link } from 'expo-router';
 import { styled } from 'nativewind';
-import { Image, Text, TouchableOpacity, View } from 'react-native';
+import { Text, TouchableOpacity, View } from 'react-native';
 
 const LinearGradient = styled(RNLinearGradient);
 
-const QuickDiscoverCard = ({ data }: { data: PartyProps }) => {
+const QuickDiscoverCard = ({ data }: { data: PartyDetail }) => {
+  const isLive = data.status === "live";
+
   return (
     <Link
       href={{
         pathname: "/lobby/[slug]",
-        params: { slug: data.id },
+        params: { slug: String(data.id) },
       }}
       asChild
     >
       <TouchableOpacity
         activeOpacity={0.85}
         className='w-72 mr-4 overflow-hidden bg-[#1C1C26] rounded-3xl'
-        onPress={() => posthog.capture('live_party_tapped', { party_id: data.id, party_title: data.title, is_live: data.isLive ?? false, mode: data.mode })}
+        onPress={() => posthog.capture('live_party_tapped', { party_id: data.id, party_title: data.title, is_live: isLive, mode: data.mode })}
         testID="live-party-card"
       >
         <View className='h-44 overflow-hidden'>
-          {data.image ? (
-            <Image source={data.image} className='absolute inset-0 h-full w-full object-cover' resizeMode="cover" />
+          {data.cover_image_url ? (
+            <Image source={{ uri: data.cover_image_url }} style={{ position: "absolute", width: "100%", height: "100%" }} contentFit="cover" />
           ) : (
-            <LinearGradient colors={["#7A1EFF", "#D84CFF"]} className='flex-1' />
+            <LinearGradient colors={data.gradient ?? ["#7A1EFF", "#D84CFF"]} className='flex-1' />
           )}
           <LinearGradient
             colors={["transparent", "rgba(13,13,18,0.60)"]}
@@ -35,12 +39,12 @@ const QuickDiscoverCard = ({ data }: { data: PartyProps }) => {
           <View className='absolute top-4 left-4 right-4 flex-row items-center justify-between'>
             <View className='rounded-full px-2.5 py-1.5 bg-background/70'>
               <Text className='text-white text-xs font-sans-bold uppercase tracking-wide'>
-                {data.isLive ? "🔴 Live" : data.startsIn}
+                {isLive ? "🔴 Live" : data.starts_at ? formatStartsIn(data.starts_at) : "Scheduled"}
               </Text>
             </View>
             <View className="rounded-full border border-white/10 bg-white/15 px-3 py-1">
               <Text className="text-xs font-sans-semibold uppercase tracking-wide text-white">
-                {data.mode}
+                {partyModeLabel(data.mode)}
               </Text>
             </View>
           </View>
@@ -48,7 +52,7 @@ const QuickDiscoverCard = ({ data }: { data: PartyProps }) => {
 
         <View className="bg-card p-4">
           <Text className="text-sm font-medium text-muted-foreground">
-            {data.type}
+            {data.game_type ? titleCaseSlug(data.game_type.slug) : "Party"}
           </Text>
 
           <Text className="mt-0.5 text-base font-bold leading-5 text-foreground" numberOfLines={1}>
@@ -56,22 +60,12 @@ const QuickDiscoverCard = ({ data }: { data: PartyProps }) => {
           </Text>
 
           <View className="mt-3 flex-row items-center justify-between">
-            <View className='flex-row'>
-              {[0, 1, 2].map((i) => (
-                <LinearGradient
-                  key={i}
-                  colors={["#7A1EFF", "#D84CFF"]}
-                  className={clsx('w-7 h-7 items-center justify-center rounded-full border-2 border-[#1C1C26]') + (i === 0 ? '' : ' -ml-2')}
-                >
-                  <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>
-                    {data.hostAvatar?.[i] ?? "+"}
-                  </Text>
-                </LinearGradient>
-              ))}
-            </View>
+            <Text className="text-xs font-medium text-muted-foreground" numberOfLines={1}>
+              Hosted by {data.host.display_name || data.host.username}
+            </Text>
 
             <Text className="text-xs font-medium text-muted-foreground">
-              {data.players}/{data.maxPlayers}
+              {data.players_count}/{data.max_players}
             </Text>
           </View>
         </View>

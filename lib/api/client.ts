@@ -17,7 +17,7 @@ export function toQueryString(params: Record<string, string | number | undefined
 }
 
 export interface ApiRequestOptions extends Omit<RequestInit, 'body'> {
-  body?: object;
+  body?: object | FormData;
   token?: string | null;
   idempotencyKey?: string;
 }
@@ -28,13 +28,17 @@ export async function apiRequestPaginated<T>(
   options: ApiRequestOptions = {},
 ): Promise<{ data: T; meta?: CursorMeta }> {
   const { body, token, idempotencyKey, headers, ...rest } = options;
+  // A file upload (e.g. party cover_image) needs multipart/form-data — the caller passes a
+  // FormData body directly and we must NOT set Content-Type ourselves, since fetch/RN derives
+  // the multipart boundary from the FormData instance when the header is left unset.
+  const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
 
   // Built as a Headers instance (rather than object-spreading `headers`) so caller-supplied
   // headers in any HeadersInit shape — plain object, [key, value][] tuples, or a Headers
   // instance — merge correctly instead of only the plain-object case.
   const requestHeaders = new Headers({
     Accept: 'application/json',
-    ...(body ? { 'Content-Type': 'application/json' } : {}),
+    ...(body && !isFormData ? { 'Content-Type': 'application/json' } : {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
   });
@@ -45,7 +49,7 @@ export async function apiRequestPaginated<T>(
   const res = await fetch(`${API_URL}${path}`, {
     ...rest,
     headers: requestHeaders,
-    body: body ? JSON.stringify(body) : undefined,
+    body: body ? (isFormData ? body : JSON.stringify(body)) : undefined,
   });
 
   // Envelope shape is consistent even for non-2xx (except a raw 429/5xx from infra, which
