@@ -169,6 +169,18 @@ export default function EditProfileScreen() {
     });
   }, [profile]);
 
+  // Interests used to be freeform fictional labels ("Truth or Dare", "Corporate"...) before this
+  // picker switched to real game_type slugs — drop any saved value that no longer matches the
+  // catalog once it loads, so stale labels can't linger invisibly and get resubmitted untouched.
+  useEffect(() => {
+    if (!gameTypes || !hasPrefilled.current) return;
+    const validSlugs = new Set(gameTypes.map((g) => g.slug));
+    setForm((f) => {
+      const filtered = f.interests.filter((i) => validSlugs.has(i));
+      return filtered.length === f.interests.length ? f : { ...f, interests: filtered };
+    });
+  }, [gameTypes]);
+
   const update = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 

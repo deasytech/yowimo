@@ -74,16 +74,20 @@ export default function DiscoverScreen() {
         return parties.filter((p) => p.status === "live");
       case "Sponsored":
         return parties.filter((p) => p.is_sponsored);
-      case "For you":
+      case "For you": {
         // No server-side "recommended" query param exists — match client-side against the
-        // game_type slugs saved in the user's profile interests. Nothing configured (or no
-        // matches at all) falls back to the full feed rather than showing an empty screen.
+        // game_type slugs saved in the user's profile interests. Nothing configured, or the
+        // whole feed paged through with zero matches, falls back to the full feed rather than
+        // a dead end.
         if (interestSlugs.size === 0) return parties;
-        return parties.filter((p) => p.game_type && interestSlugs.has(p.game_type.slug));
+        const matched = parties.filter((p) => p.game_type && interestSlugs.has(p.game_type.slug));
+        if (matched.length === 0 && !hasNextPage) return parties;
+        return matched;
+      }
       default:
         return parties;
     }
-  }, [parties, filter, interestSlugs]);
+  }, [parties, filter, interestSlugs, hasNextPage]);
 
   // "Live now"/"Sponsored" have no server-side query param — they filter whatever pages are
   // already loaded. If that filters down to zero, keep paging until a match turns up or the
