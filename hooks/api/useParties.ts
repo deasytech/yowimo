@@ -179,9 +179,12 @@ export function useCreateParty() {
   });
 }
 
-/** like/unlike/join/leave/start/end/cancel all return the full updated PartyResource — swap it
- * straight into the detail cache rather than re-fetching, and invalidate the hosted/joined
- * lists since any of these can move a party between "My Parties" buckets. */
+/** like/unlike/join/leave/start/end/cancel are documented as returning the full PartyResource,
+ * but in practice at least one of these (like/unlike) has come back missing fields (e.g. `host`)
+ * that GET /parties/{id} always includes — crashing anything reading them straight after. Merge
+ * onto the existing cached detail instead of replacing it wholesale, so a thinner action
+ * response can't blow away fields the detail fetch already had. Also invalidates the
+ * hosted/joined lists since any of these can move a party between "My Parties" buckets. */
 function usePartyActionMutation(path: (partyId: number) => string, method: 'POST' | 'DELETE') {
   const { request } = useApi();
   const queryClient = useQueryClient();
@@ -189,7 +192,9 @@ function usePartyActionMutation(path: (partyId: number) => string, method: 'POST
   return useMutation({
     mutationFn: (partyId: number) => request<PartyDetail>(path(partyId), { method }),
     onSuccess: (party) => {
-      queryClient.setQueryData(partyQueryKey(party.id), party);
+      queryClient.setQueryData<PartyDetail>(partyQueryKey(party.id), (existing) =>
+        existing ? { ...existing, ...party } : party,
+      );
       queryClient.invalidateQueries({ queryKey: hostedPartiesQueryKey });
       queryClient.invalidateQueries({ queryKey: joinedPartiesQueryKey });
     },
