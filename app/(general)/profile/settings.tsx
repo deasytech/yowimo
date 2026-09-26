@@ -2,6 +2,7 @@ import GoBack from "@/components/shared/GoBack";
 import ListHeading from "@/components/shared/ListHeading";
 import { posthog } from "@/lib/posthog";
 import { useClerk } from "@clerk/expo";
+import { useQueryClient } from "@tanstack/react-query";
 import { LinearGradient as RNLinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import {
@@ -26,6 +27,7 @@ const SafeAreaView = styled(RNSafeAreaView);
 export default function SettingsScreen() {
   const router = useRouter();
   const { signOut } = useClerk();
+  const queryClient = useQueryClient();
 
   const [push, setPush] = useState(true);
   const [dark, setDark] = useState(true);
@@ -64,6 +66,9 @@ export default function SettingsScreen() {
   const handleSignOut = async () => {
     try {
       await signOut();
+      // Otherwise the next account signed in on this device could briefly see the previous
+      // user's cached parties/wallet/profile data until each query happens to refetch.
+      queryClient.clear();
       posthog.capture('sign_out_completed');
       posthog.reset();
     } catch (error) {

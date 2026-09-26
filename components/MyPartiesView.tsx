@@ -1,9 +1,12 @@
+import ConfirmDialog from "@/components/shared/ConfirmDialog";
+import Toast from "@/components/shared/Toast";
 import {
   useCancelParty,
   useHostedParties,
   useJoinedParties,
   myPartiesBucket,
 } from "@/hooks/api/useParties";
+import { useToast } from "@/hooks/useToast";
 import { ApiError, PartyDetail, PartyMembershipStatus } from "@/lib/api/types";
 import { formatRelativeTime, formatStartsIn, partyModeLabel, titleCaseSlug } from "@/lib/utils";
 import { Image } from "expo-image";
@@ -11,8 +14,8 @@ import { LinearGradient as RNLinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { Crown, Sparkles, Users, X } from "lucide-react-native";
 import { styled } from "nativewind";
-import { useMemo, useState } from "react";
-import { ActivityIndicator, Alert, FlatList, Text, TouchableOpacity, View } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, FlatList, Text, TouchableOpacity, View } from "react-native";
 
 const LinearGradient = styled(RNLinearGradient);
 
@@ -36,6 +39,10 @@ export default function MyPartiesView({ topInset }: { topInset: number }) {
   const router = useRouter();
   const [tab, setTab] = useState<Bucket>("upcoming");
   const [cancelingId, setCancelingId] = useState<number | null>(null);
+  const [pendingCancel, setPendingCancel] = useState<PartyDetail | null>(null);
+  const [toastMessage, setToastMessage] = useState("");
+  const [toastBg, setToastBg] = useState("bg-green-600");
+  const toast = useToast();
 
   const hosted = useHostedParties();
   const joined = useJoinedParties();
@@ -81,40 +88,65 @@ export default function MyPartiesView({ topInset }: { topInset: number }) {
     if (joined.hasNextPage && !joined.isFetchingNextPage) joined.fetchNextPage();
   };
 
+  // Both sources page independently and the active bucket only shows a slice of whichever's
+  // loaded so far — if that slice is empty but either source has more, keep paging instead of
+  // telling the user there's nothing here.
+  useEffect(() => {
+    if (!isLoading && !isError && visible.length === 0 && hasNextPage && !isFetchingNextPage) {
+      loadMore();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible.length, hasNextPage, isFetchingNextPage, isLoading, isError]);
+
   const retry = () => {
     hosted.refetch();
     joined.refetch();
   };
 
-  const confirmCancel = (party: PartyDetail) => {
-    Alert.alert(
-      "Cancel this party?",
-      `"${party.title}" will be marked canceled — this can't be undone.`,
-      [
-        { text: "Keep it", style: "cancel" },
-        {
-          text: "Cancel party",
-          style: "destructive",
-          onPress: async () => {
-            setCancelingId(party.id);
-            try {
-              await cancelParty.mutateAsync(party.id);
-            } catch (err) {
-              Alert.alert(
-                "Couldn't cancel",
-                err instanceof ApiError ? err.message : "Please try again.",
-              );
-            } finally {
-              setCancelingId(null);
-            }
-          },
-        },
-      ],
-    );
+  const notify = (message: string, variant: "success" | "error") => {
+    setToastMessage(message);
+    setToastBg(variant === "success" ? "bg-green-600" : "bg-red-600");
+    toast.showToast();
+  };
+
+  const confirmCancel = async () => {
+    const party = pendingCancel;
+    if (!party) return;
+    setPendingCancel(null);
+    setCancelingId(party.id);
+    try {
+      await cancelParty.mutateAsync(party.id);
+      notify("Party canceled", "success");
+    } catch (err) {
+      notify(err instanceof ApiError ? err.message : "Couldn't cancel — please try again", "error");
+    } finally {
+      setCancelingId(null);
+    }
   };
 
   return (
     <View style={{ flex: 1, paddingTop: topInset }}>
+      <Toast
+        opacity={toast.opacity}
+        isVisible={toast.isVisible}
+        message={toastMessage}
+        bgClass={toastBg}
+      />
+
+      <ConfirmDialog
+        visible={pendingCancel !== null}
+        title="Cancel this party?"
+        message={
+          pendingCancel
+            ? `"${pendingCancel.title}" will be marked canceled — this can't be undone.`
+            : ""
+        }
+        confirmLabel="Cancel party"
+        cancelLabel="Keep it"
+        onConfirm={confirmCancel}
+        onCancel={() => setPendingCancel(null)}
+      />
+
       <View className="flex-row gap-2 px-4 pb-3">
         {TABS.map((t) => {
           const active = tab === t.id;
@@ -147,6 +179,11 @@ export default function MyPartiesView({ topInset }: { topInset: number }) {
           <TouchableOpacity onPress={retry} activeOpacity={0.8}>
             <Text className="text-violet-bright text-sm font-semibold">Retry</Text>
           </TouchableOpacity>
+        </View>
+      ) : visible.length === 0 && hasNextPage ? (
+        // Still paging through hosted/joined looking for a match against the active bucket.
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator color="#B03BFF" />
         </View>
       ) : visible.length === 0 ? (
         <View className="flex-1 items-center justify-center px-8">
@@ -185,66 +222,72 @@ export default function MyPartiesView({ topInset }: { topInset: number }) {
               (party.status === "draft" || party.status === "scheduled");
 
             return (
-              <TouchableOpacity
-                onPress={() => router.push(`/lobby/${party.id}`)}
-                activeOpacity={0.85}
-                className="flex-row items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3"
-              >
-                <View className="h-14 w-14 overflow-hidden rounded-xl">
-                  {party.cover_image_url ? (
-                    <Image
-                      source={{ uri: party.cover_image_url }}
-                      contentFit="cover"
-                      style={{ width: "100%", height: "100%" }}
-                    />
-                  ) : (
-                    <LinearGradient
-                      colors={party.gradient ?? ["#7A1EFF", "#D84CFF"]}
-                      style={{ width: "100%", height: "100%" }}
-                    />
-                  )}
-                </View>
-
-                <View className="flex-1">
-                  <Text
-                    className="text-foreground text-sm font-semibold"
-                    numberOfLines={1}
-                  >
-                    {party.title}
-                  </Text>
-                  <View className="mt-1 flex-row items-center gap-1.5">
-                    {item.role === "hosted" ? (
-                      <Crown color="#FFD166" size={12} strokeWidth={2} />
+              <View className="flex-row items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3">
+                <TouchableOpacity
+                  onPress={() => router.push(`/lobby/${party.id}`)}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open ${party.title}`}
+                  className="flex-1 flex-row items-center gap-3"
+                >
+                  <View className="h-14 w-14 overflow-hidden rounded-xl">
+                    {party.cover_image_url ? (
+                      <Image
+                        source={{ uri: party.cover_image_url }}
+                        contentFit="cover"
+                        style={{ width: "100%", height: "100%" }}
+                      />
                     ) : (
-                      <Users color="rgba(255,255,255,0.6)" size={12} strokeWidth={2} />
+                      <LinearGradient
+                        colors={party.gradient ?? ["#7A1EFF", "#D84CFF"]}
+                        style={{ width: "100%", height: "100%" }}
+                      />
                     )}
-                    <Text className="text-muted-foreground text-[11px]" numberOfLines={1}>
-                      {item.role === "hosted" ? "Hosting" : "Joined"} ·{" "}
-                      {party.game_type ? titleCaseSlug(party.game_type.slug) : partyModeLabel(party.mode)}
+                  </View>
+
+                  <View className="flex-1">
+                    <Text
+                      className="text-foreground text-sm font-semibold"
+                      numberOfLines={1}
+                    >
+                      {party.title}
+                    </Text>
+                    <View className="mt-1 flex-row items-center gap-1.5">
+                      {item.role === "hosted" ? (
+                        <Crown color="#FFD166" size={12} strokeWidth={2} />
+                      ) : (
+                        <Users color="rgba(255,255,255,0.6)" size={12} strokeWidth={2} />
+                      )}
+                      <Text className="text-muted-foreground text-[11px]" numberOfLines={1}>
+                        {item.role === "hosted" ? "Hosting" : "Joined"} ·{" "}
+                        {party.game_type ? titleCaseSlug(party.game_type.slug) : partyModeLabel(party.mode)}
+                      </Text>
+                    </View>
+                    <Text className="mt-0.5 text-muted-foreground text-[11px]">
+                      {tab === "upcoming"
+                        ? party.starts_at
+                          ? formatStartsIn(party.starts_at)
+                          : "No date set"
+                        : formatRelativeTime(item.leftAt ?? party.updated_at)}
                     </Text>
                   </View>
-                  <Text className="mt-0.5 text-muted-foreground text-[11px]">
-                    {tab === "upcoming"
-                      ? party.starts_at
-                        ? formatStartsIn(party.starts_at)
-                        : "No date set"
-                      : formatRelativeTime(item.leftAt ?? party.updated_at)}
-                  </Text>
-                </View>
+                </TouchableOpacity>
 
                 {canCancel &&
                   (cancelingId === party.id ? (
                     <ActivityIndicator color="#fff" size="small" />
                   ) : (
                     <TouchableOpacity
-                      onPress={() => confirmCancel(party)}
+                      onPress={() => setPendingCancel(party)}
                       activeOpacity={0.8}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Cancel ${party.title}`}
                       className="h-8 w-8 items-center justify-center rounded-full bg-white/10"
                     >
                       <X color="rgba(255,255,255,0.7)" size={14} strokeWidth={2} />
                     </TouchableOpacity>
                   ))}
-              </TouchableOpacity>
+              </View>
             );
           }}
         />

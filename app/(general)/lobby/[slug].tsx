@@ -1,3 +1,4 @@
+import ConfirmDialog from "@/components/shared/ConfirmDialog";
 import GoBack from "@/components/shared/GoBack";
 import Toast from "@/components/shared/Toast";
 import {
@@ -30,7 +31,7 @@ import {
 } from "lucide-react-native";
 import { styled } from "nativewind";
 import { useRef, useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
 
 const LinearGradient = styled(RNLinearGradient);
@@ -68,6 +69,7 @@ export default function LobbyScreen() {
   // setBusy is async, so `busy` state alone can't stop two taps landing in the same tick
   // before the first render commits — this ref is the synchronous guard.
   const busyRef = useRef<string | null>(null);
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [toastBg, setToastBg] = useState("bg-green-600");
   const toast = useToast();
@@ -143,6 +145,18 @@ export default function LobbyScreen() {
         isVisible={toast.isVisible}
         message={toastMessage}
         bgClass={toastBg}
+      />
+      <ConfirmDialog
+        visible={confirmingCancel}
+        title="Cancel this party?"
+        message={`"${party.title}" will be marked canceled — this can't be undone.`}
+        confirmLabel="Cancel party"
+        cancelLabel="Keep it"
+        onConfirm={() => {
+          setConfirmingCancel(false);
+          runAction("cancel", () => cancelParty.mutateAsync(party.id), "Party canceled");
+        }}
+        onCancel={() => setConfirmingCancel(false)}
       />
       <ScrollView
         className="flex-1"
@@ -360,21 +374,7 @@ export default function LobbyScreen() {
 
         {canCancel && (
           <TouchableOpacity
-            onPress={() =>
-              Alert.alert(
-                "Cancel this party?",
-                `"${party.title}" will be marked canceled — this can't be undone.`,
-                [
-                  { text: "Keep it", style: "cancel" },
-                  {
-                    text: "Cancel party",
-                    style: "destructive",
-                    onPress: () =>
-                      runAction("cancel", () => cancelParty.mutateAsync(party.id), "Party canceled"),
-                  },
-                ],
-              )
-            }
+            onPress={() => setConfirmingCancel(true)}
             disabled={busy === "cancel"}
             activeOpacity={0.8}
             className="mt-7 h-12 items-center justify-center rounded-2xl border border-destructive/40"
