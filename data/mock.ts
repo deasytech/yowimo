@@ -177,7 +177,10 @@ export const FRIENDS: FriendProps[] = [
 ];
 
 export const QUICK_ACTIONS = [
-  { icon: Zap, label: "Quick Match", href: "/lobby/quick", colors: ["#FF8A2A", "#D84CFF"] as const },
+  // Lands on Discover's "For you" tab, which matches public parties against the user's saved
+  // interests (game_type slugs) — closest real equivalent to matchmaking, since there's no
+  // dedicated matchmaking endpoint.
+  { icon: Zap, label: "Quick Match", href: "/discover", colors: ["#FF8A2A", "#D84CFF"] as const },
   { icon: Users, label: "Friends", href: "/profile/friends", colors: ["#7A1EFF", "#A855F7"] as const },
   { icon: Trophy, label: "Leaderboard", href: "/leaderboard", colors: ["#D84CFF", "#FF8A2A"] as const },
   { icon: Flame, label: "Trending", href: "/play/public", colors: ["#312E81", "#7A1EFF"] as const },
