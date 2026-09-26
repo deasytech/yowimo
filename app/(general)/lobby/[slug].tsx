@@ -1,6 +1,8 @@
+import ConfirmDialog from "@/components/shared/ConfirmDialog";
 import GoBack from "@/components/shared/GoBack";
 import Toast from "@/components/shared/Toast";
 import {
+  useCancelParty,
   useEndParty,
   useJoinParty,
   useLeaveParty,
@@ -61,11 +63,13 @@ export default function LobbyScreen() {
   const leaveParty = useLeaveParty();
   const startParty = useStartParty();
   const endParty = useEndParty();
+  const cancelParty = useCancelParty();
 
   const [busy, setBusy] = useState<string | null>(null);
   // setBusy is async, so `busy` state alone can't stop two taps landing in the same tick
   // before the first render commits — this ref is the synchronous guard.
   const busyRef = useRef<string | null>(null);
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [toastBg, setToastBg] = useState("bg-green-600");
   const toast = useToast();
@@ -128,7 +132,9 @@ export default function LobbyScreen() {
   const isHost = profile?.id === party.host.id;
   const canStart = isHost && (party.status === "draft" || party.status === "scheduled");
   const canEnd = isHost && party.status === "live";
-  const canJoin = !isHost && !party.joined_by_me && party.status !== "ended";
+  const canCancel = isHost && (party.status === "draft" || party.status === "scheduled");
+  const canJoin =
+    !isHost && !party.joined_by_me && (party.status === "scheduled" || party.status === "live");
   const canLeave = !isHost && party.joined_by_me;
   const roomCode = "room_code" in party ? party.room_code : undefined;
 
@@ -139,6 +145,18 @@ export default function LobbyScreen() {
         isVisible={toast.isVisible}
         message={toastMessage}
         bgClass={toastBg}
+      />
+      <ConfirmDialog
+        visible={confirmingCancel}
+        title="Cancel this party?"
+        message={`"${party.title}" will be marked canceled — this can't be undone.`}
+        confirmLabel="Cancel party"
+        cancelLabel="Keep it"
+        onConfirm={() => {
+          setConfirmingCancel(false);
+          runAction("cancel", () => cancelParty.mutateAsync(party.id), "Party canceled");
+        }}
+        onCancel={() => setConfirmingCancel(false)}
       />
       <ScrollView
         className="flex-1"
@@ -353,6 +371,21 @@ export default function LobbyScreen() {
             )}
           </TouchableOpacity>
         )}
+
+        {canCancel && (
+          <TouchableOpacity
+            onPress={() => setConfirmingCancel(true)}
+            disabled={Boolean(busy)}
+            activeOpacity={0.8}
+            className="mt-7 h-12 items-center justify-center rounded-2xl border border-destructive/40"
+          >
+            {busy === "cancel" ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text className="text-destructive text-sm font-semibold">Cancel party</Text>
+            )}
+          </TouchableOpacity>
+        )}
       </ScrollView>
 
       <View className="border-t border-white/10 bg-background px-5 pb-3">
@@ -420,7 +453,11 @@ export default function LobbyScreen() {
         ) : (
           <View className="mt-8 h-14 w-full items-center justify-center rounded-2xl bg-secondary/40">
             <Text className="text-muted-foreground text-sm font-semibold">
-              {party.status === "ended" ? "This party has ended" : "Waiting to start"}
+              {party.status === "ended"
+                ? "This party has ended"
+                : party.status === "cancelled"
+                  ? "This party was canceled"
+                  : "Waiting to start"}
             </Text>
           </View>
         )}

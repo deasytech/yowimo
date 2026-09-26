@@ -1,12 +1,21 @@
 import { useApi } from '@/hooks/api/useApi';
 import { toQueryString } from '@/lib/api/client';
-import { CreatePartyPayload, PartyDetail, PartyMode, PartySummary } from '@/lib/api/types';
+import {
+  CreatePartyPayload,
+  PartyDetail,
+  PartyMembership,
+  PartyMembershipStatus,
+  PartyMode,
+  PartyStatus,
+  PartySummary,
+} from '@/lib/api/types';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 export interface DiscoverFeedFilters {
   mode?: PartyMode;
   game_type_id?: number;
   search?: string;
+  enabled?: boolean;
 }
 
 export const discoverFeedQueryKey = (filters: DiscoverFeedFilters = {}) =>
@@ -35,6 +44,7 @@ export function useDiscoverFeed(filters: DiscoverFeedFilters = {}) {
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) =>
       lastPage.meta?.has_more_pages ? (lastPage.meta.next_cursor ?? undefined) : undefined,
+    enabled: filters.enabled ?? true,
   });
 
   return {
@@ -58,6 +68,68 @@ export function useParty(partyId: number | null) {
     queryFn: () => request<PartyDetail>(`/parties/${partyId}`),
     enabled: partyId !== null,
   });
+}
+
+export const hostedPartiesQueryKey = ['parties', 'hosted'] as const;
+
+/** Every party the caller hosts, any status/visibility — the "My Parties" management view.
+ * Bucketing (Upcoming/Past/Canceled) is client-side per the docs; this just paginates raw. */
+export function useHostedParties() {
+  const { requestPaginated } = useApi();
+
+  const query = useInfiniteQuery({
+    queryKey: hostedPartiesQueryKey,
+    queryFn: ({ pageParam }: { pageParam?: string }) =>
+      requestPaginated<PartyDetail[]>(
+        `/users/me/parties/hosted${toQueryString({ cursor: pageParam, per_page: 20 })}`,
+      ),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) =>
+      lastPage.meta?.has_more_pages ? (lastPage.meta.next_cursor ?? undefined) : undefined,
+  });
+
+  return {
+    ...query,
+    parties: query.data?.pages.flatMap((page) => page.data) ?? [],
+  };
+}
+
+export const joinedPartiesQueryKey = ['parties', 'joined'] as const;
+
+/** Every party the caller has ever been a member of (not host) — current and past. Each row is
+ * a membership record (membership_status/joined_at/left_at) nested around the party itself. */
+export function useJoinedParties() {
+  const { requestPaginated } = useApi();
+
+  const query = useInfiniteQuery({
+    queryKey: joinedPartiesQueryKey,
+    queryFn: ({ pageParam }: { pageParam?: string }) =>
+      requestPaginated<PartyMembership[]>(
+        `/users/me/parties/joined${toQueryString({ cursor: pageParam, per_page: 20 })}`,
+      ),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) =>
+      lastPage.meta?.has_more_pages ? (lastPage.meta.next_cursor ?? undefined) : undefined,
+  });
+
+  return {
+    ...query,
+    memberships: query.data?.pages.flatMap((page) => page.data) ?? [],
+  };
+}
+
+/** Which of the three "My Parties" buckets a party/membership falls into. A membership the
+ * caller left, or a party the host cancelled, is Canceled regardless of the party's own status
+ * otherwise — matches the docs' explicit bucketing guidance. */
+export function myPartiesBucket(
+  status: PartyStatus,
+  membershipStatus?: PartyMembershipStatus,
+): 'upcoming' | 'past' | 'canceled' {
+  if (status === 'cancelled' || membershipStatus === 'left' || membershipStatus === 'removed') {
+    return 'canceled';
+  }
+  if (status === 'ended') return 'past';
+  return 'upcoming';
 }
 
 /** Only `cover_image` needs multipart — everything else keeps going as plain JSON when it's
@@ -102,12 +174,14 @@ export function useCreateParty() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['parties', 'discover'] });
+      queryClient.invalidateQueries({ queryKey: hostedPartiesQueryKey });
     },
   });
 }
 
-/** like/unlike/join/leave/start/end all return the full updated PartyResource — just swap
- * it straight into the detail cache rather than re-fetching. */
+/** like/unlike/join/leave/start/end/cancel all return the full updated PartyResource — swap it
+ * straight into the detail cache rather than re-fetching, and invalidate the hosted/joined
+ * lists since any of these can move a party between "My Parties" buckets. */
 function usePartyActionMutation(path: (partyId: number) => string, method: 'POST' | 'DELETE') {
   const { request } = useApi();
   const queryClient = useQueryClient();
@@ -116,6 +190,8 @@ function usePartyActionMutation(path: (partyId: number) => string, method: 'POST
     mutationFn: (partyId: number) => request<PartyDetail>(path(partyId), { method }),
     onSuccess: (party) => {
       queryClient.setQueryData(partyQueryKey(party.id), party);
+      queryClient.invalidateQueries({ queryKey: hostedPartiesQueryKey });
+      queryClient.invalidateQueries({ queryKey: joinedPartiesQueryKey });
     },
   });
 }
@@ -134,6 +210,10 @@ export function useJoinParty() {
 
 export function useLeaveParty() {
   return usePartyActionMutation((id) => `/parties/${id}/leave`, 'DELETE');
+}
+
+export function useCancelParty() {
+  return usePartyActionMutation((id) => `/parties/${id}/cancel`, 'POST');
 }
 
 export function useStartParty() {
