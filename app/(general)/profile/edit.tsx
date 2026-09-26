@@ -1,3 +1,4 @@
+import { useGameTypes } from "@/hooks/api/useGameTypes";
 import { useProfile, useUpdateProfile } from "@/hooks/api/useProfile";
 import { ApiError } from "@/lib/api/types";
 import { COUNTRIES, type Country } from "@/data/countries";
@@ -59,18 +60,6 @@ const formatDisplayDate = (s: string) => {
     day: "numeric",
   });
 };
-
-const INTERESTS = [
-  "Truth or Dare",
-  "Trivia",
-  "Charades",
-  "Couples",
-  "Corporate",
-  "Music",
-  "Movies",
-  "Wild",
-  "Chill",
-];
 
 const PRIVACY_ROWS = [
   { key: "isPublic", label: "Public profile", sub: "Anyone can view your profile" },
@@ -143,6 +132,9 @@ export default function EditProfileScreen() {
   const router = useRouter();
   const { data: profile, isLoading } = useProfile();
   const updateProfile = useUpdateProfile();
+  // Interests are stored as game_type slugs (so Discover's "For you" filter can actually match
+  // them against real parties) — picked from the real catalog, not a fictional label list.
+  const { data: gameTypes } = useGameTypes();
 
   const [form, setForm] = useState({
     displayName: "",
@@ -403,13 +395,16 @@ export default function EditProfileScreen() {
               {/* ── Interests ── */}
               <View className="mt-7">
                 <Text className="mb-3 text-foreground text-base font-semibold">Interests</Text>
+                <Text className="mb-3 text-muted-foreground text-xs">
+                  Powers Discover&apos;s &quot;For you&quot; feed — matched against each party&apos;s game.
+                </Text>
                 <View className="flex-row flex-wrap gap-2">
-                  {INTERESTS.map((i) => {
-                    const active = form.interests.includes(i);
+                  {(gameTypes ?? []).map((g) => {
+                    const active = form.interests.includes(g.slug);
                     return (
                       <TouchableOpacity
-                        key={i}
-                        onPress={() => toggleInterest(i)}
+                        key={g.slug}
+                        onPress={() => toggleInterest(g.slug)}
                         activeOpacity={0.8}
                         className={`flex-row items-center gap-1 rounded-full border px-3 py-1.5 ${active
                           ? "border-violet-bright bg-violet/20"
@@ -421,7 +416,7 @@ export default function EditProfileScreen() {
                           className={`text-xs font-semibold ${active ? "text-foreground" : "text-muted-foreground"
                             }`}
                         >
-                          {i}
+                          {g.emoji} {g.name}
                         </Text>
                       </TouchableOpacity>
                     );
