@@ -111,7 +111,7 @@ export default function MyPartiesView({ topInset }: { topInset: number }) {
 
   const confirmCancel = async () => {
     const party = pendingCancel;
-    if (!party) return;
+    if (!party || cancelingId !== null) return;
     setPendingCancel(null);
     setCancelingId(party.id);
     try {
@@ -279,9 +279,11 @@ export default function MyPartiesView({ topInset }: { topInset: number }) {
                   ) : (
                     <TouchableOpacity
                       onPress={() => setPendingCancel(party)}
+                      disabled={cancelingId !== null}
                       activeOpacity={0.8}
                       accessibilityRole="button"
                       accessibilityLabel={`Cancel ${party.title}`}
+                      style={{ opacity: cancelingId !== null ? 0.4 : 1 }}
                       className="h-8 w-8 items-center justify-center rounded-full bg-white/10"
                     >
                       <X color="rgba(255,255,255,0.7)" size={14} strokeWidth={2} />

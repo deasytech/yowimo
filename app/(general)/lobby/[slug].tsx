@@ -375,7 +375,7 @@ export default function LobbyScreen() {
         {canCancel && (
           <TouchableOpacity
             onPress={() => setConfirmingCancel(true)}
-            disabled={busy === "cancel"}
+            disabled={Boolean(busy)}
             activeOpacity={0.8}
             className="mt-7 h-12 items-center justify-center rounded-2xl border border-destructive/40"
           >

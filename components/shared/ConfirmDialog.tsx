@@ -32,7 +32,13 @@ export default function ConfirmDialog({
   onCancel,
 }: ConfirmDialogProps) {
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onCancel}
+      accessibilityLabel={title}
+    >
       <View
         style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)" }}
         className="items-center justify-center px-8"
