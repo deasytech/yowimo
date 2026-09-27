@@ -22,6 +22,7 @@ const GAME_TYPES: GameTypeResource[] = [
     cost: 0,
     image_url: null,
     gradient: ['#F0A83C', '#B23A34'],
+    default_pack_id: null,
     created_at: '2026-01-10T00:00:00Z',
     updated_at: '2026-01-10T00:00:00Z',
   },

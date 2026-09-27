@@ -18,6 +18,8 @@ export const featuredPacksQueryKey = (userId: string | null | undefined) =>
   ['packs', userId, 'featured'] as const;
 export const packQueryKey = (userId: string | null | undefined, packId: number | null) =>
   ['packs', userId, 'detail', packId] as const;
+export const gameTypePacksQueryKey = (userId: string | null | undefined, gameTypeId: number | null) =>
+  ['packs', userId, 'game-type', gameTypeId] as const;
 
 /** Cursor-paginated catalog, optionally filtered to one category. */
 export function usePacks(category?: PackCategory) {
@@ -34,6 +36,36 @@ export function usePacks(category?: PackCategory) {
     getNextPageParam: (lastPage) =>
       lastPage.meta?.has_more_pages ? (lastPage.meta.next_cursor ?? undefined) : undefined,
     enabled: isLoaded && isSignedIn,
+  });
+
+  return {
+    ...query,
+    packs: query.data?.pages.flatMap((page) => page.data) ?? [],
+  };
+}
+
+/**
+ * The decks (packs) a host can choose from for one game type — the create-party deck picker.
+ * The API refuses to start a game session for a party with no pack (`GameSessionService` deals
+ * cards straight out of `pack.cards`), so picking one here is what makes a new party playable.
+ *
+ * Server-side `game_type_id` filter rather than filtering the marketplace list client-side: that
+ * list is cursor-paginated, so a game type's decks can sit on pages we never loaded.
+ */
+export function useGameTypePacks(gameTypeId: number | null) {
+  const { requestPaginated } = useApi();
+  const { userId, isLoaded, isSignedIn } = useAuth();
+
+  const query = useInfiniteQuery({
+    queryKey: gameTypePacksQueryKey(userId, gameTypeId),
+    queryFn: ({ pageParam }: { pageParam?: string }) =>
+      requestPaginated<PackResource[]>(
+        `/packs${toQueryString({ game_type_id: gameTypeId, cursor: pageParam, per_page: 50 })}`,
+      ),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) =>
+      lastPage.meta?.has_more_pages ? (lastPage.meta.next_cursor ?? undefined) : undefined,
+    enabled: gameTypeId !== null && isLoaded && isSignedIn,
   });
 
   return {

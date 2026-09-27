@@ -7,6 +7,7 @@ import { ChatProvider } from '@/context/ChatContext';
 import { PlayersProvider } from '@/context/PlayersContext';
 import { queryClient } from '@/lib/api/queryClient';
 import { posthog } from '@/lib/posthog';
+import { EchoProvider } from '@/lib/realtime/EchoProvider';
 import { ClerkProvider, useAuth } from '@clerk/expo';
 import { tokenCache } from '@clerk/expo/token-cache';
 import { QueryClientProvider } from '@tanstack/react-query';
@@ -79,22 +80,24 @@ function RootLayoutContent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <PostHogProvider
-        client={posthog}
-        autocapture={{
-          captureScreens: false,
-          captureTouches: true,
-          propsToCapture: ['testID'],
-          maxElementsCaptured: 20,
-        }}
-      >
-        <PlayersProvider>
-          <ChatProvider>
-            <Stack screenOptions={{ headerShown: false }} />
-            <StatusBar barStyle='light-content' />
-          </ChatProvider>
-        </PlayersProvider>
-      </PostHogProvider>
+      <EchoProvider>
+        <PostHogProvider
+          client={posthog}
+          autocapture={{
+            captureScreens: false,
+            captureTouches: true,
+            propsToCapture: ['testID'],
+            maxElementsCaptured: 20,
+          }}
+        >
+          <PlayersProvider>
+            <ChatProvider>
+              <Stack screenOptions={{ headerShown: false }} />
+              <StatusBar barStyle='light-content' />
+            </ChatProvider>
+          </PlayersProvider>
+        </PostHogProvider>
+      </EchoProvider>
     </QueryClientProvider>
   );
 }

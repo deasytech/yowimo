@@ -185,12 +185,16 @@ export function useCreateParty() {
  * onto the existing cached detail instead of replacing it wholesale, so a thinner action
  * response can't blow away fields the detail fetch already had. Also invalidates the
  * hosted/joined lists since any of these can move a party between "My Parties" buckets. */
-function usePartyActionMutation(path: (partyId: number) => string, method: 'POST' | 'DELETE') {
+function usePartyActionMutation<TVars = number>(
+  path: (vars: TVars) => string,
+  method: 'POST' | 'DELETE',
+  getBody?: (vars: TVars) => object,
+) {
   const { request } = useApi();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (partyId: number) => request<PartyDetail>(path(partyId), { method }),
+    mutationFn: (vars: TVars) => request<PartyDetail>(path(vars), { method, body: getBody?.(vars) }),
     onSuccess: (party) => {
       queryClient.setQueryData<PartyDetail>(partyQueryKey(party.id), (existing) =>
         existing ? { ...existing, ...party } : party,
@@ -209,12 +213,31 @@ export function useUnlikeParty() {
   return usePartyActionMutation((id) => `/parties/${id}/like`, 'DELETE');
 }
 
+/** `roomCode` is required by the API for a private party, ignored for a public one — always
+ * safe to pass when you have it. */
 export function useJoinParty() {
-  return usePartyActionMutation((id) => `/parties/${id}/join`, 'POST');
+  return usePartyActionMutation<{ partyId: number; roomCode?: string }>(
+    ({ partyId }) => `/parties/${partyId}/join`,
+    'POST',
+    ({ roomCode }) => (roomCode ? { room_code: roomCode } : {}),
+  );
 }
 
 export function useLeaveParty() {
   return usePartyActionMutation((id) => `/parties/${id}/leave`, 'DELETE');
+}
+
+/** Resolves a room code to its party — for joining a party you can't otherwise see (private, or
+ * simply not in the loaded Discover pages). Not gated by the normal visibility rule: knowing the
+ * exact code is its own authorization. Only scheduled/live parties resolve; a code for anything
+ * else 404s the same as an unknown one. Rate-limited tighter than most (10/min). */
+export function useLookupPartyByRoomCode() {
+  const { request } = useApi();
+
+  return useMutation({
+    mutationFn: (roomCode: string) =>
+      request<PartyDetail>(`/parties/lookup${toQueryString({ room_code: roomCode })}`),
+  });
 }
 
 export function useCancelParty() {
