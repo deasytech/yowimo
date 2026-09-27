@@ -194,17 +194,40 @@ export default function CreatePartyScreen() {
       notify("Add a venue for an in-person or hybrid party", "error");
       return null;
     }
-    // A launched party needs a deck — the game engine deals its cards out of the pack, and
-    // refuses to start without one. A draft can legitimately sit without a deck for now.
-    // (A failed deck fetch isn't treated as "no decks": the server falls back to the game
-    // type's default deck when pack_id is omitted.)
+    let packId = deckId ?? undefined;
+
+    // A launched party needs an explicit pack_id. Don't launch against an unresolved initial
+    // deck request. If the fetch failed or returned no decks, the game type's server-provided
+    // default is the only safe fallback.
     if (!saveAsDraft) {
-      if (decks.length > 0 && deckId === null) {
-        notify("Pick a deck for your game", "error");
+      if (isLoadingDecks) {
+        notify("Wait for decks to finish loading before launching", "error");
         return null;
       }
-      if (!isLoadingDecks && !isDecksError && decks.length === 0) {
+
+      const defaultPackId = selected?.default_pack_id;
+      const hasValidDefaultPackId =
+        typeof defaultPackId === "number" && Number.isInteger(defaultPackId) && defaultPackId > 0;
+      const selectedPackIsAvailable = deckId !== null && deckIds.includes(deckId);
+
+      if (isDecksError && !hasValidDefaultPackId) {
+        notify("Couldn't load decks and no default deck is available. Try again before launching.", "error");
+        return null;
+      }
+
+      if (decks.length === 0 && !hasValidDefaultPackId) {
         notify(`No decks are available for ${selected?.name ?? "this game"} yet`, "error");
+        return null;
+      }
+
+      packId = selectedPackIsAvailable
+        ? deckId
+        : hasValidDefaultPackId
+          ? defaultPackId
+          : decks[0]?.id;
+
+      if (packId === undefined) {
+        notify("Pick a deck for your game", "error");
         return null;
       }
     }
@@ -212,7 +235,7 @@ export default function CreatePartyScreen() {
     return {
       title: title.trim(),
       game_type_id: selected?.id ?? null,
-      pack_id: deckId ?? undefined,
+      pack_id: packId,
       mode,
       visibility,
       max_players: resolveMaxPlayers(),
