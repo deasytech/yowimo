@@ -1,7 +1,7 @@
 import { useAuth } from '@clerk/expo';
 import Echo from 'laravel-echo';
-import * as PusherModule from 'pusher-js/react-native';
 import type PusherType from 'pusher-js';
+import * as PusherModule from 'pusher-js/react-native';
 import { createContext, ReactNode, useContext, useEffect, useRef, useState } from 'react';
 
 // pusher-js's React Native build is a webpack/UMD bundle whose compiled output attaches the
@@ -33,7 +33,7 @@ const EchoContext = createContext<EchoInstance | null>(null);
  * `useAuth()` without needing to recreate the Echo instance (and reconnect the socket) on every
  * render.
  */
-export function EchoProvider({ children }: { children: ReactNode }) {
+export function EchoProvider({ children }: { readonly children: ReactNode }) {
   const { getToken } = useAuth();
   const getTokenRef = useRef(getToken);
   getTokenRef.current = getToken;

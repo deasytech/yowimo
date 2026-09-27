@@ -140,7 +140,7 @@ export default function LobbyScreen() {
       const existingId =
         err instanceof ApiError && err.status === 409
           ? Number((err.errors as Record<string, unknown> | undefined)?.game_session_id)
-          : NaN;
+          : Number.NaN;
       if (Number.isFinite(existingId)) {
         router.push(`/play/game?partyId=${party.id}&sessionId=${existingId}`);
       } else {
@@ -194,6 +194,10 @@ export default function LobbyScreen() {
     !isHost && !party.joined_by_me && (party.status === "scheduled" || party.status === "live");
   const canLeave = !isHost && party.joined_by_me;
   const roomCode = "room_code" in party ? party.room_code : undefined;
+  const isGameActionPending = busy === "game" || isLoadingPartyGame;
+  const gameActionOpacity = getGameActionOpacity(isGameActionPending, Boolean(partyGame), isHost);
+  const gameActionLabel = getGameActionLabel(Boolean(partyGame), isHost);
+  const partyStatusLabel = getPartyStatusLabel(party.status);
 
   return (
     <SafeAreaView className="flex-1 bg-background">
@@ -516,29 +520,41 @@ export default function LobbyScreen() {
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               className="h-14 w-full items-center justify-center rounded-2xl"
-              style={{ opacity: busy === "game" || isLoadingPartyGame ? 0.7 : !partyGame && !isHost ? 0.6 : 1 }}
+              style={{ opacity: gameActionOpacity }}
             >
-              {busy === "game" || isLoadingPartyGame ? (
+              {isGameActionPending ? (
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
-                <Text className="text-white text-base font-semibold">
-                  {partyGame ? "Jump in" : isHost ? "Start game" : "Waiting for host"}
-                </Text>
+                <Text className="text-white text-base font-semibold">{gameActionLabel}</Text>
               )}
             </LinearGradient>
           </TouchableOpacity>
         ) : (
           <View className="mt-8 h-14 w-full items-center justify-center rounded-2xl bg-secondary/40">
             <Text className="text-muted-foreground text-sm font-semibold">
-              {party.status === "ended"
-                ? "This party has ended"
-                : party.status === "cancelled"
-                  ? "This party was canceled"
-                  : "Waiting to start"}
+              {partyStatusLabel}
             </Text>
           </View>
         )}
       </View>
     </SafeAreaView>
   );
+}
+
+function getGameActionOpacity(isPending: boolean, hasGame: boolean, isHost: boolean): number {
+  if (isPending) return 0.7;
+  if (!hasGame && !isHost) return 0.6;
+  return 1;
+}
+
+function getGameActionLabel(hasGame: boolean, isHost: boolean): string {
+  if (hasGame) return "Jump in";
+  if (isHost) return "Start game";
+  return "Waiting for host";
+}
+
+function getPartyStatusLabel(status: string): string {
+  if (status === "ended") return "This party has ended";
+  if (status === "cancelled") return "This party was canceled";
+  return "Waiting to start";
 }
