@@ -1,7 +1,7 @@
 import Toast from "@/components/shared/Toast";
 import { useGameTypes } from "@/hooks/api/useGameTypes";
-import { useCreateParty } from "@/hooks/api/useParties";
 import { useGameTypePacks } from "@/hooks/api/usePacks";
+import { useCreateParty } from "@/hooks/api/useParties";
 import { useToast } from "@/hooks/useToast";
 import { ApiError, CreatePartyPayload, LocalImageFile, PartyMode } from "@/lib/api/types";
 import DateTimePicker, {
@@ -580,9 +580,8 @@ export default function CreatePartyScreen() {
                         testID={`deck-option-${deck.id}`}
                         onPress={() => setDeckId(deck.id)}
                         activeOpacity={0.85}
-                        className={`flex-row items-center gap-3 rounded-2xl border p-3 ${
-                          active ? "border-violet-bright bg-secondary/60" : "border-border bg-card"
-                        }`}
+                        className={`flex-row items-center gap-3 rounded-2xl border p-3 ${active ? "border-violet-bright bg-secondary/60" : "border-border bg-card"
+                          }`}
                       >
                         <Text style={{ fontSize: 22 }}>{deck.emoji || "🃏"}</Text>
 
