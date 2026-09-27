@@ -297,6 +297,8 @@ export interface GameTurn {
   completed_at: string | null;
   expires_at: string;
   is_afk: boolean;
+  // Only present on GET /game/{id} and GET /parties/{party}/game.
+  is_skipped?: boolean;
 }
 
 export interface GameRound {
@@ -306,16 +308,75 @@ export interface GameRound {
   completed_at: string | null;
 }
 
+export type GameSessionStatus = 'running' | 'paused' | 'voting' | 'completed' | 'ended';
+
 export interface GameSessionResource {
   id: number;
   party_id: number;
-  status: 'running' | 'completed';
+  status: GameSessionStatus;
   rounds_count: number;
   current_round_number: number;
   started_at: string;
   ended_at: string | null;
   current_round: GameRound;
   current_turn: GameTurn;
+  // Only present on GET /game/{id} and GET /parties/{party}/game — the start/next-turn/
+  // complete/skip/pause/resume responses omit these.
+  host_id?: number;
+  pack_id?: number;
+  /** Every player in play order, including anyone who has left (positions never shift). */
+  turn_order?: number[];
+  /** turn_order without players who left — render this for "who's still playing." */
+  active_player_ids?: number[];
+  current_turn_index?: number;
+  turn_seconds?: number;
+  paused_at?: string | null;
+  paused_turn_remaining_seconds?: number | null;
+  voting_ends_at?: string | null;
+}
+
+export interface CreateGameSessionPayload {
+  /** One of 5, 10, 15, 20. Omit to default to 10. */
+  rounds?: 5 | 10 | 15 | 20;
+  /** One of 15, 30, 45, 60, 90 seconds per turn. Omit to default to 30. */
+  turn_seconds?: 15 | 30 | 45 | 60 | 90;
+}
+
+export type PartyPlayerStatus = 'active' | 'left';
+
+export interface PartyPlayerResource {
+  user_id: number;
+  user: { id: number; username: string; display_name: string; avatar_url: string | null };
+  is_host: boolean;
+  status: PartyPlayerStatus;
+  joined_at: string;
+  left_at: string | null;
+}
+
+export interface GameStanding {
+  user: { id: number; username: string; display_name: string; avatar_url: string | null };
+  xp: number;
+  votes: { winner: number; funny: number; creativity: number };
+  turns: { completed: number; skipped: number; afk: number };
+  is_mvp: boolean;
+}
+
+export interface GameResultsResource {
+  game_session_id: number;
+  status: GameSessionStatus;
+  standings: GameStanding[];
+}
+
+export type ReactionEmoji = '🔥' | '😂' | '❤️' | '😱' | '👏' | '💀' | '🤯' | '👀' | '✨';
+
+export type VoteCategory = 'winner' | 'funny' | 'creativity';
+
+export interface VoteResource {
+  id: number;
+  turn_id: number;
+  voter_id: number;
+  category: VoteCategory;
+  created_at: string;
 }
 
 export interface NotificationResource {

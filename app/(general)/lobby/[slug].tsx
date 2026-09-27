@@ -2,6 +2,11 @@ import ConfirmDialog from "@/components/shared/ConfirmDialog";
 import GoBack from "@/components/shared/GoBack";
 import Toast from "@/components/shared/Toast";
 import {
+  usePartyGame,
+  usePartyGameStartedListener,
+  useStartGameSession,
+} from "@/hooks/api/useGameSession";
+import {
   useCancelParty,
   useEndParty,
   useJoinParty,
@@ -64,6 +69,19 @@ export default function LobbyScreen() {
   const startParty = useStartParty();
   const endParty = useEndParty();
   const cancelParty = useCancelParty();
+  const startGameSession = useStartGameSession();
+  // A member sitting in the lobby learns the host just started a game the moment it happens,
+  // instead of only finding out on the next poll — falls back to polling below when this
+  // channel isn't actually connected (e.g. Reverb itself is down).
+  const { connected: partyChannelConnected } = usePartyGameStartedListener(
+    Number.isFinite(partyId) ? partyId : null,
+    () => refetchPartyGame(),
+  );
+  const {
+    data: partyGame,
+    isLoading: isLoadingPartyGame,
+    refetch: refetchPartyGame,
+  } = usePartyGame(Number.isFinite(partyId) ? partyId : null, { realtimeActive: partyChannelConnected });
 
   const [busy, setBusy] = useState<string | null>(null);
   // setBusy is async, so `busy` state alone can't stop two taps landing in the same tick
@@ -89,6 +107,45 @@ export default function LobbyScreen() {
       if (successMessage) notify(successMessage, "success");
     } catch (err) {
       notify(err instanceof ApiError ? err.message : "Something went wrong — please try again", "error");
+    } finally {
+      busyRef.current = null;
+      setBusy(null);
+    }
+  };
+
+  // GET /parties/{id}/game means anyone — host or guest, including a late joiner or a reopened
+  // app — can find the current/latest session and jump straight in, rather than only whoever
+  // was present the instant the host called game/start.
+  const handleEnterGame = async () => {
+    if (!party || busyRef.current) return;
+
+    if (partyGame) {
+      router.push(`/play/game?partyId=${party.id}&sessionId=${partyGame.id}`);
+      return;
+    }
+
+    if (!isHost) {
+      notify("The host hasn't started the game yet", "error");
+      return;
+    }
+
+    busyRef.current = "game";
+    setBusy("game");
+    try {
+      const session = await startGameSession.mutateAsync({ partyId: party.id });
+      router.push(`/play/game?partyId=${party.id}&sessionId=${session.id}`);
+    } catch (err) {
+      // A session already exists (started moments ago by this same request racing us, or by
+      // another client) — the 409 hands back its id instead of leaving us stuck.
+      const existingId =
+        err instanceof ApiError && err.status === 409
+          ? Number((err.errors as Record<string, unknown> | undefined)?.game_session_id)
+          : NaN;
+      if (Number.isFinite(existingId)) {
+        router.push(`/play/game?partyId=${party.id}&sessionId=${existingId}`);
+      } else {
+        notify(err instanceof ApiError ? err.message : "Couldn't start the game", "error");
+      }
     } finally {
       busyRef.current = null;
       setBusy(null);
@@ -392,7 +449,11 @@ export default function LobbyScreen() {
         {canJoin ? (
           <TouchableOpacity
             onPress={() =>
-              runAction("join", () => joinParty.mutateAsync(party.id), "You're in!")
+              runAction(
+                "join",
+                () => joinParty.mutateAsync({ partyId: party.id, roomCode }),
+                "You're in!",
+              )
             }
             disabled={busy === "join"}
             activeOpacity={0.85}
@@ -437,7 +498,8 @@ export default function LobbyScreen() {
           </TouchableOpacity>
         ) : party.status === "live" ? (
           <TouchableOpacity
-            onPress={() => router.push("/play/game")}
+            onPress={handleEnterGame}
+            disabled={busy === "game" || isLoadingPartyGame}
             activeOpacity={0.85}
             className="mt-8"
           >
@@ -446,8 +508,15 @@ export default function LobbyScreen() {
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               className="h-14 w-full items-center justify-center rounded-2xl"
+              style={{ opacity: busy === "game" || isLoadingPartyGame ? 0.7 : !partyGame && !isHost ? 0.6 : 1 }}
             >
-              <Text className="text-white text-base font-semibold">Jump in</Text>
+              {busy === "game" || isLoadingPartyGame ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text className="text-white text-base font-semibold">
+                  {partyGame ? "Jump in" : isHost ? "Start game" : "Waiting for host"}
+                </Text>
+              )}
             </LinearGradient>
           </TouchableOpacity>
         ) : (
