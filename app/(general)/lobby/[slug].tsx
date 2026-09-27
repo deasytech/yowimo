@@ -256,6 +256,14 @@ export default function LobbyScreen() {
             <Text className="mt-1 text-white/80 text-sm">
               Hosted by {party.host.display_name || party.host.username}
             </Text>
+            {party.pack && (
+              <View className="mt-2 flex-row items-center gap-1.5 self-start rounded-full bg-ink/40 px-2.5 py-1">
+                <Text style={{ fontSize: 12 }}>{party.pack.emoji || "🃏"}</Text>
+                <Text className="text-white/90 text-[11px] font-semibold">
+                  {party.pack.name}
+                </Text>
+              </View>
+            )}
           </LinearGradient>
         </View>
 

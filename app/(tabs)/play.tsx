@@ -1,6 +1,7 @@
 import Toast from "@/components/shared/Toast";
 import { useGameTypes } from "@/hooks/api/useGameTypes";
 import { useCreateParty } from "@/hooks/api/useParties";
+import { useGameTypePacks } from "@/hooks/api/usePacks";
 import { useToast } from "@/hooks/useToast";
 import { ApiError, CreatePartyPayload, LocalImageFile, PartyMode } from "@/lib/api/types";
 import DateTimePicker, {
@@ -87,6 +88,34 @@ export default function CreatePartyScreen() {
 
   const selected = gameTypes?.find((g) => g.id === game) ?? gameTypes?.[0];
 
+  // Decks are per game type, and a party can't start a game without one — the engine deals its
+  // cards straight from the pack. Falls back to the game type's server-side default, then the
+  // first deck returned, so a host who doesn't care can just hit Launch.
+  const {
+    packs: decks,
+    isLoading: isLoadingDecks,
+    isError: isDecksError,
+    fetchNextPage: fetchMoreDecks,
+    hasNextPage: hasMoreDecks,
+  } = useGameTypePacks(selected?.id ?? null);
+  const [deckId, setDeckId] = useState<number | null>(null);
+  const deckIds = decks.map((deck) => deck.id);
+  // A stable stand-in for `deckIds` — the array is rebuilt on every render, so depending on it
+  // directly would re-run this effect constantly.
+  const deckIdsKey = deckIds.join(",");
+
+  useEffect(() => {
+    if (!selected) return;
+
+    setDeckId((current) => {
+      // Keep the host's pick while it's still offered for this game type; otherwise take the
+      // game type's default deck. Switching games therefore can't carry a stale deck over.
+      if (current !== null && deckIds.includes(current)) return current;
+      return selected.default_pack_id ?? deckIds[0] ?? null;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, deckIdsKey]);
+
   useEffect(() => {
     if (!gameTypes?.length) return;
 
@@ -165,10 +194,25 @@ export default function CreatePartyScreen() {
       notify("Add a venue for an in-person or hybrid party", "error");
       return null;
     }
+    // A launched party needs a deck — the game engine deals its cards out of the pack, and
+    // refuses to start without one. A draft can legitimately sit without a deck for now.
+    // (A failed deck fetch isn't treated as "no decks": the server falls back to the game
+    // type's default deck when pack_id is omitted.)
+    if (!saveAsDraft) {
+      if (decks.length > 0 && deckId === null) {
+        notify("Pick a deck for your game", "error");
+        return null;
+      }
+      if (!isLoadingDecks && !isDecksError && decks.length === 0) {
+        notify(`No decks are available for ${selected?.name ?? "this game"} yet`, "error");
+        return null;
+      }
+    }
 
     return {
       title: title.trim(),
       game_type_id: selected?.id ?? null,
+      pack_id: deckId ?? undefined,
       mode,
       visibility,
       max_players: resolveMaxPlayers(),
@@ -469,6 +513,92 @@ export default function CreatePartyScreen() {
                   </View>
                 </View>
               </View>
+            </View>
+
+            {/* ── Deck picker ── */}
+            <View className="mt-6">
+              <Text className="text-foreground text-base font-semibold">
+                Choose your deck
+              </Text>
+              <Text className="mt-1 text-muted-foreground text-xs">
+                The cards the game deals from. {selected.name} decks only.
+              </Text>
+
+              {isLoadingDecks ? (
+                <ActivityIndicator color="#B03BFF" style={{ marginVertical: 20 }} />
+              ) : isDecksError ? (
+                <View className="mt-3 rounded-2xl border border-border bg-secondary/40 p-4">
+                  <Text className="text-foreground text-sm font-semibold">
+                    Couldn&apos;t load decks
+                  </Text>
+                  <Text className="mt-1 text-muted-foreground text-xs">
+                    We&apos;ll use the default deck for {selected.name}. Try again to pick a
+                    specific one.
+                  </Text>
+                </View>
+              ) : decks.length === 0 ? (
+                <View className="mt-3 rounded-2xl border border-dashed border-border bg-secondary/40 p-4">
+                  <Text className="text-foreground text-sm font-semibold">
+                    No decks for this game yet
+                  </Text>
+                  <Text className="mt-1 text-muted-foreground text-xs">
+                    A game can&apos;t deal cards without a deck. Pick another game, or add a deck
+                    for {selected.name} first.
+                  </Text>
+                </View>
+              ) : (
+                <View className="mt-3 gap-2.5">
+                  {decks.map((deck) => {
+                    const active = deck.id === deckId;
+
+                    return (
+                      <TouchableOpacity
+                        key={deck.id}
+                        testID={`deck-option-${deck.id}`}
+                        onPress={() => setDeckId(deck.id)}
+                        activeOpacity={0.85}
+                        className={`flex-row items-center gap-3 rounded-2xl border p-3 ${
+                          active ? "border-violet-bright bg-secondary/60" : "border-border bg-card"
+                        }`}
+                      >
+                        <Text style={{ fontSize: 22 }}>{deck.emoji || "🃏"}</Text>
+
+                        <View className="flex-1">
+                          <Text className="text-foreground text-sm font-semibold" numberOfLines={1}>
+                            {deck.name}
+                          </Text>
+                          <Text className="text-muted-foreground text-[11px]">
+                            {deck.cards_count} cards{deck.tag ? ` · ${deck.tag}` : ""}
+                          </Text>
+                        </View>
+
+                        <View className="items-end gap-1">
+                          {deck.price > 0 ? (
+                            <Text className="text-muted-foreground text-[11px]">
+                              🪙 {deck.price}
+                            </Text>
+                          ) : (
+                            <Text className="text-violet-bright text-[11px] font-bold">FREE</Text>
+                          )}
+                          {active && <CheckCircle2 color="#B03BFF" size={16} strokeWidth={2.5} />}
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+
+                  {hasMoreDecks && (
+                    <TouchableOpacity
+                      onPress={() => fetchMoreDecks()}
+                      activeOpacity={0.8}
+                      className="items-center py-2"
+                    >
+                      <Text className="text-violet-bright text-xs font-semibold">
+                        Load more decks
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
             </View>
 
             {/* ── Mode ── */}

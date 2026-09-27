@@ -99,6 +99,8 @@ export interface GameTypeResource {
   cost: number;
   image_url: string | null;
   gradient: [string, string];
+  /** Deck a party inherits when the host doesn't pick one (see the create-party deck picker). */
+  default_pack_id: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -252,7 +254,8 @@ export interface PartyDetail extends Omit<PartySummary, 'host'> {
   gradient: [string, string];
   host: { id: number; username: string; display_name: string; avatar_url: string | null };
   game_type: { id: number; slug: string } | null;
-  pack: { id: number; slug: string } | null;
+  /** The API sends the full pack resource; these are the fields the lobby/deck UI reads. */
+  pack: { id: number; slug: string; name: string; emoji: string; cards_count: number } | null;
   created_at: string;
   updated_at: string;
 }
