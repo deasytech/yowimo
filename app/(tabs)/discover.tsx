@@ -4,7 +4,9 @@ import { useDiscoverFeed, useLikeParty, useUnlikeParty } from "@/hooks/api/usePa
 import { useProfile } from "@/hooks/api/useProfile";
 import { PartyDetail } from "@/lib/api/types";
 import { LinearGradient as RNLinearGradient } from "expo-linear-gradient";
+import { Link } from "expo-router";
 import {
+  QrCode,
   Search,
   Sparkles,
   Volume2,
@@ -233,8 +235,17 @@ export default function DiscoverScreen() {
               </View>
             )}
 
-            {!isMine && (
-              <View className="ml-auto flex-row items-center gap-2">
+            <View className="ml-auto flex-row items-center gap-2">
+              <Link href="/play/qr-join" asChild>
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  className="h-9 w-9 items-center justify-center rounded-full bg-white/10 border border-white/10"
+                >
+                  <QrCode color="rgba(255,255,255,0.80)" size={16} strokeWidth={2} />
+                </TouchableOpacity>
+              </Link>
+
+              {!isMine && (
                 <TouchableOpacity
                   onPress={() => setMuted((m) => !m)}
                   activeOpacity={0.8}
@@ -246,7 +257,9 @@ export default function DiscoverScreen() {
                     <Volume2 color="rgba(255,255,255,0.80)" size={16} strokeWidth={2} />
                   )}
                 </TouchableOpacity>
+              )}
 
+              {!isMine && (
                 <TouchableOpacity
                   onPress={() => setSearchOpen((s) => !s)}
                   activeOpacity={0.8}
@@ -258,8 +271,8 @@ export default function DiscoverScreen() {
                     <Search color="rgba(255,255,255,0.80)" size={16} strokeWidth={2} />
                   )}
                 </TouchableOpacity>
-              </View>
-            )}
+              )}
+            </View>
           </View>
 
           {!isMine && searchOpen && (

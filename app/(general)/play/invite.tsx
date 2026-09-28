@@ -1,14 +1,15 @@
 import GoBack from '@/components/shared/GoBack';
+import InviteQrModal from '@/components/shared/InviteQrModal';
 import Toast from '@/components/shared/Toast';
-import { FRIENDS } from '@/data/mock';
 import { useToast } from '@/hooks/useToast';
 import * as Clipboard from 'expo-clipboard';
+import * as Contacts from 'expo-contacts';
 import { LinearGradient as RNLinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Copy, Link2, MessageCircle, QrCode, Send, Share2 } from 'lucide-react-native';
+import { Copy, Link2, MessageCircle, QrCode, Search, Send, Share2, Users } from 'lucide-react-native';
 import { styled } from 'nativewind';
-import { useState } from 'react';
-import { ScrollView, Share, Text, TouchableOpacity, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { Linking, Platform, ScrollView, Share, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView as RNSafeAreaView } from 'react-native-safe-area-context';
 
 const SafeAreaView = styled(RNSafeAreaView);
@@ -23,6 +24,25 @@ const channels = [
   { id: "more", label: "Share", icon: Share2, colors: ["#FF8A2A", "#D84CFF"] as const },
 ];
 
+interface DeviceContact {
+  id: string;
+  name: string;
+  initials: string;
+  /** Digits (and leading +) only — good enough for sms:/whatsapp:// deep links. */
+  phoneNumber: string;
+}
+
+type ContactsState = "loading" | "granted" | "denied";
+
+function toInitials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
 const InviteFriendsScreen = () => {
   const router = useRouter();
   const { roomCode, title, partyId } = useLocalSearchParams<{
@@ -33,19 +53,124 @@ const InviteFriendsScreen = () => {
   const hasLink = Boolean(roomCode);
   const inviteLink = hasLink ? `https://yowimo.app/p/${roomCode}` : '';
   const [picked, setPicked] = useState<string[]>([]);
+  const [showQr, setShowQr] = useState(false);
+  const [search, setSearch] = useState('');
+  const [contactsState, setContactsState] = useState<ContactsState>("loading");
+  const [contacts, setContacts] = useState<DeviceContact[]>([]);
+  const [waCursor, setWaCursor] = useState(0);
+  const [toastMessage, setToastMessage] = useState('Invite link copied');
   const toast = useToast();
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { status } = await Contacts.requestPermissionsAsync();
+      if (cancelled) return;
+      if (status !== Contacts.PermissionStatus.GRANTED) {
+        setContactsState("denied");
+        return;
+      }
+      const { data } = await Contacts.getContactsAsync({
+        fields: [Contacts.Fields.PhoneNumbers],
+        sort: Contacts.SortTypes.FirstName,
+      });
+      if (cancelled) return;
+      const withPhones = data.reduce<DeviceContact[]>((acc, c) => {
+        const number = c.phoneNumbers?.find((p) => p.number)?.number;
+        if (c.name && number) {
+          acc.push({
+            id: c.id ?? `${c.name}-${number}`,
+            name: c.name,
+            initials: toInitials(c.name),
+            phoneNumber: number.replace(/[^\d+]/g, ''),
+          });
+        }
+        return acc;
+      }, []);
+      setContacts(withPhones);
+      setContactsState("granted");
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const filteredContacts = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return contacts;
+    return contacts.filter((c) => c.name.toLowerCase().includes(q));
+  }, [contacts, search]);
+
+  const pickedContacts = useMemo(
+    () => contacts.filter((c) => picked.includes(c.id)),
+    [contacts, picked],
+  );
+
   const toggle = (id: string) => setPicked((p) => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
+
   const copyInviteLink = async () => {
     if (!hasLink) return;
     await Clipboard.setStringAsync(inviteLink);
+    setToastMessage('Invite link copied');
     toast.showToast();
   };
-  const shareInvite = (channel: string) => {
-    if (!hasLink) return;
-    const message = title
+
+  const buildMessage = () =>
+    title
       ? `Join my Yowimo party "${title}": ${inviteLink}`
       : `Join my Yowimo party: ${inviteLink}`;
-    return channel === 'link' ? copyInviteLink() : Share.share({ message, url: inviteLink });
+
+  /** iOS accepts a comma-joined recipient list in one `sms:` intent (a real group text); Android
+   * only reliably honours the first recipient, but still opens Messages pre-filled with the body,
+   * which beats the generic share sheet. */
+  const sendSms = (numbers: string[]) => {
+    const body = encodeURIComponent(buildMessage());
+    const recipients = numbers.join(',');
+    const separator = Platform.OS === 'ios' ? '&' : '?';
+    Linking.openURL(`sms:${recipients}${separator}body=${body}`).catch(() => {
+      setToastMessage("Couldn't open Messages");
+      toast.showToast();
+    });
+  };
+
+  /** WhatsApp's deep link only ever targets one chat — cycle through the picked contacts one tap
+   * at a time rather than pretending we can fan this out in a single action. */
+  const sendWhatsApp = () => {
+    if (pickedContacts.length === 0) {
+      return Share.share({ message: buildMessage(), url: inviteLink });
+    }
+    const index = waCursor % pickedContacts.length;
+    const contact = pickedContacts[index];
+    const phone = contact.phoneNumber.replace(/[^\d]/g, '');
+    const text = encodeURIComponent(buildMessage());
+    setWaCursor(index + 1);
+    Linking.openURL(`whatsapp://send?phone=${phone}&text=${text}`).catch(() => {
+      setToastMessage('WhatsApp not installed');
+      toast.showToast();
+      return;
+    });
+    if (pickedContacts.length > 1) {
+      const next = pickedContacts[(index + 1) % pickedContacts.length];
+      setToastMessage(`Opened chat with ${contact.name}. Tap WhatsApp again for ${next.name}.`);
+      toast.showToast();
+    }
+  };
+
+  const shareInvite = (channel: string) => {
+    if (!hasLink) return;
+    if (channel === 'link') return copyInviteLink();
+    if (channel === 'qr') {
+      setShowQr(true);
+      return;
+    }
+    if (channel === 'sms') {
+      return sendSms(pickedContacts.length > 0 ? pickedContacts.map((c) => c.phoneNumber) : []);
+    }
+    if (channel === 'wa') {
+      return sendWhatsApp();
+    }
+    // Telegram has no phone-targeted deep link, and "Share" is intentionally generic either way.
+    return Share.share({ message: buildMessage(), url: inviteLink });
   };
 
   return (
@@ -53,8 +178,17 @@ const InviteFriendsScreen = () => {
       <Toast
         opacity={toast.opacity}
         isVisible={toast.isVisible}
-        message="Invite link copied"
+        message={toastMessage}
       />
+      {hasLink && (
+        <InviteQrModal
+          visible={showQr}
+          onClose={() => setShowQr(false)}
+          inviteLink={inviteLink}
+          roomCode={roomCode ?? ""}
+          title={title}
+        />
+      )}
       <ScrollView
         className="flex-1"
         contentContainerStyle={{
@@ -65,7 +199,7 @@ const InviteFriendsScreen = () => {
       >
         <GoBack title='Invite Friends' />
 
-        {/* Party Link Hero Card */}
+        {/* Party Hero Card */}
         <LinearGradient
           colors={["#7A1EFF", "#D84CFF", "#FF8A2A"]}
           className="mt-4 overflow-hidden rounded-3xl p-5"
@@ -73,13 +207,20 @@ const InviteFriendsScreen = () => {
           <View className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10" />
 
           <Text className="text-xs font-sans-bold uppercase tracking-wider text-white/80">
-            Party Link
+            Inviting to
+          </Text>
+
+          <Text
+            numberOfLines={1}
+            className="mt-1 text-2xl font-sans-bold text-white"
+          >
+            {title || 'Your party'}
           </Text>
 
           <View className="mt-3 flex-row items-center justify-between">
             <Text
               numberOfLines={1}
-              className="flex-1 text-lg font-sans-bold text-white"
+              className="flex-1 text-sm text-white/70"
             >
               {hasLink ? inviteLink.replace('https://', '') : 'Link unavailable for this party'}
             </Text>
@@ -97,11 +238,16 @@ const InviteFriendsScreen = () => {
 
         {/* Share Channels */}
         <View className="mt-6">
-          <Text className="mb-4 text-lg font-sans-bold text-white">
+          <Text className="mb-1 text-lg font-sans-bold text-white">
             Share Via
           </Text>
+          {pickedContacts.length > 0 && (
+            <Text className="mb-3 text-xs text-muted-foreground">
+              WhatsApp and SMS will go straight to your {pickedContacts.length} selected contact{pickedContacts.length === 1 ? '' : 's'}.
+            </Text>
+          )}
 
-          <View className="flex-row flex-wrap">
+          <View className="mt-3 flex-row flex-wrap">
             {channels.map((item) => (
               <TouchableOpacity
                 key={item.id}
@@ -132,11 +278,11 @@ const InviteFriendsScreen = () => {
           </View>
         </View>
 
-        {/* Friends List */}
+        {/* Contacts List */}
         <View className="mt-4">
           <View className="mb-4 flex-row items-center justify-between">
             <Text className="text-lg font-sans-bold text-white">
-              From Your Crew
+              From Your Contacts
             </Text>
 
             <Text className="text-sm text-muted-foreground">
@@ -144,59 +290,94 @@ const InviteFriendsScreen = () => {
             </Text>
           </View>
 
-          {FRIENDS.map((friend) => {
-            const selected = picked.includes(friend.id);
-
-            return (
+          {contactsState === "denied" && (
+            <View className="items-center rounded-2xl border border-white/10 bg-card p-6">
+              <Users color="rgba(255,255,255,0.4)" size={28} />
+              <Text className="mt-2 text-center text-sm text-muted-foreground">
+                Allow contacts access to invite people straight from your phone book.
+              </Text>
               <TouchableOpacity
-                key={friend.id}
-                onPress={() => toggle(friend.id)}
+                onPress={() => Linking.openSettings()}
                 activeOpacity={0.8}
-                className={`mb-3 flex-row items-center rounded-2xl border p-3 ${selected
-                  ? "border-violet-bright bg-violet/20"
-                  : "border-transparent bg-card"
-                  }`}
+                className="mt-3 rounded-xl border border-white/15 bg-white/10 px-4 py-2"
               >
-                <View className="relative">
-                  <LinearGradient
-                    colors={["#7A1EFF", "#D84CFF"]}
-                    className="h-11 w-11 items-center justify-center rounded-full"
-                  >
-                    <Text className="font-sans-bold text-white">
-                      {friend.initials}
-                    </Text>
-                  </LinearGradient>
-
-                  {friend.online && (
-                    <View className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-background bg-accent" />
-                  )}
-                </View>
-
-                <View className="ml-3 flex-1">
-                  <Text className="font-sans-semibold text-white">
-                    {friend.name}
-                  </Text>
-
-                  <Text className="text-xs text-muted-foreground">
-                    {friend.handle}
-                  </Text>
-                </View>
-
-                <View
-                  className={`h-6 w-6 items-center justify-center rounded-full border-2 ${selected
-                    ? "border-violet-bright bg-violet-bright"
-                    : "border-muted"
-                    }`}
-                >
-                  {selected && (
-                    <Text className="text-xs font-bold text-white">
-                      ✓
-                    </Text>
-                  )}
-                </View>
+                <Text className="text-xs font-sans-semibold text-white">Open Settings</Text>
               </TouchableOpacity>
-            );
-          })}
+            </View>
+          )}
+
+          {contactsState === "loading" && (
+            <Text className="text-center text-sm text-muted-foreground">Loading contacts…</Text>
+          )}
+
+          {contactsState === "granted" && contacts.length === 0 && (
+            <Text className="text-center text-sm text-muted-foreground">
+              No contacts with phone numbers found.
+            </Text>
+          )}
+
+          {contactsState === "granted" && contacts.length > 0 && (
+            <>
+              <View className="mb-4 flex-row items-center rounded-2xl border border-white/10 bg-secondary px-3">
+                <Search color="rgba(255,255,255,0.4)" size={16} />
+                <TextInput
+                  value={search}
+                  onChangeText={setSearch}
+                  placeholder="Search contacts"
+                  placeholderTextColor="rgba(255,255,255,0.40)"
+                  className="ml-2 h-11 flex-1 text-sm text-white"
+                />
+              </View>
+
+              {filteredContacts.map((contact) => {
+                const selected = picked.includes(contact.id);
+
+                return (
+                  <TouchableOpacity
+                    key={contact.id}
+                    onPress={() => toggle(contact.id)}
+                    activeOpacity={0.8}
+                    className={`mb-3 flex-row items-center rounded-2xl border p-3 ${selected
+                      ? "border-violet-bright bg-violet/20"
+                      : "border-transparent bg-card"
+                      }`}
+                  >
+                    <LinearGradient
+                      colors={["#7A1EFF", "#D84CFF"]}
+                      className="h-11 w-11 items-center justify-center rounded-full"
+                    >
+                      <Text className="font-sans-bold text-white">
+                        {contact.initials}
+                      </Text>
+                    </LinearGradient>
+
+                    <View className="ml-3 flex-1">
+                      <Text className="font-sans-semibold text-white">
+                        {contact.name}
+                      </Text>
+
+                      <Text className="text-xs text-muted-foreground">
+                        {contact.phoneNumber}
+                      </Text>
+                    </View>
+
+                    <View
+                      className={`h-6 w-6 items-center justify-center rounded-full border-2 ${selected
+                        ? "border-violet-bright bg-violet-bright"
+                        : "border-muted"
+                        }`}
+                    >
+                      {selected && (
+                        <Text className="text-xs font-bold text-white">
+                          ✓
+                        </Text>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </>
+          )}
         </View>
 
       </ScrollView>
@@ -212,7 +393,16 @@ const InviteFriendsScreen = () => {
           <TouchableOpacity
             className="h-14 items-center justify-center"
             activeOpacity={0.9}
-            onPress={() => (partyId ? router.push(`/lobby/${partyId}`) : router.back())}
+            onPress={() => {
+              if (picked.length > 0 && hasLink) {
+                sendSms(pickedContacts.map((c) => c.phoneNumber));
+              }
+              if (partyId) {
+                router.push(`/lobby/${partyId}`);
+              } else {
+                router.back();
+              }
+            }}
           >
             <Text className="text-base font-sans-bold text-white">
               Send Invites ({picked.length || "Skip"})
