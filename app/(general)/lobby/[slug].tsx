@@ -1,5 +1,6 @@
 import ConfirmDialog from "@/components/shared/ConfirmDialog";
 import GoBack from "@/components/shared/GoBack";
+import InviteQrModal from "@/components/shared/InviteQrModal";
 import Toast from "@/components/shared/Toast";
 import {
   usePartyGame,
@@ -42,15 +43,16 @@ import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
 const LinearGradient = styled(RNLinearGradient);
 const SafeAreaView = styled(RNSafeAreaView);
 
-// Still mock/backlog — none of these have a backing endpoint yet (roster presence,
-// teams/seating arrangement, live video, waiting room).
+// Still backlog — none of these have a backing endpoint yet (roster presence, teams/seating
+// arrangement, live video, waiting room) — disabled with a "Coming soon" label rather than
+// linking into a fully mock screen.
 const SETTINGS_ROWS = [
-  { Icon: Sparkles, label: "AI Host", value: "On · Spicy mode", colorClass: "text-orange", to: "/lobby/ai-host" },
-  { Icon: Users, label: "Teams", value: "Free for all", colorClass: "text-foreground", to: "/play/teams" },
-  { Icon: Settings2, label: "Seating", value: "Auto", colorClass: "text-foreground", to: "/play/seating" },
-  { Icon: Video, label: "Live video room", value: "Tap to join", colorClass: "text-foreground", to: "/play/video-room" },
-  { Icon: Settings2, label: "Waiting room", value: "Manage", colorClass: "text-foreground", to: "/lobby/waiting-room" },
-  { Icon: Users, label: "Local players", value: "Add device", colorClass: "text-foreground", to: "/play/local-register" },
+  { Icon: Sparkles, label: "AI Host" },
+  { Icon: Users, label: "Teams" },
+  { Icon: Settings2, label: "Seating" },
+  { Icon: Video, label: "Live video room" },
+  { Icon: Settings2, label: "Waiting room" },
+  { Icon: Users, label: "Local players" },
 ];
 
 export default function LobbyScreen() {
@@ -88,13 +90,14 @@ export default function LobbyScreen() {
   // before the first render commits — this ref is the synchronous guard.
   const busyRef = useRef<string | null>(null);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const [showQr, setShowQr] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [toastBg, setToastBg] = useState("bg-green-600");
   const toast = useToast();
 
-  const notify = (message: string, variant: "success" | "error") => {
+  const notify = (message: string, variant: "success" | "error" | "info") => {
     setToastMessage(message);
-    setToastBg(variant === "success" ? "bg-green-600" : "bg-red-600");
+    setToastBg(variant === "success" ? "bg-green-600" : variant === "error" ? "bg-red-600" : "bg-secondary");
     toast.showToast();
   };
 
@@ -194,6 +197,7 @@ export default function LobbyScreen() {
     !isHost && !party.joined_by_me && (party.status === "scheduled" || party.status === "live");
   const canLeave = !isHost && party.joined_by_me;
   const roomCode = "room_code" in party ? party.room_code : undefined;
+  const inviteLink = roomCode ? `https://yowimo.app/p/${roomCode}` : undefined;
   const isGameActionPending = busy === "game" || isLoadingPartyGame;
   const gameActionOpacity = getGameActionOpacity(isGameActionPending, Boolean(partyGame), isHost);
   const gameActionLabel = getGameActionLabel(Boolean(partyGame), isHost);
@@ -219,6 +223,15 @@ export default function LobbyScreen() {
         }}
         onCancel={() => setConfirmingCancel(false)}
       />
+      {inviteLink && roomCode && (
+        <InviteQrModal
+          visible={showQr}
+          onClose={() => setShowQr(false)}
+          inviteLink={inviteLink}
+          roomCode={roomCode}
+          title={party.title}
+        />
+      )}
       <ScrollView
         className="flex-1"
         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 32 }}
@@ -320,18 +333,18 @@ export default function LobbyScreen() {
             </View>
           </View>
 
-          <Link href="/play/qr-join" asChild>
-            <TouchableOpacity
-              activeOpacity={0.8}
-              style={{ flex: 1 }}
-              className="items-center justify-center rounded-2xl border border-white/10 bg-white/5 p-4"
-            >
-              <QrCode color="#fff" size={36} strokeWidth={1.8} />
-              <Text className="mt-1 text-muted-foreground text-[10px] font-medium text-center">
-                Scan to join
-              </Text>
-            </TouchableOpacity>
-          </Link>
+          <TouchableOpacity
+            onPress={() => setShowQr(true)}
+            disabled={!roomCode}
+            activeOpacity={0.8}
+            style={{ flex: 1, opacity: roomCode ? 1 : 0.5 }}
+            className="items-center justify-center rounded-2xl border border-white/10 bg-white/5 p-4"
+          >
+            <QrCode color="#fff" size={36} strokeWidth={1.8} />
+            <Text className="mt-1 text-muted-foreground text-[10px] font-medium text-center">
+              Show QR
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* ── Players + like ── */}
@@ -386,23 +399,19 @@ export default function LobbyScreen() {
         {isHost && (
           <View className="mt-7 gap-3">
             {SETTINGS_ROWS.map((s) => (
-              <Link key={s.label} href={s.to as any} asChild>
-                <TouchableOpacity
-                  activeOpacity={0.8}
-                  className="flex-row items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-4"
-                >
-                  <s.Icon
-                    color={s.colorClass === "text-orange" ? "#FF8A2A" : "#fff"}
-                    size={20}
-                    strokeWidth={2}
-                  />
-                  <View className="flex-1">
-                    <Text className="text-foreground text-sm font-semibold">{s.label}</Text>
-                    <Text className="text-muted-foreground text-xs">{s.value}</Text>
-                  </View>
-                  <Text className="text-muted-foreground text-xs">›</Text>
-                </TouchableOpacity>
-              </Link>
+              <TouchableOpacity
+                key={s.label}
+                onPress={() => notify(`${s.label} is coming soon`, "info")}
+                activeOpacity={0.8}
+                style={{ opacity: 0.5 }}
+                className="flex-row items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-4"
+              >
+                <s.Icon color="#fff" size={20} strokeWidth={2} />
+                <View className="flex-1">
+                  <Text className="text-foreground text-sm font-semibold">{s.label}</Text>
+                  <Text className="text-muted-foreground text-xs">Coming soon</Text>
+                </View>
+              </TouchableOpacity>
             ))}
           </View>
         )}

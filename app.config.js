@@ -80,6 +80,13 @@ export default {
             'Allow $(PRODUCT_NAME) to access your photos to set a party cover image.',
         },
       ],
+      [
+        'expo-contacts',
+        {
+          contactsPermission:
+            'Allow $(PRODUCT_NAME) to access your contacts so you can invite friends to your party.',
+        },
+      ],
     ],
     experiments: {
       typedRoutes: true,
