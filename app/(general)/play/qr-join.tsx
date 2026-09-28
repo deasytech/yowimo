@@ -5,7 +5,7 @@ import { BarcodeScanningResult, CameraView, useCameraPermissions } from "expo-ca
 import { useRouter } from "expo-router";
 import { ArrowLeft, Camera } from "lucide-react-native";
 import { styled } from "nativewind";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   ActivityIndicator,
   ScrollView,
@@ -28,6 +28,10 @@ export default function QRJoinScreen() {
   const [error, setError] = useState("");
   const [isScanning, setIsScanning] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
+  // The camera can fire onBarcodeScanned several times for the same code before `isJoining`
+  // state commits — this ref claims the join synchronously so those extra frames don't each
+  // kick off their own concurrent lookup/join request.
+  const isJoiningRef = useRef(false);
   const [permission, requestPermission] = useCameraPermissions();
   const lookupParty = useLookupPartyByRoomCode();
   const joinParty = useJoinParty();
@@ -35,7 +39,10 @@ export default function QRJoinScreen() {
   const joinWithCode = async (rawValue: string) => {
     // Accepts a bare code, or the last path segment of a shared link (e.g. .../p/ABC123).
     const normalizedCode = rawValue.trim().split("/").filter(Boolean).at(-1)?.toUpperCase();
-    if (!normalizedCode) return;
+    if (!normalizedCode) {
+      isJoiningRef.current = false;
+      return;
+    }
 
     setIsScanning(false);
     setIsJoining(true);
@@ -54,6 +61,7 @@ export default function QRJoinScreen() {
       );
     } finally {
       setIsJoining(false);
+      isJoiningRef.current = false;
     }
   };
 
@@ -72,7 +80,8 @@ export default function QRJoinScreen() {
   };
 
   const handleBarcodeScanned = ({ data }: BarcodeScanningResult) => {
-    if (isJoining) return;
+    if (isJoiningRef.current) return;
+    isJoiningRef.current = true;
     joinWithCode(data);
   };
 

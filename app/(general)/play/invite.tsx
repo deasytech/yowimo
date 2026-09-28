@@ -45,7 +45,7 @@ function toInitials(name: string) {
 
 const InviteFriendsScreen = () => {
   const router = useRouter();
-  const { roomCode, title, partyId } = useLocalSearchParams<{
+  const { roomCode, title } = useLocalSearchParams<{
     roomCode?: string;
     title?: string;
     partyId?: string;
@@ -64,31 +64,37 @@ const InviteFriendsScreen = () => {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { status } = await Contacts.requestPermissionsAsync();
-      if (cancelled) return;
-      if (status !== Contacts.PermissionStatus.GRANTED) {
-        setContactsState("denied");
-        return;
-      }
-      const { data } = await Contacts.getContactsAsync({
-        fields: [Contacts.Fields.PhoneNumbers],
-        sort: Contacts.SortTypes.FirstName,
-      });
-      if (cancelled) return;
-      const withPhones = data.reduce<DeviceContact[]>((acc, c) => {
-        const number = c.phoneNumbers?.find((p) => p.number)?.number;
-        if (c.name && number) {
-          acc.push({
-            id: c.id ?? `${c.name}-${number}`,
-            name: c.name,
-            initials: toInitials(c.name),
-            phoneNumber: number.replace(/[^\d+]/g, ''),
-          });
+      try {
+        const { status } = await Contacts.requestPermissionsAsync();
+        if (cancelled) return;
+        if (status !== Contacts.PermissionStatus.GRANTED) {
+          setContactsState("denied");
+          return;
         }
-        return acc;
-      }, []);
-      setContacts(withPhones);
-      setContactsState("granted");
+        const { data } = await Contacts.getContactsAsync({
+          fields: [Contacts.Fields.PhoneNumbers],
+          sort: Contacts.SortTypes.FirstName,
+        });
+        if (cancelled) return;
+        const withPhones = data.reduce<DeviceContact[]>((acc, c) => {
+          const number = c.phoneNumbers?.find((p) => p.number)?.number;
+          if (c.name && number) {
+            acc.push({
+              id: c.id ?? `${c.name}-${number}`,
+              name: c.name,
+              initials: toInitials(c.name),
+              phoneNumber: number.replace(/[^\d+]/g, ''),
+            });
+          }
+          return acc;
+        }, []);
+        setContacts(withPhones);
+        setContactsState("granted");
+      } catch {
+        // Treat any permission/lookup failure the same as "no access" — the denied state
+        // already offers a way out (Settings) rather than leaving the screen stuck loading.
+        if (!cancelled) setContactsState("denied");
+      }
     })();
     return () => {
       cancelled = true;
@@ -127,7 +133,7 @@ const InviteFriendsScreen = () => {
     const body = encodeURIComponent(buildMessage());
     const recipients = numbers.join(',');
     const separator = Platform.OS === 'ios' ? '&' : '?';
-    Linking.openURL(`sms:${recipients}${separator}body=${body}`).catch(() => {
+    return Linking.openURL(`sms:${recipients}${separator}body=${body}`).catch(() => {
       setToastMessage("Couldn't open Messages");
       toast.showToast();
     });
@@ -135,7 +141,7 @@ const InviteFriendsScreen = () => {
 
   /** WhatsApp's deep link only ever targets one chat — cycle through the picked contacts one tap
    * at a time rather than pretending we can fan this out in a single action. */
-  const sendWhatsApp = () => {
+  const sendWhatsApp = async () => {
     if (pickedContacts.length === 0) {
       return Share.share({ message: buildMessage(), url: inviteLink });
     }
@@ -143,12 +149,14 @@ const InviteFriendsScreen = () => {
     const contact = pickedContacts[index];
     const phone = contact.phoneNumber.replace(/[^\d]/g, '');
     const text = encodeURIComponent(buildMessage());
-    setWaCursor(index + 1);
-    Linking.openURL(`whatsapp://send?phone=${phone}&text=${text}`).catch(() => {
+    try {
+      await Linking.openURL(`whatsapp://send?phone=${phone}&text=${text}`);
+    } catch {
       setToastMessage('WhatsApp not installed');
       toast.showToast();
       return;
-    });
+    }
+    setWaCursor(index + 1);
     if (pickedContacts.length > 1) {
       const next = pickedContacts[(index + 1) % pickedContacts.length];
       setToastMessage(`Opened chat with ${contact.name}. Tap WhatsApp again for ${next.name}.`);
@@ -393,15 +401,14 @@ const InviteFriendsScreen = () => {
           <TouchableOpacity
             className="h-14 items-center justify-center"
             activeOpacity={0.9}
-            onPress={() => {
+            onPress={async () => {
               if (picked.length > 0 && hasLink) {
-                sendSms(pickedContacts.map((c) => c.phoneNumber));
+                // Stay put so the success/failure toast is actually visible instead of being
+                // immediately covered by whatever screen we navigate back to.
+                await sendSms(pickedContacts.map((c) => c.phoneNumber));
+                return;
               }
-              if (partyId) {
-                router.push(`/lobby/${partyId}`);
-              } else {
-                router.back();
-              }
+              router.back();
             }}
           >
             <Text className="text-base font-sans-bold text-white">
