@@ -65,12 +65,25 @@ export function formatCurrency(
   }
 }
 
+// Groups the digits of an integer string with commas, e.g. "1234567" -> "1,234,567". Avoids the
+// classic `\B(?=(\d{3})+(?!\d))` regex, whose nested quantifier is superlinear on long input.
+function groupThousands(intPart: string): string {
+  const negative = intPart.startsWith('-');
+  const digits = negative ? intPart.slice(1) : intPart;
+  let grouped = '';
+  for (let i = 0; i < digits.length; i++) {
+    if (i > 0 && (digits.length - i) % 3 === 0) grouped += ',';
+    grouped += digits[i];
+  }
+  return (negative ? '-' : '') + grouped;
+}
+
 function formatFallback(num: number, currency: string) {
   if (Number.isNaN(num)) num = 0;
   const fractionDigits = currency?.toUpperCase() === 'NGN' ? 0 : 2;
-  let formatted = fractionDigits === 0 ? Math.round(num).toString() : num.toFixed(2);
-  // add thousand separators
-  formatted = formatted.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const raw = fractionDigits === 0 ? Math.round(num).toString() : num.toFixed(2);
+  const [intPart, frac] = raw.split('.');
+  const formatted = groupThousands(intPart) + (frac !== undefined ? `.${frac}` : '');
 
   const symbols: Record<string, string> = {
     USD: '$',
@@ -150,6 +163,22 @@ export function initialsFromName(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
   return (parts[0] ?? "").slice(0, 2).toUpperCase() || "?";
+}
+
+/** Lightweight "looks like an email" check for sign-in/sign-up form validation — not full RFC
+ * 5322 validation. Deliberately avoids a single regex like `/^[^\s@]+@[^\s@]+\.[^\s@]+$/`: the
+ * middle group's character class overlaps with the literal '.' that follows it, so a long pasted
+ * string with many dots forces catastrophic backtracking (verified: a few thousand characters
+ * hangs the JS thread for minutes). This does the same shape check with no backtracking. */
+export function isValidEmailFormat(value: string): boolean {
+  if (value.length > 254) return false;
+  const at = value.indexOf("@");
+  if (at <= 0 || value.indexOf("@", at + 1) !== -1) return false;
+  const local = value.slice(0, at);
+  const domain = value.slice(at + 1);
+  if (/\s/.test(local) || /\s/.test(domain)) return false;
+  const lastDot = domain.lastIndexOf(".");
+  return lastDot > 0 && lastDot < domain.length - 1;
 }
 
 export const getInitials = (user: any) => {

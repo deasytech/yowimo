@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import AuthInput from "@/components/shared/AuthInput";
 import SocialBtn from "@/components/shared/SocialBtn";
+import { isValidEmailFormat } from "@/lib/utils";
 import { posthog } from "@/lib/posthog";
 import * as WebBrowser from "expo-web-browser";
 
@@ -51,7 +52,7 @@ export default function SignInScreen() {
   const [passwordTouched, setPasswordTouched] = useState(false);
 
   const emailValid =
-    emailAddress.length === 0 || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailAddress);
+    emailAddress.length === 0 || isValidEmailFormat(emailAddress);
   const passwordValid = password.length > 0;
   const formValid =
     emailAddress.length > 0 && password.length > 0 && emailValid;

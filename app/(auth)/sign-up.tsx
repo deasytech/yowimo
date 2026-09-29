@@ -1,6 +1,7 @@
 import AuthInput from "@/components/shared/AuthInput";
 import SocialBtn from "@/components/shared/SocialBtn";
 import { posthog } from "@/lib/posthog";
+import { isValidEmailFormat } from "@/lib/utils";
 import { useAuth, useSignUp, useSSO } from "@clerk/expo";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Linking from "expo-linking";
@@ -55,7 +56,7 @@ export default function SignUpScreen() {
   const firstNameValid = firstName.trim().length > 0;
   const lastNameValid = lastName.trim().length > 0;
   const emailValid =
-    email.length === 0 || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    email.length === 0 || isValidEmailFormat(email);
   const passwordValid = password.length === 0 || password.length >= 8;
   const formValid =
     firstNameValid &&
