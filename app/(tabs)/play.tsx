@@ -154,7 +154,7 @@ export default function CreatePartyScreen() {
   // from it directly rather than the last-committed `maxPlayers`, so a fast tap straight from
   // the field to a submit button doesn't silently drop what's on screen.
   const resolveMaxPlayers = () => {
-    const parsed = parseInt(maxPlayersDraft, 10);
+    const parsed = Number.parseInt(maxPlayersDraft, 10);
     return Number.isFinite(parsed) ? clampPlayers(parsed) : maxPlayers;
   };
 

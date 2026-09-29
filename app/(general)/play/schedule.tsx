@@ -82,12 +82,7 @@ export default function ScheduleScreen() {
                     weekday: "short",
                   })}
                 </Text>
-                <Text
-                  className={`mt-1 text-center font-sg-bold text-xl ${pickedDate === index
-                    ? "text-white"
-                    : "text-white"
-                    }`}
-                >
+                <Text className="mt-1 text-center font-sg-bold text-xl text-white">
                   {date.getDate()}
                 </Text>
                 <Text
