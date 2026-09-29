@@ -1,6 +1,8 @@
 import GoBack from "@/components/shared/GoBack";
 import ListHeading from "@/components/shared/ListHeading";
 import { useRegisterPushToken, useUnregisterPushToken } from "@/hooks/api/usePushToken";
+import { ensureAndroidNotificationChannel } from "@/lib/notifications/androidChannel";
+import { getPushOptIn, setPushOptIn } from "@/lib/notifications/pushOptIn";
 import { posthog } from "@/lib/posthog";
 import { useClerk } from "@clerk/expo";
 import { useQueryClient } from "@tanstack/react-query";
@@ -20,7 +22,7 @@ import {
   User
 } from "lucide-react-native";
 import { styled } from "nativewind";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Linking, ScrollView, Switch, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
 
@@ -40,9 +42,22 @@ export default function SettingsScreen() {
   const [push, setPushState] = useState(false);
   const [dark, setDark] = useState(true);
   const [biometric, setBiometric] = useState(false);
+  // Chains push toggles onto one another so a fast off-then-on (or on-then-off) can't let a
+  // stale DELETE land after a newer POST and silently unregister the token the user just enabled.
+  const pushOpRef = useRef(Promise.resolve());
 
   useEffect(() => {
-    Notifications.getPermissionsAsync().then(({ status }) => setPushState(status === "granted"));
+    (async () => {
+      // The persisted choice (if any) is the source of truth — OS permission alone can't tell
+      // us the user explicitly unregistered their token in this app after granting permission.
+      const optIn = await getPushOptIn();
+      if (optIn !== null) {
+        setPushState(optIn);
+        return;
+      }
+      const { status } = await Notifications.getPermissionsAsync();
+      setPushState(status === "granted");
+    })();
   }, []);
 
   const registerDeviceToken = async () => {
@@ -54,33 +69,49 @@ export default function SettingsScreen() {
     });
   };
 
-  const setPush = async (next: boolean) => {
+  const performSetPush = async (next: boolean) => {
     if (!next) {
+      try {
+        await unregisterPushToken.mutateAsync();
+      } catch {
+        // Backend still has the token — don't claim opt-out succeeded.
+        return;
+      }
       setPushState(false);
-      unregisterPushToken.mutate();
+      await setPushOptIn(false).catch(() => {});
       return;
     }
+
     if (!Device.isDevice) {
       // Simulators/emulators can't mint a real device token — nothing to register.
       setPushState(true);
+      await setPushOptIn(true).catch(() => {});
       return;
     }
+
     const { status, canAskAgain } = await Notifications.getPermissionsAsync();
-    if (status === "granted") {
-      setPushState(true);
-      registerDeviceToken().catch(() => setPushState(false));
+    if (status !== "granted") {
+      if (!canAskAgain) {
+        // iOS won't show the system prompt twice — only System Settings can flip it back.
+        Linking.openSettings();
+        return;
+      }
+      await ensureAndroidNotificationChannel();
+      const { status: requested } = await Notifications.requestPermissionsAsync();
+      if (requested !== "granted") return;
+    }
+
+    try {
+      await registerDeviceToken();
+    } catch {
       return;
     }
-    if (!canAskAgain) {
-      // iOS won't show the system prompt twice — only System Settings can flip it back.
-      Linking.openSettings();
-      return;
-    }
-    const { status: requested } = await Notifications.requestPermissionsAsync();
-    if (requested === "granted") {
-      setPushState(true);
-      registerDeviceToken().catch(() => setPushState(false));
-    }
+    setPushState(true);
+    await setPushOptIn(true).catch(() => {});
+  };
+
+  const setPush = (next: boolean) => {
+    pushOpRef.current = pushOpRef.current.catch(() => {}).then(() => performSetPush(next));
   };
 
   const toggleRows = [
