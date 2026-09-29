@@ -25,6 +25,7 @@ export default {
       edgeToEdgeEnabled: true,
       predictiveBackGestureEnabled: false,
       package: 'com.deasytech.yowimo',
+      googleServicesFile: './google-services.json',
     },
     web: {
       output: 'static',
@@ -87,6 +88,7 @@ export default {
             'Allow $(PRODUCT_NAME) to access your contacts so you can invite friends to your party.',
         },
       ],
+      'expo-notifications',
     ],
     experiments: {
       typedRoutes: true,

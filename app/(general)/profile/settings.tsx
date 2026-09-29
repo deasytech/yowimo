@@ -1,10 +1,15 @@
 import GoBack from "@/components/shared/GoBack";
 import ListHeading from "@/components/shared/ListHeading";
+import { useRegisterPushToken, useUnregisterPushToken } from "@/hooks/api/usePushToken";
+import { ensureAndroidNotificationChannel } from "@/lib/notifications/androidChannel";
+import { getPushOptIn, setPushOptIn } from "@/lib/notifications/pushOptIn";
 import { posthog } from "@/lib/posthog";
 import { useClerk } from "@clerk/expo";
 import { useQueryClient } from "@tanstack/react-query";
+import * as Device from "expo-device";
 import { LinearGradient as RNLinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
+import * as Notifications from "expo-notifications";
 import {
   Bell,
   ChevronRight,
@@ -17,8 +22,8 @@ import {
   User
 } from "lucide-react-native";
 import { styled } from "nativewind";
-import { useState } from "react";
-import { ScrollView, Switch, Text, TouchableOpacity, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { Linking, ScrollView, Switch, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
 
 const LinearGradient = styled(RNLinearGradient);
@@ -28,10 +33,86 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { signOut } = useClerk();
   const queryClient = useQueryClient();
+  const registerPushToken = useRegisterPushToken();
+  const unregisterPushToken = useUnregisterPushToken();
 
-  const [push, setPush] = useState(true);
+  // "Enabled" here means "we've registered a push token with the backend", not raw OS
+  // permission — permission can only be granted/requested, never programmatically revoked, so
+  // turning this off just unregisters the token rather than pretending to change OS settings.
+  const [push, setPushState] = useState(false);
   const [dark, setDark] = useState(true);
   const [biometric, setBiometric] = useState(false);
+  // Chains push toggles onto one another so a fast off-then-on (or on-then-off) can't let a
+  // stale DELETE land after a newer POST and silently unregister the token the user just enabled.
+  const pushOpRef = useRef(Promise.resolve());
+
+  useEffect(() => {
+    (async () => {
+      // The persisted choice (if any) is the source of truth — OS permission alone can't tell
+      // us the user explicitly unregistered their token in this app after granting permission.
+      const optIn = await getPushOptIn();
+      if (optIn !== null) {
+        setPushState(optIn);
+        return;
+      }
+      const { status } = await Notifications.getPermissionsAsync();
+      setPushState(status === "granted");
+    })();
+  }, []);
+
+  const registerDeviceToken = async () => {
+    const devicePushToken = await Notifications.getDevicePushTokenAsync();
+    if (devicePushToken.type !== "ios" && devicePushToken.type !== "android") return;
+    await registerPushToken.mutateAsync({
+      token: devicePushToken.data,
+      platform: devicePushToken.type,
+    });
+  };
+
+  const performSetPush = async (next: boolean) => {
+    if (!next) {
+      try {
+        await unregisterPushToken.mutateAsync();
+      } catch {
+        // Backend still has the token — don't claim opt-out succeeded.
+        return;
+      }
+      setPushState(false);
+      await setPushOptIn(false).catch(() => {});
+      return;
+    }
+
+    if (!Device.isDevice) {
+      // Simulators/emulators can't mint a real device token — nothing to register.
+      setPushState(true);
+      await setPushOptIn(true).catch(() => {});
+      return;
+    }
+
+    const { status, canAskAgain } = await Notifications.getPermissionsAsync();
+    if (status !== "granted") {
+      if (!canAskAgain) {
+        // iOS won't show the system prompt twice — only System Settings can flip it back.
+        Linking.openSettings();
+        return;
+      }
+      await ensureAndroidNotificationChannel();
+      const { status: requested } = await Notifications.requestPermissionsAsync();
+      if (requested !== "granted") return;
+    }
+
+    try {
+      await registerDeviceToken();
+    } catch {
+      return;
+    }
+    setPushState(true);
+    await setPushOptIn(true).catch(() => {});
+  };
+
+  const setPush = (next: boolean) => {
+    pushOpRef.current = pushOpRef.current.catch(() => {}).then(() => performSetPush(next));
+  };
 
   const toggleRows = [
     { Icon: Bell, label: "Push notifications", value: push, set: setPush },
@@ -65,6 +146,8 @@ export default function SettingsScreen() {
 
   const handleSignOut = async () => {
     try {
+      // Best-effort, and must happen before signOut() invalidates the session token it needs.
+      await unregisterPushToken.mutateAsync().catch(() => {});
       await signOut();
       // Otherwise the next account signed in on this device could briefly see the previous
       // user's cached parties/wallet/profile data until each query happens to refetch.
