@@ -382,6 +382,15 @@ export interface VoteResource {
   created_at: string;
 }
 
+export type PushTokenPlatform = 'ios' | 'android';
+
+export interface PushTokenResource {
+  id: number;
+  platform: PushTokenPlatform;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface NotificationResource {
   id: number;
   title: string;

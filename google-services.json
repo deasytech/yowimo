@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "230392309071",
+    "project_id": "yowimo-7863c",
+    "storage_bucket": "yowimo-7863c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:230392309071:android:97b72f71f0b6f5fa10513a",
+        "android_client_info": {
+          "package_name": "com.deasytech.yowimo"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBBREG9u1HnS1hCZYB1ABGj_Bovgh4odGI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

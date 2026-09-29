@@ -6,6 +6,7 @@ import { useEffect, useRef } from 'react';
 import { ChatProvider } from '@/context/ChatContext';
 import { PlayersProvider } from '@/context/PlayersContext';
 import { queryClient } from '@/lib/api/queryClient';
+import { PushTokenSync } from '@/lib/notifications/PushTokenSync';
 import { posthog } from '@/lib/posthog';
 import { EchoProvider } from '@/lib/realtime/EchoProvider';
 import { ClerkProvider, useAuth } from '@clerk/expo';
@@ -81,6 +82,7 @@ function RootLayoutContent() {
   return (
     <QueryClientProvider client={queryClient}>
       <EchoProvider>
+        <PushTokenSync />
         <PostHogProvider
           client={posthog}
           autocapture={{
