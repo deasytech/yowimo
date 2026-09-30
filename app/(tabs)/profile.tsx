@@ -3,7 +3,7 @@ import ProfileCover from "@/components/screens/profile/ProfileCover";
 import ListHeading from "@/components/shared/ListHeading";
 import { useEarnedBadges } from "@/hooks/api/useBadges";
 import { useFriends } from "@/hooks/api/useFriends";
-import { useProfile } from "@/hooks/api/useProfile";
+import { useProfile, useProfileStats } from "@/hooks/api/useProfile";
 import { getInitials, initialsFromName } from "@/lib/utils";
 import { useUser } from "@clerk/expo";
 import { LinearGradient as RNLinearGradient } from "expo-linear-gradient";
@@ -31,6 +31,7 @@ const SETTINGS_ROWS = [
 const ProfileScreen = () => {
   const { user } = useUser();
   const { data: profile } = useProfile();
+  const { data: stats } = useProfileStats();
   const {
     data: earnedBadges,
     isLoading: isBadgesLoading,
@@ -50,12 +51,12 @@ const ProfileScreen = () => {
   // yet" for display purposes without needing isFriendsLoading/isFriendsError separately here.
   const friendsCount = friends?.length;
 
-  // Parties/MVPs/Streak have no backing endpoint yet (see the API implementation plan) —
-  // Friends is the one real number here, from GET /friends.
-  // TODO(api): no stats endpoint yet for parties/MVPs/streak.
+  // Streak still has no backing endpoint — the day-definition/reset-vs-grace-period question
+  // needs a product decision before the backend can track it (see GET /users/me/stats' docs
+  // note). TODO(api): wire up once that's settled.
   const STATS = [
-    { label: "Parties", value: 47 },
-    { label: "MVPs", value: 12 },
+    { label: "Parties", value: stats?.parties_count ?? "–" },
+    { label: "MVPs", value: stats?.mvp_count ?? "–" },
     { label: "Friends", value: friendsCount ?? "–" },
     { label: "Streak", value: "5d" },
   ];

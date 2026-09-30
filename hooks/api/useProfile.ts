@@ -1,5 +1,5 @@
 import { useApi } from '@/hooks/api/useApi';
-import { UpdateProfilePayload, UserResource } from '@/lib/api/types';
+import { ProfileStatsResource, UpdateProfilePayload, UserResource } from '@/lib/api/types';
 import { useAuth } from '@clerk/expo';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -15,6 +15,23 @@ export function useProfile() {
   return useQuery({
     queryKey: profileQueryKey(userId),
     queryFn: () => request<UserResource>('/users/me'),
+    enabled: isLoaded && isSignedIn,
+  });
+}
+
+export const profileStatsQueryKey = (userId: string | null | undefined) =>
+  ['profile', 'stats', userId] as const;
+
+/** Lifetime parties-played + MVP counts for the Profile screen's stat tiles. Deliberately not
+ * folded into useProfile() — kept as its own query since GET /users/me/stats is its own
+ * endpoint precisely so these aggregate queries don't ride along on every auth-check call. */
+export function useProfileStats() {
+  const { request } = useApi();
+  const { userId, isLoaded, isSignedIn } = useAuth();
+
+  return useQuery({
+    queryKey: profileStatsQueryKey(userId),
+    queryFn: () => request<ProfileStatsResource>('/users/me/stats'),
     enabled: isLoaded && isSignedIn,
   });
 }

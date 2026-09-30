@@ -73,6 +73,14 @@ export interface UserResource {
   wallet: WalletSnapshot;
 }
 
+/** GET /users/me/stats — lifetime totals for the Profile screen's stat tiles. Split off
+ * GET /users/me (which is a plain auth-check hit constantly elsewhere) since these are
+ * aggregate queries. No streak field yet — that needs a product decision first. */
+export interface ProfileStatsResource {
+  parties_count: number;
+  mvp_count: number;
+}
+
 export interface UpdateProfilePayload {
   username?: string;
   avatar_url?: string | null;
