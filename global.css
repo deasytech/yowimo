@@ -101,6 +101,10 @@
   --font-sg-medium: sg-medium;
   --font-sg-semibold: sg-semibold;
   --font-sg-bold: sg-bold;
+  /* No ExtraBold asset exists yet — aliased to Bold rather than left unmapped. Swap this to a
+   * real registered "sg-extrabold" (see app/_layout.tsx's useFonts) if a SpaceGrotesk-ExtraBold
+   * file is ever added. */
+  --font-sg-extrabold: sg-bold;
 
   --spacing-0: 0px;
   --spacing-1: 4px;

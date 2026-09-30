@@ -1,8 +1,11 @@
 import '@/global.css';
+import { registerGlobals } from '@livekit/react-native';
 import { useFonts } from 'expo-font';
 import { SplashScreen, Stack, useGlobalSearchParams, usePathname } from 'expo-router';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
+import ErrorBoundary from '@/components/shared/ErrorBoundary';
+import NetworkStatusGate from '@/components/shared/NetworkStatusGate';
 import { ChatProvider } from '@/context/ChatContext';
 import { PlayersProvider } from '@/context/PlayersContext';
 import { queryClient } from '@/lib/api/queryClient';
@@ -15,6 +18,10 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { PostHogProvider } from 'posthog-react-native';
 import { StatusBar } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+
+// Required once, before any LiveKit/WebRTC usage (video-room.tsx) — sets up the native
+// WebRTC bindings LiveKit's JS layer expects to find on globalThis.
+registerGlobals();
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY as string
 
@@ -56,8 +63,29 @@ function RootLayoutContent() {
     'sans-medium': require('../assets/fonts/PlusJakartaSans-Medium.ttf'),
     'sans-semibold': require('../assets/fonts/PlusJakartaSans-SemiBold.ttf'),
     'sans-extrabold': require('../assets/fonts/PlusJakartaSans-ExtraBold.ttf'),
-    'sans-light': require('../assets/fonts/PlusJakartaSans-Light.ttf')
+    'sans-light': require('../assets/fonts/PlusJakartaSans-Light.ttf'),
+    // These map to `font-sg-*` in global.css's @theme — were bundled natively via the
+    // expo-font config plugin (app.json) but never registered under the alias the CSS
+    // actually uses, so every font-sg-* Text was rendering with an unresolved fontFamily.
+    'sg-regular': require('../assets/fonts/SpaceGrotesk-Regular.ttf'),
+    'sg-light': require('../assets/fonts/SpaceGrotesk-Light.ttf'),
+    'sg-medium': require('../assets/fonts/SpaceGrotesk-Medium.ttf'),
+    'sg-semibold': require('../assets/fonts/SpaceGrotesk-SemiBold.ttf'),
+    'sg-bold': require('../assets/fonts/SpaceGrotesk-Bold.ttf'),
   })
+
+  // `useFonts`'s promise can resolve a frame before iOS's text engine can actually use the
+  // newly-registered custom family — painting the very first frame right on that resolution
+  // renders any font-sg-*/font-sans-* Text blank (it self-corrects on the next re-render, which
+  // is why this only ever showed up as an intermittent "text vanishes" glitch). One extra
+  // animation frame after fontsLoaded flips gives native font registration time to settle
+  // before anything actually paints.
+  const [fontsReady, setFontsReady] = useState(false);
+  useEffect(() => {
+    if (!fontsLoaded) return;
+    const raf = requestAnimationFrame(() => setFontsReady(true));
+    return () => cancelAnimationFrame(raf);
+  }, [fontsLoaded]);
 
   useEffect(() => {
     SplashScreen.preventAutoHideAsync()
@@ -68,16 +96,16 @@ function RootLayoutContent() {
 
   useEffect(() => {
     // Hide splash only when both fonts and auth are loaded
-    if (fontsLoaded && authLoaded) {
+    if (fontsReady && authLoaded) {
       SplashScreen.hideAsync()
         .catch(() => {
           // Native splash screen may not be available
         });
     }
-  }, [fontsLoaded, authLoaded])
+  }, [fontsReady, authLoaded])
 
   // Don't render app until both are ready
-  if (!fontsLoaded || !authLoaded) return null;
+  if (!fontsReady || !authLoaded) return null;
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -106,10 +134,14 @@ function RootLayoutContent() {
 
 export default function RootLayout() {
   return (
-    <SafeAreaProvider>
-      <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
-        <RootLayoutContent />
-      </ClerkProvider>
-    </SafeAreaProvider>
+    <ErrorBoundary>
+      <SafeAreaProvider>
+        <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
+          <NetworkStatusGate>
+            <RootLayoutContent />
+          </NetworkStatusGate>
+        </ClerkProvider>
+      </SafeAreaProvider>
+    </ErrorBoundary>
   );
 }
