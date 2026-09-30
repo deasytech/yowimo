@@ -1,9 +1,10 @@
+import Avatar from "@/components/shared/Avatar";
 import ProfileCover from "@/components/screens/profile/ProfileCover";
 import ListHeading from "@/components/shared/ListHeading";
-import { FRIENDS } from "@/data/mock";
 import { useEarnedBadges } from "@/hooks/api/useBadges";
+import { useFriends } from "@/hooks/api/useFriends";
 import { useProfile } from "@/hooks/api/useProfile";
-import { getInitials } from "@/lib/utils";
+import { getInitials, initialsFromName } from "@/lib/utils";
 import { useUser } from "@clerk/expo";
 import { LinearGradient as RNLinearGradient } from "expo-linear-gradient";
 import { Link } from "expo-router";
@@ -14,18 +15,11 @@ import {
   Trophy
 } from "lucide-react-native";
 import { styled } from "nativewind";
-import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
 
 const SafeAreaView = styled(RNSafeAreaView);
 const LinearGradient = styled(RNLinearGradient);
-
-const STATS = [
-  { label: "Parties", value: 47 },
-  { label: "MVPs", value: 12 },
-  { label: "Friends", value: 86 },
-  { label: "Streak", value: "5d" },
-];
 
 const SETTINGS_ROWS = [
   { Icon: Award, label: "Referral center", sub: "Earn 50 tokens per friend", to: "/profile/referrals" },
@@ -44,6 +38,19 @@ const ProfileScreen = () => {
     refetch: refetchBadges,
   } = useEarnedBadges();
   const recentBadges = (earnedBadges ?? []).slice(0, 4);
+
+  const { data: friends, isLoading: isFriendsLoading } = useFriends();
+  const recentFriends = (friends ?? []).slice(0, 4);
+
+  // Parties/MVPs/Streak have no backing endpoint yet (see the API implementation plan) —
+  // Friends is the one real number here, from GET /friends.
+  // TODO(api): no stats endpoint yet for parties/MVPs/streak.
+  const STATS = [
+    { label: "Parties", value: 47 },
+    { label: "MVPs", value: 12 },
+    { label: "Friends", value: friends?.length ?? 0 },
+    { label: "Streak", value: "5d" },
+  ];
 
   const initials = getInitials(user);
 
@@ -106,7 +113,22 @@ const ProfileScreen = () => {
             />
 
             {isBadgesLoading ? (
-              <ActivityIndicator color="#B03BFF" style={{ marginVertical: 16 }} />
+              // Same 2x2 grid shape as the loaded state below — a spinner here instead would
+              // be much shorter, so the page reflows once badges arrive and shoves everything
+              // below (the Friends heading included) out of view without any scroll happening.
+              <View className="flex-row flex-wrap justify-between">
+                {[0, 1, 2, 3].map((i) => (
+                  <View
+                    key={i}
+                    className="mb-3 w-[48%] rounded-2xl border border-white/10 bg-white/5 p-3"
+                    style={{ opacity: 0.5 }}
+                  >
+                    <View className="h-6 w-6 rounded-md bg-white/10" />
+                    <View className="mt-2 h-3.5 w-3/4 rounded bg-white/10" />
+                    <View className="mt-1.5 h-3 w-full rounded bg-white/10" />
+                  </View>
+                ))}
+              </View>
             ) : isBadgesError ? (
               <View className="flex-row items-center justify-between py-2">
                 <Text className="text-sm text-white/40">Couldn&apos;t load achievements.</Text>
@@ -139,8 +161,14 @@ const ProfileScreen = () => {
           </View>
 
           <View>
+            {/* `key` forces a fresh mount once the real count lands (rather than a props-update
+             * on the loading-state instance) — a Text using the custom sg-bold font was
+             * reproducibly painting blank on its very first render whenever that first render
+             * happened well after app startup (e.g. switching to this tab), self-healing on any
+             * later re-render. Remounting sidesteps whatever stale-layout state causes that. */}
             <ListHeading
-              title={`Friends · ${FRIENDS.length}`}
+              key={isFriendsLoading ? "friends-loading" : "friends-loaded"}
+              title={`Friends · ${friends?.length ?? 0}`}
               titleSize="text-lg"
               link="/profile/friends"
               actionText="Manage"
@@ -151,50 +179,46 @@ const ProfileScreen = () => {
               iconStroke={2.2}
             />
 
-            <View className="gap-2">
-              {FRIENDS.slice(0, 4).map((f) => (
-                <View
-                  key={f.id}
-                  className="flex-row items-center gap-3 rounded-2xl p-3 border-white/10 bg-white/5"
-                >
-                  <View style={{ position: "relative" }}>
-                    <LinearGradient
-                      colors={["#7A1EFF", "#D84CFF"]}
-                      className="w-11 h-11 rounded-3xl items-center justify-center"
-                    >
-                      <Text style={{ color: "#fff", fontSize: 13, fontWeight: "700" }}>
-                        {f.initials}
+            {recentFriends.length === 0 ? (
+              <Text className="py-2 text-sm text-white/40">
+                No friends yet — invite someone to your next party.
+              </Text>
+            ) : (
+              <View className="gap-2">
+                {recentFriends.map((f) => (
+                  <View
+                    key={f.friendship_id}
+                    className="flex-row items-center gap-3 rounded-2xl p-3 border-white/10 bg-white/5"
+                  >
+                    <Avatar
+                      avatarUrl={f.friend.avatar_url}
+                      initials={initialsFromName(f.friend.display_name || f.friend.username)}
+                      size={44}
+                    />
+
+                    <View className="flex-1">
+                      <Text className="text-white text-sm font-semibold">
+                        {f.friend.display_name || f.friend.username}
                       </Text>
-                    </LinearGradient>
-                    {f.online && (
-                      <View
-                        className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-background bg-accent"
-                      />
-                    )}
-                  </View>
+                      <Text className="text-white/40 text-[11px]">@{f.friend.username}</Text>
+                    </View>
 
-                  <View className="flex-1">
-                    <Text className="text-white text-sm font-semibold">{f.name}</Text>
-                    <Text className="text-white/40 text-[11px]">
-                      {f.inParty ? `In · ${f.inParty}` : f.online ? "Online" : "Offline"}
-                    </Text>
+                    <Link href="/play/invite" asChild>
+                      <TouchableOpacity activeOpacity={0.85}>
+                        <LinearGradient
+                          colors={["#7A1EFF", "#D84CFF", "#FF8A2A"]}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 0 }}
+                          className="rounded-full px-3 py-1.5"
+                        >
+                          <Text className="text-white text-xs font-semibold">Invite</Text>
+                        </LinearGradient>
+                      </TouchableOpacity>
+                    </Link>
                   </View>
-
-                  <Link href="/play/invite" asChild>
-                    <TouchableOpacity activeOpacity={0.85}>
-                      <LinearGradient
-                        colors={["#7A1EFF", "#D84CFF", "#FF8A2A"]}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 0 }}
-                        className="rounded-full px-3 py-1.5"
-                      >
-                        <Text className="text-white text-xs font-semibold">Invite</Text>
-                      </LinearGradient>
-                    </TouchableOpacity>
-                  </Link>
-                </View>
-              ))}
-            </View>
+                ))}
+              </View>
+            )}
           </View>
 
           {/* ── Settings rows ── */}

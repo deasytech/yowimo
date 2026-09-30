@@ -1,10 +1,24 @@
+import Avatar from "@/components/shared/Avatar";
+import ConfirmDialog from "@/components/shared/ConfirmDialog";
 import GoBack from "@/components/shared/GoBack";
-import { FRIENDS } from "@/data/mock";
-import { LinearGradient as RNLinearGradient } from "expo-linear-gradient";
-import { Search, UserPlus } from "lucide-react-native";
+import Toast from "@/components/shared/Toast";
+import {
+  useAcceptFriendRequest,
+  useCancelFriendRequest,
+  useFriendRequests,
+  useFriends,
+  useRejectFriendRequest,
+  useRemoveFriend,
+} from "@/hooks/api/useFriends";
+import { useProfile } from "@/hooks/api/useProfile";
+import { useToast } from "@/hooks/useToast";
+import { ApiError, FriendRequestResource, FriendResource } from "@/lib/api/types";
+import { formatRelativeTime, initialsFromName } from "@/lib/utils";
+import { Search } from "lucide-react-native";
 import { styled } from "nativewind";
 import { useState } from "react";
 import {
+  ActivityIndicator,
   ScrollView,
   Text,
   TextInput,
@@ -14,33 +28,112 @@ import {
 import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
 
 const SafeAreaView = styled(RNSafeAreaView);
-const LinearGradient = styled(RNLinearGradient);
 
-const TABS = ["All", "Online", "In game"];
+type Tab = "All" | "Requests";
 
 export default function FriendsListScreen() {
-  const [tab, setTab] = useState("All");
+  const [tab, setTab] = useState<Tab>("All");
   const [q, setQ] = useState("");
+  const [pendingRemove, setPendingRemove] = useState<FriendResource | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const [toastMessage, setToastMessage] = useState("");
+  const [toastBg, setToastBg] = useState("bg-green-600");
+  const toast = useToast();
 
-  const filtered = FRIENDS.filter(
-    (f) =>
-      (tab === "Online" ? f.online : tab === "In game" ? !!f.inParty : true) &&
-      (f.name.toLowerCase().includes(q.toLowerCase()) ||
-        f.handle.toLowerCase().includes(q.toLowerCase()))
+  const { data: profile } = useProfile();
+  const friendsQuery = useFriends();
+  const requestsQuery = useFriendRequests();
+
+  const removeFriend = useRemoveFriend();
+  const acceptRequest = useAcceptFriendRequest();
+  const rejectRequest = useRejectFriendRequest();
+  const cancelRequest = useCancelFriendRequest();
+
+  const friends = friendsQuery.data ?? [];
+  const requests = requestsQuery.data ?? [];
+  const incoming = requests.filter((r) => r.receiver.id === profile?.id);
+  const sent = requests.filter((r) => r.sender.id === profile?.id);
+
+  const query = q.trim().toLowerCase();
+  const filteredFriends = friends.filter((f) =>
+    !query ||
+    f.friend.username.toLowerCase().includes(query) ||
+    (f.friend.display_name ?? "").toLowerCase().includes(query),
+  );
+  const filteredIncoming = incoming.filter(
+    (r) => !query || r.sender.username.toLowerCase().includes(query),
+  );
+  const filteredSent = sent.filter(
+    (r) => !query || r.receiver.username.toLowerCase().includes(query),
   );
 
-  const addFriend = () => {
-    console.log("Add a friend or friends")
-  }
+  const notify = (message: string, variant: "success" | "error") => {
+    setToastMessage(message);
+    setToastBg(variant === "success" ? "bg-green-600" : "bg-red-600");
+    toast.showToast();
+  };
+
+  const confirmRemove = async () => {
+    const target = pendingRemove;
+    if (!target || busyId !== null) return;
+    setPendingRemove(null);
+    setBusyId(target.friendship_id);
+    try {
+      await removeFriend.mutateAsync(target.friendship_id);
+      notify("Friend removed", "success");
+    } catch (err) {
+      notify(err instanceof ApiError ? err.message : "Couldn't remove friend", "error");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const respondToRequest = async (
+    request: FriendRequestResource,
+    action: "accept" | "reject" | "cancel",
+  ) => {
+    if (busyId !== null) return;
+    setBusyId(request.id);
+    try {
+      if (action === "accept") {
+        await acceptRequest.mutateAsync(request.id);
+        notify(`You're now friends with ${request.sender.username}`, "success");
+      } else if (action === "reject") {
+        await rejectRequest.mutateAsync(request.id);
+        notify("Request declined", "success");
+      } else {
+        await cancelRequest.mutateAsync(request.id);
+        notify("Request cancelled", "success");
+      }
+    } catch (err) {
+      notify(err instanceof ApiError ? err.message : "Something went wrong", "error");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const activeQuery = tab === "All" ? friendsQuery : requestsQuery;
 
   return (
     <SafeAreaView className="flex-1 bg-background">
+      <Toast opacity={toast.opacity} isVisible={toast.isVisible} message={toastMessage} bgClass={toastBg} />
+
+      <ConfirmDialog
+        visible={pendingRemove !== null}
+        title="Remove this friend?"
+        message={
+          pendingRemove
+            ? `You and ${pendingRemove.friend.display_name || pendingRemove.friend.username} will no longer be friends.`
+            : ""
+        }
+        confirmLabel="Remove"
+        cancelLabel="Keep"
+        onConfirm={confirmRemove}
+        onCancel={() => setPendingRemove(null)}
+      />
+
       <View className="px-5">
-        <GoBack
-          title="Friends"
-          rightIcon={UserPlus}
-          rightAction={addFriend}
-        />
+        <GoBack title="Friends" />
       </View>
 
       {/* ── Search ── */}
@@ -60,107 +153,172 @@ export default function FriendsListScreen() {
       </View>
 
       {/* ── Tabs ── */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        className="mt-3"
-        style={{ flexGrow: 0 }}
-        contentContainerStyle={{ paddingHorizontal: 20, gap: 8, alignItems: "center" }}
-      >
-        {TABS.map((t) => {
+      <View className="flex-row gap-2 px-5">
+        {(["All", "Requests"] as Tab[]).map((t) => {
           const active = tab === t;
-          return active ? (
-            <TouchableOpacity key={t} onPress={() => setTab(t)} activeOpacity={0.85}>
-              <LinearGradient
-                colors={["#7A1EFF", "#D84CFF", "#FF8A2A"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                className="rounded-full px-4 py-2 flex-row items-center"
-              >
-                <Text className="text-white text-xs font-semibold">{t}</Text>
-                {t === "Requests" && (
-                  <View className="ml-1 rounded-full bg-orange px-1.5 py-0.5">
-                    <Text className="text-white text-[10px] font-bold">2</Text>
-                  </View>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
-          ) : (
+          const badge = t === "Requests" ? incoming.length : 0;
+          return (
             <TouchableOpacity
               key={t}
               onPress={() => setTab(t)}
-              activeOpacity={0.8}
-              className="rounded-full bg-secondary/60 px-4 py-2 flex-row items-center"
+              activeOpacity={0.85}
+              className={`rounded-full px-4 py-2 flex-row items-center ${active ? "bg-primary" : "bg-secondary/60"
+                }`}
             >
-              <Text className="text-muted-foreground text-xs font-semibold">{t}</Text>
-              {t === "Requests" && (
+              <Text className={`text-xs font-semibold ${active ? "text-white" : "text-muted-foreground"}`}>
+                {t}
+              </Text>
+              {badge > 0 && (
                 <View className="ml-1 rounded-full bg-orange px-1.5 py-0.5">
-                  <Text className="text-white text-[10px] font-bold">2</Text>
+                  <Text className="text-white text-[10px] font-bold">{badge}</Text>
                 </View>
               )}
             </TouchableOpacity>
           );
         })}
-      </ScrollView>
+      </View>
 
-      {/* ── Friends list ── */}
       <ScrollView
         className="flex-1"
-        contentContainerStyle={{
-          paddingHorizontal: 20,
-          paddingTop: 16,
-          paddingBottom: 32,
-          gap: 8
-        }}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 100, gap: 8 }}
         showsVerticalScrollIndicator={false}
       >
-        {filtered.map((f) => (
-          <View
-            key={f.id}
-            className="flex-row items-center gap-3 rounded-2xl bg-card p-3"
-          >
-            {/* Avatar */}
-            <View className="relative">
-              <LinearGradient
-                colors={["#7A1EFF", "#B03BFF"]}
-                className="h-11 w-11 items-center justify-center rounded-full"
-              >
-                <Text className="text-white text-sm font-bold">{f.initials}</Text>
-              </LinearGradient>
-              {f.online && (
-                <View
-                  className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-orange"
-                  style={{ borderWidth: 2, borderColor: "#101015" }}
-                />
-              )}
-            </View>
+        {activeQuery.isLoading && (
+          <View className="items-center py-16">
+            <ActivityIndicator color="#B03BFF" />
+          </View>
+        )}
 
-            {/* Name + status */}
-            <View className="flex-1">
-              <Text className="text-foreground text-sm font-semibold" numberOfLines={1}>
-                {f.name}
-              </Text>
-              <Text className="text-muted-foreground text-xs" numberOfLines={1}>
-                {f.inParty ? `🎮 In ${f.inParty}` : f.handle}
-              </Text>
-            </View>
-
-            {/* Level badge */}
-            <View className="rounded-full bg-secondary px-2 py-0.5">
-              <Text className="text-foreground text-[10px] font-bold">LVL {f.level}</Text>
-            </View>
-
-            {/* Invite */}
-            <TouchableOpacity activeOpacity={0.85} onPress={() => { }}>
-              <LinearGradient
-                colors={["#7A1EFF", "#B03BFF"]}
-                className="rounded-xl px-3 py-1.5"
-              >
-                <Text className="text-white text-xs font-semibold">Invite</Text>
-              </LinearGradient>
+        {activeQuery.isError && (
+          <View className="items-center gap-3 py-16">
+            <Text className="text-center text-sm text-muted-foreground">
+              Couldn&apos;t load {tab === "All" ? "friends" : "requests"}.
+            </Text>
+            <TouchableOpacity onPress={() => activeQuery.refetch()} activeOpacity={0.85}>
+              <Text className="text-xs font-sans-semibold text-violet-bright">Retry</Text>
             </TouchableOpacity>
           </View>
-        ))}
+        )}
+
+        {!activeQuery.isLoading && !activeQuery.isError && tab === "All" && (
+          filteredFriends.length === 0 ? (
+            <View className="items-center py-16">
+              <Text className="text-sm text-white/40">
+                {query ? "No friends match your search." : "No friends yet."}
+              </Text>
+            </View>
+          ) : (
+            filteredFriends.map((f) => (
+              <View key={f.friendship_id} className="flex-row items-center gap-3 rounded-2xl bg-card p-3">
+                <Avatar
+                  avatarUrl={f.friend.avatar_url}
+                  initials={initialsFromName(f.friend.display_name || f.friend.username)}
+                  size={44}
+                />
+
+                <View className="flex-1">
+                  <Text className="text-foreground text-sm font-semibold" numberOfLines={1}>
+                    {f.friend.display_name || f.friend.username}
+                  </Text>
+                  <Text className="text-muted-foreground text-xs" numberOfLines={1}>
+                    @{f.friend.username}
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  disabled={busyId === f.friendship_id}
+                  onPress={() => setPendingRemove(f)}
+                  className="rounded-xl border border-border px-3 py-1.5"
+                >
+                  {busyId === f.friendship_id ? (
+                    <ActivityIndicator color="#a3a3ab" size="small" />
+                  ) : (
+                    <Text className="text-muted-foreground text-xs font-semibold">Remove</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            ))
+          )
+        )}
+
+        {!activeQuery.isLoading && !activeQuery.isError && tab === "Requests" && (
+          <>
+            <Text className="mb-1 text-[11px] font-sans-bold uppercase text-muted-foreground" style={{ letterSpacing: 0.8 }}>
+              Incoming
+            </Text>
+            {filteredIncoming.length === 0 ? (
+              <Text className="mb-4 text-sm text-white/40">No incoming requests.</Text>
+            ) : (
+              filteredIncoming.map((r) => (
+                <View key={r.id} className="mb-2 flex-row items-center gap-3 rounded-2xl bg-card p-3">
+                  <Avatar initials={initialsFromName(r.sender.username)} size={44} />
+                  <View className="flex-1">
+                    <Text className="text-foreground text-sm font-semibold" numberOfLines={1}>
+                      @{r.sender.username}
+                    </Text>
+                    <Text className="text-muted-foreground text-[11px]">
+                      {formatRelativeTime(r.created_at)}
+                    </Text>
+                  </View>
+                  {busyId === r.id ? (
+                    <ActivityIndicator color="#a3a3ab" size="small" />
+                  ) : (
+                    <View className="flex-row gap-2">
+                      <TouchableOpacity
+                        activeOpacity={0.85}
+                        onPress={() => respondToRequest(r, "reject")}
+                        className="rounded-xl border border-border px-3 py-1.5"
+                      >
+                        <Text className="text-muted-foreground text-xs font-semibold">Decline</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        activeOpacity={0.85}
+                        onPress={() => respondToRequest(r, "accept")}
+                        className="rounded-xl bg-primary px-3 py-1.5"
+                      >
+                        <Text className="text-white text-xs font-semibold">Accept</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              ))
+            )}
+
+            <Text className="mb-1 mt-4 text-[11px] font-sans-bold uppercase text-muted-foreground" style={{ letterSpacing: 0.8 }}>
+              Sent
+            </Text>
+            {filteredSent.length === 0 ? (
+              <Text className="text-sm text-white/40">No pending sent requests.</Text>
+            ) : (
+              filteredSent.map((r) => (
+                <View key={r.id} className="mb-2 flex-row items-center gap-3 rounded-2xl bg-card p-3">
+                  <Avatar initials={initialsFromName(r.receiver.username)} size={44} />
+                  <View className="flex-1">
+                    <Text className="text-foreground text-sm font-semibold" numberOfLines={1}>
+                      @{r.receiver.username}
+                    </Text>
+                    <Text className="text-muted-foreground text-[11px]">
+                      {formatRelativeTime(r.created_at)}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    disabled={busyId === r.id}
+                    onPress={() => respondToRequest(r, "cancel")}
+                    className="rounded-xl border border-border px-3 py-1.5"
+                  >
+                    {busyId === r.id ? (
+                      <ActivityIndicator color="#a3a3ab" size="small" />
+                    ) : (
+                      <Text className="text-muted-foreground text-xs font-semibold">Cancel</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              ))
+            )}
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
