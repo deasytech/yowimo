@@ -1,13 +1,16 @@
 import { useApi } from '@/hooks/api/useApi';
 import { toQueryString } from '@/lib/api/client';
 import {
+  AddGuestPlayerPayload,
   CreatePartyPayload,
   PartyDetail,
   PartyMembership,
   PartyMembershipStatus,
   PartyMode,
+  PartyPlayerResource,
   PartyStatus,
   PartySummary,
+  VideoTokenResource,
 } from '@/lib/api/types';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -67,6 +70,42 @@ export function useParty(partyId: number | null) {
     queryKey: partyQueryKey(partyId),
     queryFn: () => request<PartyDetail>(`/parties/${partyId}`),
     enabled: partyId !== null,
+  });
+}
+
+export const partyPlayersQueryKey = (partyId: number | null) => ['parties', 'players', partyId] as const;
+
+/** The party's roster — real identities (id/username/avatar), not just a headcount. Not
+ * paginated (bounded by max_players). Includes players who left with `status: "left"`; filter
+ * to `"active"` for a lobby "who's here" list. Static snapshot, not realtime — refetch after a
+ * join/leave action rather than expecting this to update on its own. */
+export function usePartyPlayers(partyId: number | null) {
+  const { request } = useApi();
+
+  return useQuery({
+    queryKey: partyPlayersQueryKey(partyId),
+    queryFn: () => request<PartyPlayerResource[]>(`/parties/${partyId}/players`),
+    enabled: partyId !== null,
+  });
+}
+
+/** Host-only: add an in-room pass-and-play guest (no account, no Clerk token of their own —
+ * the host's token vouches for them). Always creates a new row, unlike the self-join endpoint's
+ * rejoin-reuse. Guest adds don't broadcast on the presence channel, so refetch the roster after
+ * a successful add rather than waiting on a realtime event. */
+export function useAddGuestPlayer() {
+  const { request } = useApi();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ partyId, ...payload }: AddGuestPlayerPayload & { partyId: number }) =>
+      request<PartyPlayerResource>(`/parties/${partyId}/players`, {
+        method: 'POST',
+        body: payload,
+      }),
+    onSuccess: (_player, { partyId }) => {
+      queryClient.invalidateQueries({ queryKey: partyPlayersQueryKey(partyId) });
+    },
   });
 }
 
@@ -250,4 +289,16 @@ export function useStartParty() {
 
 export function useEndParty() {
   return usePartyActionMutation((id) => `/parties/${id}/end`, 'POST');
+}
+
+/** A fresh token per join — always call this right before connecting rather than caching one,
+ * since it's short-lived. 403s for `in_person` parties or once the party isn't live; 503 if
+ * video isn't configured server-side yet. Rate-limited under `party-actions` (30/min). */
+export function useRequestVideoToken() {
+  const { request } = useApi();
+
+  return useMutation({
+    mutationFn: (partyId: number) =>
+      request<VideoTokenResource>(`/parties/${partyId}/video-token`, { method: 'POST' }),
+  });
 }

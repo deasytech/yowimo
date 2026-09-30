@@ -89,6 +89,15 @@ export default {
         },
       ],
       'expo-notifications',
+      '@livekit/react-native-expo-plugin',
+      [
+        '@config-plugins/react-native-webrtc',
+        {
+          cameraPermission: 'Yowimo needs camera access so others can see you in video parties.',
+          microphonePermission:
+            'Yowimo needs microphone access so others can hear you in video parties.',
+        },
+      ],
     ],
     experiments: {
       typedRoutes: true,
