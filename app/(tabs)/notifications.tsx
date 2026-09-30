@@ -19,6 +19,57 @@ import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
 
 const SafeAreaView = styled(RNSafeAreaView);
 
+function ItemSeparator() {
+  return <View className="h-2" />;
+}
+
+/** Extracted out of the FlatList's ListEmptyComponent prop — was a 3-way nested ternary. */
+function NotificationsEmptyState({
+  isLoading,
+  isError,
+  error,
+  onRetry,
+}: Readonly<{
+  isLoading: boolean;
+  isError: boolean;
+  error: unknown;
+  onRetry: () => void;
+}>) {
+  if (isLoading) {
+    return (
+      <View className="items-center py-16">
+        <ActivityIndicator color="#B03BFF" />
+      </View>
+    );
+  }
+
+  if (isError) {
+    return (
+      <View className="items-center gap-3 py-16">
+        <Text className="text-center text-sm text-muted-foreground">
+          Couldn&apos;t load notifications.
+        </Text>
+        <Text className="text-center text-xs text-muted-foreground/70">
+          {error instanceof Error ? error.message : "Unknown error"}
+        </Text>
+        <TouchableOpacity onPress={onRetry} activeOpacity={0.85}>
+          <Text className="text-xs font-sans-semibold text-violet-bright">Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <View className="items-center py-16">
+      <Text className="text-3xl">🔔</Text>
+      <Text className="mt-4 font-sans-semibold text-sm text-white">You&apos;re all caught up</Text>
+      <Text className="mt-1 text-center text-xs text-muted-foreground">
+        Nothing new right now — check back later.
+      </Text>
+    </View>
+  );
+}
+
 // `type` is an opaque string, not an enum (the docs list these as the values seen so far, not
 // an exhaustive set) — fall back to a generic bell for anything not in this map.
 const TYPE_ICON: Record<string, string> = {
@@ -104,7 +155,7 @@ export default function NotificationsScreen() {
             </View>
           ) : null
         }
-        ItemSeparatorComponent={() => <View className="h-2" />}
+        ItemSeparatorComponent={ItemSeparator}
         contentInsetAdjustmentBehavior="automatic"
         renderItem={({ item }) => (
           <TouchableOpacity
@@ -134,33 +185,12 @@ export default function NotificationsScreen() {
           </TouchableOpacity>
         )}
         ListEmptyComponent={
-          isLoading ? (
-            <View className="items-center py-16">
-              <ActivityIndicator color="#B03BFF" />
-            </View>
-          ) : isError ? (
-            <View className="items-center gap-3 py-16">
-              <Text className="text-center text-sm text-muted-foreground">
-                Couldn&apos;t load notifications.
-              </Text>
-              <Text className="text-center text-xs text-muted-foreground/70">
-                {error instanceof Error ? error.message : "Unknown error"}
-              </Text>
-              <TouchableOpacity onPress={() => refetch()} activeOpacity={0.85}>
-                <Text className="text-xs font-sans-semibold text-violet-bright">Retry</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View className="items-center py-16">
-              <Text className="text-3xl">🔔</Text>
-              <Text className="mt-4 font-sans-semibold text-sm text-white">
-                You&apos;re all caught up
-              </Text>
-              <Text className="mt-1 text-center text-xs text-muted-foreground">
-                Nothing new right now — check back later.
-              </Text>
-            </View>
-          )
+          <NotificationsEmptyState
+            isLoading={isLoading}
+            isError={isError}
+            error={error}
+            onRetry={() => refetch()}
+          />
         }
       />
     </SafeAreaView>

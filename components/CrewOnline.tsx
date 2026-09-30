@@ -2,7 +2,6 @@ import Avatar from "@/components/shared/Avatar";
 import { Text, View } from "react-native";
 
 interface CrewOnlineProps {
-  id: number;
   name: string;
   initials: string;
   avatarUrl?: string | null;
@@ -10,7 +9,7 @@ interface CrewOnlineProps {
 
 // No presence/online data exists server-side (see the API implementation plan's note on this
 // rail) — this just previews a real friend, with no online dot pretending to know status.
-const CrewOnline = ({ name, initials, avatarUrl }: CrewOnlineProps) => {
+const CrewOnline = ({ name, initials, avatarUrl }: Readonly<CrewOnlineProps>) => {
   return (
     <View className="w-16 items-center">
       <Avatar avatarUrl={avatarUrl} initials={initials} size={56} />

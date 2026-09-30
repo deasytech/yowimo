@@ -200,13 +200,13 @@ export default function LobbyScreen() {
     if (!incoming || busyRef.current) return;
     const key = `friend-${player.user.id}`;
     if (action === "accept") {
-      runAction(
+      void runAction(
         key,
         () => acceptFriendRequest.mutateAsync(incoming.id),
         `You're now friends with ${player.user.display_name || player.user.username}`,
       );
     } else {
-      runAction(key, () => rejectFriendRequest.mutateAsync(incoming.id), "Request declined");
+      void runAction(key, () => rejectFriendRequest.mutateAsync(incoming.id), "Request declined");
     }
   };
 
@@ -269,7 +269,7 @@ export default function LobbyScreen() {
         cancelLabel="Keep it"
         onConfirm={() => {
           setConfirmingCancel(false);
-          runAction("cancel", () => cancelParty.mutateAsync(party.id), "Party canceled");
+          void runAction("cancel", () => cancelParty.mutateAsync(party.id), "Party canceled");
         }}
         onCancel={() => setConfirmingCancel(false)}
       />
@@ -464,12 +464,15 @@ export default function LobbyScreen() {
               Who&apos;s here
             </Text>
 
-            {activePlayers.map((p) => {
+            {activePlayers.map((p, index) => {
               if (!p.user) {
-                // A guest (pass-and-play) row — no account, so no friend actions apply.
+                // A guest (pass-and-play) row — no account, so no friend actions apply. Guest
+                // rows have no id from the API at all, and joined_at alone can collide if two
+                // guests get added within the same timestamp resolution — index guarantees
+                // uniqueness regardless.
                 return (
                   <View
-                    key={`guest-${p.joined_at}`}
+                    key={`guest-${index}-${p.joined_at}`}
                     className="flex-row items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3"
                   >
                     <Avatar
@@ -516,48 +519,20 @@ export default function LobbyScreen() {
                     </Text>
                   </View>
 
-                  {isSelf ? null : busy === busyKey ? (
-                    <ActivityIndicator color="#a3a3ab" size="small" />
-                  ) : state === "friends" ? (
-                    <View className="rounded-full bg-secondary px-3 py-1.5">
-                      <Text className="text-muted-foreground text-xs font-semibold">Friends</Text>
-                    </View>
-                  ) : state === "incoming" ? (
-                    <View className="flex-row gap-2">
-                      <TouchableOpacity
-                        onPress={() => respondToRosterRequest(p, "reject")}
-                        activeOpacity={0.85}
-                        className="rounded-full border border-border px-3 py-1.5"
-                      >
-                        <Text className="text-muted-foreground text-xs font-semibold">Decline</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() => respondToRosterRequest(p, "accept")}
-                        activeOpacity={0.85}
-                        className="rounded-full bg-primary px-3 py-1.5"
-                      >
-                        <Text className="text-white text-xs font-semibold">Accept</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ) : state === "outgoing" ? (
-                    <View className="rounded-full border border-border px-3 py-1.5">
-                      <Text className="text-muted-foreground text-xs font-semibold">Requested</Text>
-                    </View>
-                  ) : (
-                    <TouchableOpacity
-                      onPress={() =>
-                        runAction(
-                          busyKey,
-                          () => sendFriendRequest.mutateAsync(p.user!.id),
-                          "Friend request sent",
-                        )
-                      }
-                      activeOpacity={0.85}
-                      className="rounded-full bg-primary px-3 py-1.5"
-                    >
-                      <Text className="text-white text-xs font-semibold">Add friend</Text>
-                    </TouchableOpacity>
-                  )}
+                  <RosterFriendAction
+                    isSelf={isSelf}
+                    state={state}
+                    busy={busy === busyKey}
+                    onReject={() => respondToRosterRequest(p, "reject")}
+                    onAccept={() => respondToRosterRequest(p, "accept")}
+                    onAdd={() =>
+                      void runAction(
+                        busyKey,
+                        () => sendFriendRequest.mutateAsync(p.user!.id),
+                        "Friend request sent",
+                      )
+                    }
+                  />
                 </View>
               );
             })}
@@ -768,4 +743,71 @@ function getFriendActionState(
   if (requests?.some((r) => r.sender.id === userId && r.receiver.id === myId)) return "incoming";
   if (requests?.some((r) => r.sender.id === myId && r.receiver.id === userId)) return "outgoing";
   return "none";
+}
+
+/** Extracted out of the roster row's render — was a 5-way nested ternary chain. */
+function RosterFriendAction({
+  isSelf,
+  state,
+  busy,
+  onReject,
+  onAccept,
+  onAdd,
+}: Readonly<{
+  isSelf: boolean;
+  state: FriendActionState;
+  busy: boolean;
+  onReject: () => void;
+  onAccept: () => void;
+  onAdd: () => void;
+}>) {
+  if (isSelf) return null;
+  if (busy) return <ActivityIndicator color="#a3a3ab" size="small" />;
+
+  if (state === "friends") {
+    return (
+      <View className="rounded-full bg-secondary px-3 py-1.5">
+        <Text className="text-muted-foreground text-xs font-semibold">Friends</Text>
+      </View>
+    );
+  }
+
+  if (state === "incoming") {
+    return (
+      <View className="flex-row gap-2">
+        <TouchableOpacity
+          onPress={onReject}
+          activeOpacity={0.85}
+          className="rounded-full border border-border px-3 py-1.5"
+        >
+          <Text className="text-muted-foreground text-xs font-semibold">Decline</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={onAccept}
+          activeOpacity={0.85}
+          className="rounded-full bg-primary px-3 py-1.5"
+        >
+          <Text className="text-white text-xs font-semibold">Accept</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (state === "outgoing") {
+    return (
+      <View className="rounded-full border border-border px-3 py-1.5">
+        <Text className="text-muted-foreground text-xs font-semibold">Requested</Text>
+      </View>
+    );
+  }
+
+  return (
+    <TouchableOpacity
+      onPress={onAdd}
+      activeOpacity={0.85}
+      className="rounded-full bg-primary px-3 py-1.5"
+    >
+      <Text className="text-white text-xs font-semibold">Add friend</Text>
+    </TouchableOpacity>
+  );
 }

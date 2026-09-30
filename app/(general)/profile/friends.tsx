@@ -40,7 +40,8 @@ export default function FriendsListScreen() {
   const [toastBg, setToastBg] = useState("bg-green-600");
   const toast = useToast();
 
-  const { data: profile } = useProfile();
+  const profileQuery = useProfile();
+  const profile = profileQuery.data;
   const friendsQuery = useFriends();
   const requestsQuery = useFriendRequests();
 
@@ -113,6 +114,15 @@ export default function FriendsListScreen() {
   };
 
   const activeQuery = tab === "All" ? friendsQuery : requestsQuery;
+  // The Requests tab's incoming/sent split filters on profile?.id — if requests resolve before
+  // the profile query does, both filters compare against undefined and everything looks empty
+  // even though requests exist. Fold profile's own loading/error into this tab's gate too.
+  const isActiveLoading = activeQuery.isLoading || (tab === "Requests" && profileQuery.isLoading);
+  const isActiveError = activeQuery.isError || (tab === "Requests" && profileQuery.isError);
+  const refetchActive = () => {
+    activeQuery.refetch();
+    if (tab === "Requests") profileQuery.refetch();
+  };
 
   return (
     <SafeAreaView className="flex-1 bg-background">
@@ -183,24 +193,24 @@ export default function FriendsListScreen() {
         contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 100, gap: 8 }}
         showsVerticalScrollIndicator={false}
       >
-        {activeQuery.isLoading && (
+        {isActiveLoading && (
           <View className="items-center py-16">
             <ActivityIndicator color="#B03BFF" />
           </View>
         )}
 
-        {activeQuery.isError && (
+        {!isActiveLoading && isActiveError && (
           <View className="items-center gap-3 py-16">
             <Text className="text-center text-sm text-muted-foreground">
               Couldn&apos;t load {tab === "All" ? "friends" : "requests"}.
             </Text>
-            <TouchableOpacity onPress={() => activeQuery.refetch()} activeOpacity={0.85}>
+            <TouchableOpacity onPress={refetchActive} activeOpacity={0.85}>
               <Text className="text-xs font-sans-semibold text-violet-bright">Retry</Text>
             </TouchableOpacity>
           </View>
         )}
 
-        {!activeQuery.isLoading && !activeQuery.isError && tab === "All" && (
+        {!isActiveLoading && !isActiveError && tab === "All" && (
           filteredFriends.length === 0 ? (
             <View className="items-center py-16">
               <Text className="text-sm text-white/40">
@@ -242,7 +252,7 @@ export default function FriendsListScreen() {
           )
         )}
 
-        {!activeQuery.isLoading && !activeQuery.isError && tab === "Requests" && (
+        {!isActiveLoading && !isActiveError && tab === "Requests" && (
           <>
             <Text className="mb-1 text-[11px] font-sans-bold uppercase text-muted-foreground" style={{ letterSpacing: 0.8 }}>
               Incoming

@@ -28,6 +28,116 @@ function playerName(p: PartyPlayerResource): string {
   return p.user?.display_name || p.user?.username || p.guest_name || "Guest";
 }
 
+/** Extracted out of HybridScreen's render — was two nested ternaries (add-guest form toggle,
+ * then its own submit-button spinner) contributing heavily to the parent's complexity. */
+function InRoomPlayersCard({
+  localPlayers,
+  isHost,
+  addingGuest,
+  onStartAdding,
+  onCancelAdding,
+  guestName,
+  onGuestNameChange,
+  guestEmoji,
+  onGuestEmojiChange,
+  onSubmit,
+  isSubmitting,
+}: Readonly<{
+  localPlayers: PartyPlayerResource[];
+  isHost: boolean;
+  addingGuest: boolean;
+  onStartAdding: () => void;
+  onCancelAdding: () => void;
+  guestName: string;
+  onGuestNameChange: (value: string) => void;
+  guestEmoji: string;
+  onGuestEmojiChange: (value: string) => void;
+  onSubmit: () => void;
+  isSubmitting: boolean;
+}>) {
+  return (
+    <View className="mt-5 rounded-3xl border border-white/10 bg-card p-5">
+      <Text className="mb-3 font-sg-bold text-sm text-white">🏠 In-Room Players</Text>
+
+      {localPlayers.length === 0 ? (
+        <Text className="text-xs text-muted-foreground">
+          No one&apos;s been added to the room yet.
+        </Text>
+      ) : (
+        <View className="mb-3 flex-row flex-wrap">
+          {localPlayers.map((p) => (
+            <View
+              key={`local-${p.joined_at}`}
+              className="mb-2 mr-2 rounded-full border border-accent/40 bg-accent/15 px-3 py-1"
+            >
+              <Text className="text-xs font-sans-medium text-white">
+                {p.guest_emoji ? `${p.guest_emoji} ` : ""}
+                {playerName(p)}
+              </Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {isHost && !addingGuest && (
+        <TouchableOpacity
+          onPress={onStartAdding}
+          activeOpacity={0.85}
+          className="flex-row items-center self-start rounded-full bg-secondary px-3 py-1"
+        >
+          <UserPlus size={12} color="#FFFFFF" />
+          <Text className="ml-1 text-xs font-sans-medium text-white">Add</Text>
+        </TouchableOpacity>
+      )}
+
+      {isHost && addingGuest && (
+        <View className="gap-2">
+          <View className="flex-row gap-2">
+            <TextInput
+              value={guestName}
+              onChangeText={onGuestNameChange}
+              placeholder="Name"
+              placeholderTextColor="rgba(255,255,255,0.35)"
+              className="flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+              autoFocus
+            />
+            <TextInput
+              value={guestEmoji}
+              onChangeText={onGuestEmojiChange}
+              placeholder="🎉"
+              placeholderTextColor="rgba(255,255,255,0.35)"
+              className="w-14 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-center text-sm text-white"
+              maxLength={8}
+            />
+          </View>
+          <View className="flex-row gap-2">
+            <TouchableOpacity
+              onPress={onCancelAdding}
+              activeOpacity={0.85}
+              className="flex-1 items-center rounded-xl border border-white/10 py-2"
+            >
+              <Text className="text-xs font-sans-medium text-muted-foreground">Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={onSubmit}
+              disabled={!guestName.trim() || isSubmitting}
+              activeOpacity={0.85}
+              style={{ opacity: guestName.trim() ? 1 : 0.5 }}
+              className="flex-1 items-center rounded-xl bg-primary py-2"
+            >
+              {isSubmitting ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text className="text-xs font-sans-semibold text-white">Add player</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+    </View>
+  );
+}
+
 export default function HybridScreen() {
   const { partyId: partyIdParam } = useLocalSearchParams<{ partyId: string }>();
   const partyId = Number(partyIdParam);
@@ -91,7 +201,9 @@ export default function HybridScreen() {
   }
 
   const isHost = profile?.id === party.host.id;
-  const canJoinVideo = party.status === "live" && (isHost || party.joined_by_me);
+  // Matches the lobby's own check and the API's 403 rule — video never applies to in_person.
+  const canJoinVideo =
+    party.mode !== "in_person" && party.status === "live" && (isHost || party.joined_by_me);
   const roomCode = "room_code" in party ? party.room_code : undefined;
 
   const handleAddGuest = async () => {
@@ -167,88 +279,23 @@ export default function HybridScreen() {
         </View>
 
         {/* Local Players — pass-and-play, added by the host */}
-        <View className="mt-5 rounded-3xl border border-white/10 bg-card p-5">
-          <Text className="mb-3 font-sg-bold text-sm text-white">🏠 In-Room Players</Text>
-
-          {localPlayers.length === 0 ? (
-            <Text className="text-xs text-muted-foreground">
-              No one&apos;s been added to the room yet.
-            </Text>
-          ) : (
-            <View className="mb-3 flex-row flex-wrap">
-              {localPlayers.map((p) => (
-                <View
-                  key={`local-${p.joined_at}`}
-                  className="mb-2 mr-2 rounded-full border border-accent/40 bg-accent/15 px-3 py-1"
-                >
-                  <Text className="text-xs font-sans-medium text-white">
-                    {p.guest_emoji ? `${p.guest_emoji} ` : ""}
-                    {playerName(p)}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          )}
-
-          {isHost &&
-            (addingGuest ? (
-              <View className="gap-2">
-                <View className="flex-row gap-2">
-                  <TextInput
-                    value={guestName}
-                    onChangeText={setGuestName}
-                    placeholder="Name"
-                    placeholderTextColor="rgba(255,255,255,0.35)"
-                    className="flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
-                    autoFocus
-                  />
-                  <TextInput
-                    value={guestEmoji}
-                    onChangeText={setGuestEmoji}
-                    placeholder="🎉"
-                    placeholderTextColor="rgba(255,255,255,0.35)"
-                    className="w-14 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-center text-sm text-white"
-                    maxLength={8}
-                  />
-                </View>
-                <View className="flex-row gap-2">
-                  <TouchableOpacity
-                    onPress={() => {
-                      setAddingGuest(false);
-                      setGuestName("");
-                      setGuestEmoji("");
-                    }}
-                    activeOpacity={0.85}
-                    className="flex-1 items-center rounded-xl border border-white/10 py-2"
-                  >
-                    <Text className="text-xs font-sans-medium text-muted-foreground">Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={handleAddGuest}
-                    disabled={!guestName.trim() || addGuestPlayer.isPending}
-                    activeOpacity={0.85}
-                    style={{ opacity: guestName.trim() ? 1 : 0.5 }}
-                    className="flex-1 items-center rounded-xl bg-primary py-2"
-                  >
-                    {addGuestPlayer.isPending ? (
-                      <ActivityIndicator color="#fff" size="small" />
-                    ) : (
-                      <Text className="text-xs font-sans-semibold text-white">Add player</Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ) : (
-              <TouchableOpacity
-                onPress={() => setAddingGuest(true)}
-                activeOpacity={0.85}
-                className="flex-row items-center self-start rounded-full bg-secondary px-3 py-1"
-              >
-                <UserPlus size={12} color="#FFFFFF" />
-                <Text className="ml-1 text-xs font-sans-medium text-white">Add</Text>
-              </TouchableOpacity>
-            ))}
-        </View>
+        <InRoomPlayersCard
+          localPlayers={localPlayers}
+          isHost={isHost}
+          addingGuest={addingGuest}
+          onStartAdding={() => setAddingGuest(true)}
+          onCancelAdding={() => {
+            setAddingGuest(false);
+            setGuestName("");
+            setGuestEmoji("");
+          }}
+          guestName={guestName}
+          onGuestNameChange={setGuestName}
+          guestEmoji={guestEmoji}
+          onGuestEmojiChange={setGuestEmoji}
+          onSubmit={handleAddGuest}
+          isSubmitting={addGuestPlayer.isPending}
+        />
 
         {/* Remote Players — real roster */}
         <View className="mt-3 rounded-3xl border border-white/10 bg-card p-5">

@@ -65,7 +65,10 @@ export function useMarkNotificationRead() {
         method: 'PATCH',
         body: { notification_id: notificationId },
       }),
-    onSuccess: (_result, notificationId) => {
+    onSuccess: async (_result, notificationId) => {
+      // A background refetch landing after this write would overwrite it with stale
+      // (still-unread) data — cancel any in-flight one first.
+      await queryClient.cancelQueries({ queryKey: notificationsQueryKey(userId) });
       queryClient.setQueryData<InfiniteData<NotificationsPage>>(notificationsQueryKey(userId), (data) =>
         data ? markPagesRead(data, (n) => n.id === notificationId) : data,
       );
@@ -80,7 +83,8 @@ export function useMarkAllNotificationsRead() {
 
   return useMutation({
     mutationFn: () => request<never[]>('/notifications/read-all', { method: 'PATCH' }),
-    onSuccess: () => {
+    onSuccess: async () => {
+      await queryClient.cancelQueries({ queryKey: notificationsQueryKey(userId) });
       queryClient.setQueryData<InfiniteData<NotificationsPage>>(notificationsQueryKey(userId), (data) =>
         data ? markPagesRead(data, () => true) : data,
       );

@@ -87,9 +87,13 @@ export default function LiveVideoRoom() {
   }, [partyId, validPartyId]);
 
   useEffect(() => {
-    AudioSession.startAudioSession();
+    AudioSession.startAudioSession().catch((err) => {
+      if (__DEV__) console.warn("[AudioSession] failed to start", err);
+    });
     return () => {
-      AudioSession.stopAudioSession();
+      AudioSession.stopAudioSession().catch((err) => {
+        if (__DEV__) console.warn("[AudioSession] failed to stop", err);
+      });
     };
   }, []);
 
@@ -136,7 +140,7 @@ export default function LiveVideoRoom() {
   );
 }
 
-function VideoRoomView({ partyId, title }: { partyId: number; title: string }) {
+function VideoRoomView({ partyId, title }: Readonly<{ partyId: number; title: string }>) {
   const { width } = useWindowDimensions();
   const room = useRoomContext();
   const { localParticipant, isCameraEnabled, isMicrophoneEnabled } = useLocalParticipant();

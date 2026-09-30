@@ -29,10 +29,15 @@ export default class ErrorBoundary extends Component<Props, State> {
     if (__DEV__) console.error("[ErrorBoundary] caught a render error", error, info.componentStack);
   }
 
+  // There's no expo-updates in this project yet, so DevSettings.reload() (dev/dev-client only)
+  // is the only real reload path available. Clearing hasError when it's NOT available would
+  // just re-render the same still-broken tree — worse than leaving the error screen up, since
+  // the failure wasn't actually fixed.
+  canReload = typeof DevSettings.reload === "function";
+
   handleReload = () => {
+    if (!this.canReload) return;
     this.setState({ hasError: false });
-    // Reloads the JS bundle in dev/dev-client builds. There's no expo-updates in this project
-    // yet, so a real production build falls back to the state reset above only.
     DevSettings.reload();
   };
 
@@ -46,15 +51,19 @@ export default class ErrorBoundary extends Component<Props, State> {
           Something went wrong
         </Text>
         <Text className="text-center text-sm text-muted-foreground">
-          Give it another try — if this keeps happening, let us know.
+          {this.canReload
+            ? "Give it another try — if this keeps happening, let us know."
+            : "Please close and reopen the app to continue."}
         </Text>
-        <TouchableOpacity
-          onPress={this.handleReload}
-          activeOpacity={0.85}
-          className="rounded-2xl bg-primary px-6 py-3"
-        >
-          <Text className="text-sm font-semibold text-white">Reload</Text>
-        </TouchableOpacity>
+        {this.canReload && (
+          <TouchableOpacity
+            onPress={this.handleReload}
+            activeOpacity={0.85}
+            className="rounded-2xl bg-primary px-6 py-3"
+          >
+            <Text className="text-sm font-semibold text-white">Reload</Text>
+          </TouchableOpacity>
+        )}
       </SafeAreaView>
     );
   }

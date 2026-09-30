@@ -15,7 +15,7 @@ import {
   Trophy
 } from "lucide-react-native";
 import { styled } from "nativewind";
-import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
 
 const SafeAreaView = styled(RNSafeAreaView);
@@ -39,8 +39,16 @@ const ProfileScreen = () => {
   } = useEarnedBadges();
   const recentBadges = (earnedBadges ?? []).slice(0, 4);
 
-  const { data: friends, isLoading: isFriendsLoading } = useFriends();
+  const {
+    data: friends,
+    isLoading: isFriendsLoading,
+    isError: isFriendsError,
+    refetch: refetchFriends,
+  } = useFriends();
   const recentFriends = (friends ?? []).slice(0, 4);
+  // `friends` stays undefined through both loading and error — one check covers "not known
+  // yet" for display purposes without needing isFriendsLoading/isFriendsError separately here.
+  const friendsCount = friends?.length;
 
   // Parties/MVPs/Streak have no backing endpoint yet (see the API implementation plan) —
   // Friends is the one real number here, from GET /friends.
@@ -48,7 +56,7 @@ const ProfileScreen = () => {
   const STATS = [
     { label: "Parties", value: 47 },
     { label: "MVPs", value: 12 },
-    { label: "Friends", value: friends?.length ?? 0 },
+    { label: "Friends", value: friendsCount ?? "–" },
     { label: "Streak", value: "5d" },
   ];
 
@@ -167,8 +175,8 @@ const ProfileScreen = () => {
              * happened well after app startup (e.g. switching to this tab), self-healing on any
              * later re-render. Remounting sidesteps whatever stale-layout state causes that. */}
             <ListHeading
-              key={isFriendsLoading ? "friends-loading" : "friends-loaded"}
-              title={`Friends · ${friends?.length ?? 0}`}
+              key={friendsCount === undefined ? "friends-pending" : "friends-loaded"}
+              title={friendsCount === undefined ? "Friends" : `Friends · ${friendsCount}`}
               titleSize="text-lg"
               link="/profile/friends"
               actionText="Manage"
@@ -179,7 +187,16 @@ const ProfileScreen = () => {
               iconStroke={2.2}
             />
 
-            {recentFriends.length === 0 ? (
+            {isFriendsLoading ? (
+              <ActivityIndicator color="#B03BFF" style={{ marginVertical: 16 }} />
+            ) : isFriendsError ? (
+              <View className="flex-row items-center justify-between py-2">
+                <Text className="text-sm text-white/40">Couldn&apos;t load friends.</Text>
+                <TouchableOpacity onPress={() => refetchFriends()} activeOpacity={0.8}>
+                  <Text className="text-sm font-sans-semibold text-violet-bright">Retry</Text>
+                </TouchableOpacity>
+              </View>
+            ) : recentFriends.length === 0 ? (
               <Text className="py-2 text-sm text-white/40">
                 No friends yet — invite someone to your next party.
               </Text>

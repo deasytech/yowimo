@@ -1,37 +1,55 @@
 import NetInfo from "@react-native-community/netinfo";
 import { WifiOff } from "lucide-react-native";
 import { styled } from "nativewind";
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Modal, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
 
 const SafeAreaView = styled(RNSafeAreaView);
 
-/** `null` means "not yet determined" — NetInfo hasn't reported in yet on cold start, and we
- * don't want to flash the offline modal before its first real check resolves. */
-function isOffline(isConnected: boolean | null, isInternetReachable: boolean | null): boolean {
-  return isConnected === false || isInternetReachable === false;
+// How long a "no connection" reading has to hold before we act on it.
+const DEBOUNCE_MS = 600;
+
+/** Only `isConnected` (the radio's own state) gates this — `isInternetReachable` is an active
+ * probe NetInfo itself documents as unreliable right after launch (it can flip a couple of
+ * times before settling), and toggling a native <Modal>'s visibility that fast is a known way
+ * to hard-crash iOS ("unbalanced" view controller transitions). Debounced below on top of that
+ * as a second guard against any flapping getting through. */
+function isOffline(isConnected: boolean | null): boolean {
+  return isConnected === false;
 }
 
 /** Covers the whole app with a blocking modal whenever the device has no network, and drops it
  * automatically the moment connectivity returns — no manual reload needed, though the Retry
  * button forces an immediate re-check for anyone impatient. */
-export default function NetworkStatusGate({ children }: { children: ReactNode }) {
+export default function NetworkStatusGate({ children }: Readonly<{ children: ReactNode }>) {
   const [offline, setOffline] = useState(false);
   const [checking, setChecking] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    const setDebounced = (next: boolean) => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => setOffline(next), DEBOUNCE_MS);
+    };
+
     const unsubscribe = NetInfo.addEventListener((state) => {
-      setOffline(isOffline(state.isConnected, state.isInternetReachable));
+      setDebounced(isOffline(state.isConnected));
     });
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
   }, []);
 
   const handleRetry = async () => {
     setChecking(true);
-    const state = await NetInfo.fetch();
-    setOffline(isOffline(state.isConnected, state.isInternetReachable));
-    setChecking(false);
+    try {
+      const state = await NetInfo.fetch();
+      setOffline(isOffline(state.isConnected));
+    } finally {
+      setChecking(false);
+    }
   };
 
   return (

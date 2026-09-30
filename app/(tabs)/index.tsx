@@ -48,7 +48,12 @@ export default function HomeScreen() {
         .sort((a, b) => Number(b.status === "live") - Number(a.status === "live"))
         .slice(0, 6);
 
-    const { data: friends, refetch: refetchFriends } = useFriends();
+    const {
+        data: friends,
+        isLoading: isLoadingFriends,
+        isError: isFriendsError,
+        refetch: refetchFriends,
+    } = useFriends();
     const _FRIENDS = (friends ?? []).slice(0, 10);
 
     const displayName = user?.firstName || user?.fullName || user?.emailAddresses[0]?.emailAddress || 'User';
@@ -132,23 +137,35 @@ export default function HomeScreen() {
                 <View style={{ gap: 12 }}>
                     <View>
                         <ListHeading title="Your crew" actionText="See all" link="/profile/friends" />
-                        <FlatList
-                            data={_FRIENDS}
-                            horizontal
-                            showsHorizontalScrollIndicator={false}
-                            style={{ marginHorizontal: -20 }}
-                            contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 8 }}
-                            keyExtractor={(item) => String(item.friendship_id)}
-                            renderItem={({ item }) => (
-                                <CrewOnline
-                                    id={item.friend.id}
-                                    name={item.friend.display_name || item.friend.username}
-                                    initials={initialsFromName(item.friend.display_name || item.friend.username)}
-                                    avatarUrl={item.friend.avatar_url}
-                                />
-                            )}
-                            ListEmptyComponent={<Text className="py-4 text-lg font-sans-medium text-white/60">No friends yet</Text>}
-                        />
+                        {isLoadingFriends ? (
+                            <ActivityIndicator color="#B03BFF" style={{ marginVertical: 16 }} />
+                        ) : isFriendsError ? (
+                            <View className="items-center gap-2 py-4">
+                                <Text className="text-sm font-sans-medium text-white/60">
+                                    Couldn&apos;t load your crew.
+                                </Text>
+                                <TouchableOpacity onPress={() => refetchFriends()} activeOpacity={0.8}>
+                                    <Text className="text-violet-bright text-sm font-sans-semibold">Retry</Text>
+                                </TouchableOpacity>
+                            </View>
+                        ) : (
+                            <FlatList
+                                data={_FRIENDS}
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                                style={{ marginHorizontal: -20 }}
+                                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 8 }}
+                                keyExtractor={(item) => String(item.friendship_id)}
+                                renderItem={({ item }) => (
+                                    <CrewOnline
+                                        name={item.friend.display_name || item.friend.username}
+                                        initials={initialsFromName(item.friend.display_name || item.friend.username)}
+                                        avatarUrl={item.friend.avatar_url}
+                                    />
+                                )}
+                                ListEmptyComponent={<Text className="py-4 text-lg font-sans-medium text-white/60">No friends yet</Text>}
+                            />
+                        )}
                     </View>
                 </View>
 

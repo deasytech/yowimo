@@ -13,7 +13,7 @@ interface AvatarProps {
 
 /** A remote avatar, or a gradient + initials fallback when the URL is absent — the pattern the
  * Foundation notes call for everywhere a resource has an `avatar_url`. */
-export default function Avatar({ avatarUrl, initials, size = 44 }: AvatarProps) {
+export default function Avatar({ avatarUrl, initials, size = 44 }: Readonly<AvatarProps>) {
   if (avatarUrl) {
     return (
       <Image
