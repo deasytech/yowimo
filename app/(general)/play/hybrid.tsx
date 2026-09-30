@@ -65,9 +65,9 @@ function InRoomPlayersCard({
         </Text>
       ) : (
         <View className="mb-3 flex-row flex-wrap">
-          {localPlayers.map((p) => (
+          {localPlayers.map((p, index) => (
             <View
-              key={`local-${p.joined_at}`}
+              key={`local-${index}-${p.guest_name}-${p.joined_at}`}
               className="mb-2 mr-2 rounded-full border border-accent/40 bg-accent/15 px-3 py-1"
             >
               <Text className="text-xs font-sans-medium text-white">
@@ -307,8 +307,11 @@ export default function HybridScreen() {
             </Text>
           ) : (
             <View className="gap-3">
-              {remotePlayers.map((p) => (
-                <View key={p.user_id ?? `remote-${p.joined_at}`} className="flex-row items-center gap-3">
+              {remotePlayers.map((p, index) => (
+                <View
+                  key={p.user_id ?? `remote-${index}-${p.joined_at}`}
+                  className="flex-row items-center gap-3"
+                >
                   <Avatar
                     avatarUrl={p.user?.avatar_url ?? null}
                     initials={initialsFromName(playerName(p))}
