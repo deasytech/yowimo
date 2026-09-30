@@ -1,5 +1,6 @@
 import { TokenBadge } from "@/components/brand/TokenBadge";
 import { YowimoLogo } from "@/components/brand/YowimoLogo";
+import { useNotifications } from "@/hooks/api/useNotifications";
 import { useWallet } from "@/hooks/api/useWallet";
 import { BlurView as RNBlurView } from "expo-blur";
 import { Link } from "expo-router";
@@ -36,6 +37,8 @@ const Header = ({
 }: AppHeaderProps) => {
   const insets = useSafeAreaInsets();
   const { data: wallet, isLoading: isWalletLoading } = useWallet();
+  const { notifications } = useNotifications();
+  const hasUnread = notifications.some((n) => !n.read_at);
 
   return (
     <BlurView
@@ -72,9 +75,11 @@ const Header = ({
           <TouchableOpacity activeOpacity={0.8}>
             <IconBtn>
               <Bell color="#fff" size={16} strokeWidth={2} />
-              <View
-                className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-accent border-2 border-accent"
-              />
+              {hasUnread && (
+                <View
+                  className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-accent border-2 border-accent"
+                />
+              )}
             </IconBtn>
           </TouchableOpacity>
         </Link>

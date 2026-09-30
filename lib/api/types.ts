@@ -73,6 +73,14 @@ export interface UserResource {
   wallet: WalletSnapshot;
 }
 
+/** GET /users/me/stats — lifetime totals for the Profile screen's stat tiles. Split off
+ * GET /users/me (which is a plain auth-check hit constantly elsewhere) since these are
+ * aggregate queries. No streak field yet — that needs a product decision first. */
+export interface ProfileStatsResource {
+  parties_count: number;
+  mvp_count: number;
+}
+
 export interface UpdateProfilePayload {
   username?: string;
   avatar_url?: string | null;
@@ -347,13 +355,27 @@ export interface CreateGameSessionPayload {
 
 export type PartyPlayerStatus = 'active' | 'left';
 
+/** Pass-and-play, no account of their own — added by the host via POST /parties/{party}/players.
+ * `user_id`/`user` are always null for these; `guest_name`/`guest_emoji`/`join_mode` are always
+ * null for a real account. Guests aren't dealt a turn in the game engine yet. */
+export type PlayerJoinMode = 'local' | 'remote';
+
 export interface PartyPlayerResource {
-  user_id: number;
-  user: { id: number; username: string; display_name: string; avatar_url: string | null };
+  user_id: number | null;
+  user: { id: number; username: string; display_name: string; avatar_url: string | null } | null;
+  guest_name: string | null;
+  guest_emoji: string | null;
+  join_mode: PlayerJoinMode | null;
   is_host: boolean;
   status: PartyPlayerStatus;
   joined_at: string;
   left_at: string | null;
+}
+
+export interface AddGuestPlayerPayload {
+  guest_name: string;
+  guest_emoji?: string;
+  join_mode: PlayerJoinMode;
 }
 
 export interface GameStanding {
@@ -399,6 +421,14 @@ export interface NotificationResource {
   metadata: Record<string, unknown>;
   read_at: string | null;
   created_at: string;
+}
+
+/** POST /parties/{party}/video-token — a short-lived LiveKit access token. v0 scope: one room
+ * per party (`party-{id}`), everyone can publish/subscribe audio+video, no host controls. */
+export interface VideoTokenResource {
+  token: string;
+  url: string;
+  room: string;
 }
 
 export interface FriendResource {

@@ -1,7 +1,15 @@
+import Avatar from "@/components/shared/Avatar";
 import ConfirmDialog from "@/components/shared/ConfirmDialog";
 import GoBack from "@/components/shared/GoBack";
 import InviteQrModal from "@/components/shared/InviteQrModal";
 import Toast from "@/components/shared/Toast";
+import {
+  useAcceptFriendRequest,
+  useFriendRequests,
+  useFriends,
+  useRejectFriendRequest,
+  useSendFriendRequest,
+} from "@/hooks/api/useFriends";
 import {
   usePartyGame,
   usePartyGameStartedListener,
@@ -14,17 +22,18 @@ import {
   useLeaveParty,
   useLikeParty,
   useParty,
+  usePartyPlayers,
   useStartParty,
   useUnlikeParty,
 } from "@/hooks/api/useParties";
 import { useProfile } from "@/hooks/api/useProfile";
 import { useToast } from "@/hooks/useToast";
-import { ApiError } from "@/lib/api/types";
-import { partyModeLabel, titleCaseSlug } from "@/lib/utils";
+import { ApiError, FriendRequestResource, FriendResource, PartyPlayerResource } from "@/lib/api/types";
+import { initialsFromName, partyModeLabel, titleCaseSlug } from "@/lib/utils";
 import * as Clipboard from "expo-clipboard";
 import { Image } from "expo-image";
 import { LinearGradient as RNLinearGradient } from "expo-linear-gradient";
-import { Link, useLocalSearchParams, useRouter } from "expo-router";
+import { Link, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import {
   Copy,
   Heart,
@@ -36,7 +45,7 @@ import {
   Video,
 } from "lucide-react-native";
 import { styled } from "nativewind";
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
 
@@ -44,13 +53,12 @@ const LinearGradient = styled(RNLinearGradient);
 const SafeAreaView = styled(RNSafeAreaView);
 
 // Still backlog — none of these have a backing endpoint yet (roster presence, teams/seating
-// arrangement, live video, waiting room) — disabled with a "Coming soon" label rather than
-// linking into a fully mock screen.
+// arrangement, waiting room) — disabled with a "Coming soon" label rather than linking into a
+// fully mock screen. Live video has its own real entry point below (see `canJoinVideo`).
 const SETTINGS_ROWS = [
   { Icon: Sparkles, label: "AI Host" },
   { Icon: Users, label: "Teams" },
   { Icon: Settings2, label: "Seating" },
-  { Icon: Video, label: "Live video room" },
   { Icon: Settings2, label: "Waiting room" },
   { Icon: Users, label: "Local players" },
 ];
@@ -72,6 +80,14 @@ export default function LobbyScreen() {
   const endParty = useEndParty();
   const cancelParty = useCancelParty();
   const startGameSession = useStartGameSession();
+  const { data: players, refetch: refetchPlayers } = usePartyPlayers(
+    Number.isFinite(partyId) ? partyId : null,
+  );
+  const { data: friends } = useFriends();
+  const { data: friendRequests } = useFriendRequests();
+  const sendFriendRequest = useSendFriendRequest();
+  const acceptFriendRequest = useAcceptFriendRequest();
+  const rejectFriendRequest = useRejectFriendRequest();
   // A member sitting in the lobby learns the host just started a game the moment it happens,
   // instead of only finding out on the next poll — falls back to polling below when this
   // channel isn't actually connected (e.g. Reverb itself is down).
@@ -84,6 +100,17 @@ export default function LobbyScreen() {
     isLoading: isLoadingPartyGame,
     refetch: refetchPartyGame,
   } = usePartyGame(Number.isFinite(partyId) ? partyId : null, { realtimeActive: partyChannelConnected });
+
+  // Neither the party detail nor the roster is realtime — reload both whenever this screen
+  // regains focus (backgrounding the app, or coming back from another tab/screen) so reopening
+  // the lobby shows who's actually here instead of a snapshot from whenever it first mounted.
+  useFocusEffect(
+    useCallback(() => {
+      if (!Number.isFinite(partyId)) return;
+      refetch();
+      refetchPlayers();
+    }, [partyId, refetch, refetchPlayers]),
+  );
 
   const [busy, setBusy] = useState<string | null>(null);
   // setBusy is async, so `busy` state alone can't stop two taps landing in the same tick
@@ -165,6 +192,24 @@ export default function LobbyScreen() {
     }
   };
 
+  const respondToRosterRequest = (player: PartyPlayerResource, action: "accept" | "reject") => {
+    if (!player.user) return; // a guest (pass-and-play) row has no account to friend-request
+    const incoming = friendRequests?.find(
+      (r) => r.sender.id === player.user!.id && r.receiver.id === profile?.id,
+    );
+    if (!incoming || busyRef.current) return;
+    const key = `friend-${player.user.id}`;
+    if (action === "accept") {
+      void runAction(
+        key,
+        () => acceptFriendRequest.mutateAsync(incoming.id),
+        `You're now friends with ${player.user.display_name || player.user.username}`,
+      );
+    } else {
+      void runAction(key, () => rejectFriendRequest.mutateAsync(incoming.id), "Request declined");
+    }
+  };
+
   if (isLoading) {
     return (
       <SafeAreaView className="flex-1 items-center justify-center bg-background">
@@ -202,6 +247,11 @@ export default function LobbyScreen() {
   const gameActionOpacity = getGameActionOpacity(isGameActionPending, Boolean(partyGame), isHost);
   const gameActionLabel = getGameActionLabel(Boolean(partyGame), isHost);
   const partyStatusLabel = getPartyStatusLabel(party.status);
+  const activePlayers = (players ?? []).filter((p) => p.status === "active");
+  // Video is online/hybrid only, and only once the party is actually live — matches the API's
+  // own 403 rules (in_person or not-live both get rejected server-side too).
+  const canJoinVideo =
+    party.mode !== "in_person" && party.status === "live" && (isHost || party.joined_by_me);
 
   return (
     <SafeAreaView className="flex-1 bg-background">
@@ -219,7 +269,7 @@ export default function LobbyScreen() {
         cancelLabel="Keep it"
         onConfirm={() => {
           setConfirmingCancel(false);
-          runAction("cancel", () => cancelParty.mutateAsync(party.id), "Party canceled");
+          void runAction("cancel", () => cancelParty.mutateAsync(party.id), "Party canceled");
         }}
         onCancel={() => setConfirmingCancel(false)}
       />
@@ -378,6 +428,116 @@ export default function LobbyScreen() {
             <Text className="text-foreground text-xs font-semibold">{party.likes_count}</Text>
           </TouchableOpacity>
         </View>
+
+        {/* ── Video room ── */}
+        {canJoinVideo && (
+          <TouchableOpacity
+            onPress={() =>
+              router.push(
+                party.mode === "hybrid"
+                  ? `/play/hybrid?partyId=${party.id}`
+                  : `/play/video-room?partyId=${party.id}`,
+              )
+            }
+            activeOpacity={0.85}
+            className="mt-5 flex-row items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-4"
+          >
+            <View className="h-10 w-10 items-center justify-center rounded-full bg-orange/20">
+              <Video color="#FF8A2A" size={18} strokeWidth={2} />
+            </View>
+            <View className="flex-1">
+              <Text className="text-foreground text-sm font-semibold">
+                {party.mode === "hybrid" ? "Hybrid room" : "Video room"}
+              </Text>
+              <Text className="text-muted-foreground text-xs">Party is live — join the call</Text>
+            </View>
+          </TouchableOpacity>
+        )}
+
+        {/* ── Roster ── */}
+        {activePlayers.length > 0 && (
+          <View className="mt-5 gap-2">
+            <Text
+              className="text-muted-foreground text-[11px] font-semibold uppercase"
+              style={{ letterSpacing: 0.5 }}
+            >
+              Who&apos;s here
+            </Text>
+
+            {activePlayers.map((p, index) => {
+              if (!p.user) {
+                // A guest (pass-and-play) row — no account, so no friend actions apply. Guest
+                // rows have no id from the API at all, and joined_at alone can collide if two
+                // guests get added within the same timestamp resolution — index guarantees
+                // uniqueness regardless.
+                return (
+                  <View
+                    key={`guest-${index}-${p.joined_at}`}
+                    className="flex-row items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3"
+                  >
+                    <Avatar
+                      avatarUrl={null}
+                      initials={initialsFromName(p.guest_name || "Guest")}
+                      size={40}
+                    />
+                    <View className="flex-1">
+                      <Text className="text-foreground text-sm font-semibold" numberOfLines={1}>
+                        {p.guest_emoji ? `${p.guest_emoji} ` : ""}
+                        {p.guest_name || "Guest"}
+                      </Text>
+                      <Text className="text-muted-foreground text-xs" numberOfLines={1}>
+                        In the room
+                      </Text>
+                    </View>
+                  </View>
+                );
+              }
+
+              const isSelf = p.user.id === profile?.id;
+              const state = getFriendActionState(p.user.id, profile?.id, friends, friendRequests);
+              const busyKey = `friend-${p.user.id}`;
+
+              return (
+                <View
+                  key={p.user_id}
+                  className="flex-row items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3"
+                >
+                  <Avatar
+                    avatarUrl={p.user.avatar_url}
+                    initials={initialsFromName(p.user.display_name || p.user.username)}
+                    size={40}
+                  />
+                  <View className="flex-1">
+                    <Text className="text-foreground text-sm font-semibold" numberOfLines={1}>
+                      {p.user.display_name || p.user.username}
+                      {p.is_host && (
+                        <Text className="text-muted-foreground text-xs font-normal"> · Host</Text>
+                      )}
+                    </Text>
+                    <Text className="text-muted-foreground text-xs" numberOfLines={1}>
+                      @{p.user.username}
+                    </Text>
+                  </View>
+
+                  <RosterFriendAction
+                    isSelf={isSelf}
+                    state={state}
+                    busy={busy === busyKey}
+                    onReject={() => respondToRosterRequest(p, "reject")}
+                    onAccept={() => respondToRosterRequest(p, "accept")}
+                    onAdd={() =>
+                      void runAction(
+                        busyKey,
+                        () => sendFriendRequest.mutateAsync(p.user!.id),
+                        "Friend request sent",
+                      )
+                    }
+                  />
+                </View>
+              );
+            })}
+          </View>
+        )}
 
         {party.tags.length > 0 && (
           <View className="mt-4 flex-row flex-wrap gap-1.5">
@@ -566,4 +726,88 @@ function getPartyStatusLabel(status: string): string {
   if (status === "ended") return "This party has ended";
   if (status === "cancelled") return "This party was canceled";
   return "Waiting to start";
+}
+
+type FriendActionState = "self" | "friends" | "incoming" | "outgoing" | "none";
+
+/** "incoming"/"outgoing" are from the caller's point of view — a request this roster member
+ * sent to the caller vs. one the caller already sent them. */
+function getFriendActionState(
+  userId: number,
+  myId: number | undefined,
+  friends: FriendResource[] | undefined,
+  requests: FriendRequestResource[] | undefined,
+): FriendActionState {
+  if (userId === myId) return "self";
+  if (friends?.some((f) => f.friend.id === userId)) return "friends";
+  if (requests?.some((r) => r.sender.id === userId && r.receiver.id === myId)) return "incoming";
+  if (requests?.some((r) => r.sender.id === myId && r.receiver.id === userId)) return "outgoing";
+  return "none";
+}
+
+/** Extracted out of the roster row's render — was a 5-way nested ternary chain. */
+function RosterFriendAction({
+  isSelf,
+  state,
+  busy,
+  onReject,
+  onAccept,
+  onAdd,
+}: Readonly<{
+  isSelf: boolean;
+  state: FriendActionState;
+  busy: boolean;
+  onReject: () => void;
+  onAccept: () => void;
+  onAdd: () => void;
+}>) {
+  if (isSelf) return null;
+  if (busy) return <ActivityIndicator color="#a3a3ab" size="small" />;
+
+  if (state === "friends") {
+    return (
+      <View className="rounded-full bg-secondary px-3 py-1.5">
+        <Text className="text-muted-foreground text-xs font-semibold">Friends</Text>
+      </View>
+    );
+  }
+
+  if (state === "incoming") {
+    return (
+      <View className="flex-row gap-2">
+        <TouchableOpacity
+          onPress={onReject}
+          activeOpacity={0.85}
+          className="rounded-full border border-border px-3 py-1.5"
+        >
+          <Text className="text-muted-foreground text-xs font-semibold">Decline</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={onAccept}
+          activeOpacity={0.85}
+          className="rounded-full bg-primary px-3 py-1.5"
+        >
+          <Text className="text-white text-xs font-semibold">Accept</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (state === "outgoing") {
+    return (
+      <View className="rounded-full border border-border px-3 py-1.5">
+        <Text className="text-muted-foreground text-xs font-semibold">Requested</Text>
+      </View>
+    );
+  }
+
+  return (
+    <TouchableOpacity
+      onPress={onAdd}
+      activeOpacity={0.85}
+      className="rounded-full bg-primary px-3 py-1.5"
+    >
+      <Text className="text-white text-xs font-semibold">Add friend</Text>
+    </TouchableOpacity>
+  );
 }

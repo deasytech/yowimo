@@ -5,10 +5,12 @@ import HeroCard from "@/components/HeroCard";
 import QuickDeckCard from "@/components/QuickDeckCard";
 import QuickDiscoverCard from "@/components/QuickDiscoverCard";
 import ListHeading from "@/components/shared/ListHeading";
-import { FRIENDS, QUICK_ACTIONS } from "@/data/mock";
+import { QUICK_ACTIONS } from "@/data/mock";
+import { useFriends } from "@/hooks/api/useFriends";
 import { useGameTypes } from "@/hooks/api/useGameTypes";
 import { useDiscoverFeed } from "@/hooks/api/useParties";
 import { posthog } from "@/lib/posthog";
+import { initialsFromName } from "@/lib/utils";
 import { useUser } from "@clerk/expo";
 import { LinearGradient as RNLinearGradient } from 'expo-linear-gradient';
 import { Link } from "expo-router";
@@ -19,9 +21,6 @@ import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
 
 const LinearGradient = styled(RNLinearGradient);
 const SafeAreaView = styled(RNSafeAreaView);
-
-// ─── Mock data fallbacks (remove if your mock exports are complete) ──────────
-const _FRIENDS = (FRIENDS ?? []).filter((f: any) => f.online);
 
 export default function HomeScreen() {
     const [cardWidth, setCardWidth] = useState(0);
@@ -49,16 +48,24 @@ export default function HomeScreen() {
         .sort((a, b) => Number(b.status === "live") - Number(a.status === "live"))
         .slice(0, 6);
 
+    const {
+        data: friends,
+        isLoading: isLoadingFriends,
+        isError: isFriendsError,
+        refetch: refetchFriends,
+    } = useFriends();
+    const _FRIENDS = (friends ?? []).slice(0, 10);
+
     const displayName = user?.firstName || user?.fullName || user?.emailAddresses[0]?.emailAddress || 'User';
 
     const onRefresh = useCallback(async () => {
         setRefreshing(true);
         try {
-            await Promise.all([refetchGameTypes(), refetchParties()]);
+            await Promise.all([refetchGameTypes(), refetchParties(), refetchFriends()]);
         } finally {
             setRefreshing(false);
         }
-    }, [refetchGameTypes, refetchParties]);
+    }, [refetchGameTypes, refetchParties, refetchFriends]);
 
     return (
         <SafeAreaView className="flex-1 bg-background">
@@ -129,17 +136,36 @@ export default function HomeScreen() {
 
                 <View style={{ gap: 12 }}>
                     <View>
-                        <ListHeading title="Crew online" actionText="See all" link="/profile/friends" />
-                        <FlatList
-                            data={_FRIENDS}
-                            horizontal
-                            showsHorizontalScrollIndicator={false}
-                            style={{ marginHorizontal: -20 }}
-                            contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 8 }}
-                            keyExtractor={(item, index) => item.id + index}
-                            renderItem={({ item }) => <CrewOnline {...item} />}
-                            ListEmptyComponent={<Text className="py-4 text-lg font-sans-medium text-white/60">No friends online</Text>}
-                        />
+                        <ListHeading title="Your crew" actionText="See all" link="/profile/friends" />
+                        {isLoadingFriends ? (
+                            <ActivityIndicator color="#B03BFF" style={{ marginVertical: 16 }} />
+                        ) : isFriendsError ? (
+                            <View className="items-center gap-2 py-4">
+                                <Text className="text-sm font-sans-medium text-white/60">
+                                    Couldn&apos;t load your crew.
+                                </Text>
+                                <TouchableOpacity onPress={() => refetchFriends()} activeOpacity={0.8}>
+                                    <Text className="text-violet-bright text-sm font-sans-semibold">Retry</Text>
+                                </TouchableOpacity>
+                            </View>
+                        ) : (
+                            <FlatList
+                                data={_FRIENDS}
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                                style={{ marginHorizontal: -20 }}
+                                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 8 }}
+                                keyExtractor={(item) => String(item.friendship_id)}
+                                renderItem={({ item }) => (
+                                    <CrewOnline
+                                        name={item.friend.display_name || item.friend.username}
+                                        initials={initialsFromName(item.friend.display_name || item.friend.username)}
+                                        avatarUrl={item.friend.avatar_url}
+                                    />
+                                )}
+                                ListEmptyComponent={<Text className="py-4 text-lg font-sans-medium text-white/60">No friends yet</Text>}
+                            />
+                        )}
                     </View>
                 </View>
 
