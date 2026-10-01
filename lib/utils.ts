@@ -1,7 +1,7 @@
 import dayjs from "dayjs";
 import { Href, router } from "expo-router";
 
-import { PartyMode, WalletTransactionType } from "@/lib/api/types";
+import { PartyMode, UserResource, WalletTransactionType } from "@/lib/api/types";
 
 const WALLET_TRANSACTION_LABELS: Record<WalletTransactionType, string> = {
   top_up: "Top-up",
@@ -158,9 +158,11 @@ export function formatTokenAmount(value: number): string {
 }
 
 /** "Maya Rivera" -> "MR", "leop" -> "LE" — a display/host name, not a Clerk user object
- * (see getInitials below for that). */
-export function initialsFromName(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
+ * (see getInitials below for that). Accepts null/undefined despite API types claiming
+ * `username` is always a string — it isn't always true at runtime (nullable in the DB, never
+ * backfilled for an account provisioned without one), so this is a real boundary, not padding. */
+export function initialsFromName(name: string | null | undefined): string {
+  const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
   if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
   return (parts[0] ?? "").slice(0, 2).toUpperCase() || "?";
 }
@@ -179,6 +181,19 @@ export function isValidEmailFormat(value: string): boolean {
   if (/\s/.test(local) || /\s/.test(domain)) return false;
   const lastDot = domain.lastIndexOf(".");
   return lastDot > 0 && lastDot < domain.length - 1;
+}
+
+/** Gates access to the main app — a brand-new account (just provisioned from its Clerk claims)
+ * has display_name pre-filled but date_of_birth/country_code/interests are always empty, so
+ * this is really checking "has the user ever been through onboarding," not individual fields
+ * going missing later (editing them blank afterward doesn't re-trigger this). */
+export function isProfileSetupComplete(profile: Pick<UserResource, 'display_name' | 'date_of_birth' | 'country_code' | 'interests'>): boolean {
+  return Boolean(
+    profile.display_name?.trim() &&
+    profile.date_of_birth &&
+    profile.country_code &&
+    profile.interests.length > 0,
+  );
 }
 
 export const getInitials = (user: any) => {

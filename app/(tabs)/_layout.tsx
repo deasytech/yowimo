@@ -1,4 +1,6 @@
 import Header from "@/components/Header";
+import { useProfile } from "@/hooks/api/useProfile";
+import { isProfileSetupComplete } from "@/lib/utils";
 import { useAuth } from "@clerk/expo";
 import { LinearGradient } from "expo-linear-gradient";
 import { Redirect, Tabs, useSegments } from "expo-router";
@@ -108,6 +110,7 @@ const TabLayout = () => {
   const { isSignedIn, isLoaded } = useAuth();
   const segments = useSegments();
   const hideHeader = segments[1] === "discover";
+  const { data: profile, isLoading: isProfileLoading } = useProfile();
 
   // Wait for auth to load before rendering anything
   if (!isLoaded) {
@@ -117,6 +120,15 @@ const TabLayout = () => {
   // Redirect to sign-in if user is not authenticated
   if (!isSignedIn) {
     return <Redirect href="/(auth)/sign-in" />;
+  }
+
+  // Mandatory first-run setup (name/birthday/country/interests) before the main app — wait for
+  // the profile fetch rather than flashing tabs then yanking to onboarding a moment later.
+  if (isProfileLoading) {
+    return null;
+  }
+  if (profile && !isProfileSetupComplete(profile)) {
+    return <Redirect href="/onboarding" />;
   }
 
   return (

@@ -158,7 +158,7 @@ export default function HomeScreen() {
                                 keyExtractor={(item) => String(item.friendship_id)}
                                 renderItem={({ item }) => (
                                     <CrewOnline
-                                        name={item.friend.display_name || item.friend.username}
+                                        name={item.friend.display_name || item.friend.username || "Friend"}
                                         initials={initialsFromName(item.friend.display_name || item.friend.username)}
                                         avatarUrl={item.friend.avatar_url}
                                     />
