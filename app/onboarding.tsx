@@ -1,7 +1,8 @@
+import InlineRetry from "@/components/shared/InlineRetry";
 import { COUNTRIES, type Country } from "@/data/countries";
 import { useGameTypes } from "@/hooks/api/useGameTypes";
 import { useProfile, useUpdateProfile } from "@/hooks/api/useProfile";
-import { ApiError } from "@/lib/api/types";
+import { ApiError, type GameTypeResource } from "@/lib/api/types";
 import { posthog } from "@/lib/posthog";
 import { isProfileSetupComplete } from "@/lib/utils";
 import DateTimePicker, {
@@ -55,12 +56,191 @@ const formatDisplayDate = (s: string) => {
   });
 };
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: Readonly<{ label: string; children: React.ReactNode }>) {
   return (
     <View className="gap-1.5">
       <Text className="text-muted-foreground text-xs font-semibold">{label}</Text>
       {children}
     </View>
+  );
+}
+
+function InterestsPicker({
+  isLoading,
+  isError,
+  gameTypes,
+  interests,
+  onRetry,
+  onToggle,
+}: Readonly<{
+  isLoading: boolean;
+  isError: boolean;
+  gameTypes: GameTypeResource[];
+  interests: string[];
+  onRetry: () => void;
+  onToggle: (slug: string) => void;
+}>) {
+  if (isLoading) {
+    return <ActivityIndicator color="#B03BFF" style={{ marginVertical: 16 }} />;
+  }
+
+  if (isError) {
+    return <InlineRetry message="Couldn't load interests." onRetry={onRetry} />;
+  }
+
+  return (
+    <View className="flex-row flex-wrap gap-2">
+      {gameTypes.map((g) => {
+        const active = interests.includes(g.slug);
+        return (
+          <TouchableOpacity
+            key={g.slug}
+            onPress={() => onToggle(g.slug)}
+            activeOpacity={0.8}
+            className={`flex-row items-center gap-1 rounded-full border px-3 py-1.5 ${
+              active ? "border-violet-bright bg-violet/20" : "border-border bg-secondary/40"
+            }`}
+          >
+            {active && <Check color="#fff" size={12} strokeWidth={2.5} />}
+            <Text className={`text-xs font-semibold ${active ? "text-foreground" : "text-muted-foreground"}`}>
+              {g.emoji} {g.name}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
+function BirthdayPickerModal({
+  visible,
+  draftDate,
+  onChange,
+  onConfirm,
+  onClose,
+}: Readonly<{
+  visible: boolean;
+  draftDate: Date;
+  onChange: (event: DateTimePickerEvent, selectedDate?: Date) => void;
+  onConfirm: () => void;
+  onClose: () => void;
+}>) {
+  if (Platform.OS === "android") {
+    if (!visible) return null;
+    return (
+      <DateTimePicker
+        value={draftDate}
+        mode="date"
+        display="default"
+        maximumDate={new Date()}
+        onChange={onChange}
+      />
+    );
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={{ flex: 1 }}>
+        <TouchableOpacity
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }}
+          activeOpacity={1}
+          onPress={onClose}
+        />
+        <View className="bg-card rounded-t-3xl px-6 pt-6 pb-10">
+          <View className="flex-row items-center justify-between mb-4">
+            <TouchableOpacity onPress={onClose}>
+              <Text className="text-muted-foreground text-sm font-semibold">Cancel</Text>
+            </TouchableOpacity>
+            <Text className="text-foreground text-base font-bold">Birthday</Text>
+            <TouchableOpacity onPress={onConfirm}>
+              <Text className="text-violet-bright text-sm font-semibold">Done</Text>
+            </TouchableOpacity>
+          </View>
+          <DateTimePicker
+            value={draftDate}
+            mode="date"
+            display="spinner"
+            maximumDate={new Date()}
+            onChange={onChange}
+            textColor="#ffffff"
+            style={{ height: 200 }}
+          />
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function CountryPickerModal({
+  visible,
+  search,
+  onSearchChange,
+  countries,
+  selectedCode,
+  onSelect,
+  onClose,
+}: Readonly<{
+  visible: boolean;
+  search: string;
+  onSearchChange: (text: string) => void;
+  countries: Country[];
+  selectedCode: string;
+  onSelect: (country: Country) => void;
+  onClose: () => void;
+}>) {
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <TouchableOpacity
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }}
+          activeOpacity={1}
+          onPress={onClose}
+        />
+        {/* Without KeyboardAvoidingView here, the keyboard (once its open animation finishes,
+         * a beat after the first keystroke) covers most of this 75%-height sheet — the list
+         * looked like it "disappeared" because it was still there, just hidden behind the
+         * keyboard. This shifts the whole sheet up instead. */}
+        <View className="bg-card rounded-t-3xl px-6 pt-6 pb-6" style={{ maxHeight: "75%" }}>
+          <Text className="text-foreground text-lg font-bold mb-4">Select country</Text>
+
+          <View className="flex-row items-center rounded-xl bg-input border border-border px-3.5 mb-3">
+            <Search color="#a3a3ab" size={16} strokeWidth={2} />
+            <TextInput
+              className="flex-1 py-3 pl-2 text-foreground text-sm"
+              value={search}
+              onChangeText={onSearchChange}
+              placeholder="Search countries"
+              placeholderTextColor="#a3a3ab"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </View>
+
+          <FlatList
+            data={countries}
+            keyExtractor={(item) => item.code}
+            keyboardShouldPersistTaps="handled"
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => onSelect(item)}
+                className="flex-row items-center justify-between py-3"
+                style={{ borderBottomWidth: 1, borderBottomColor: "#2e2e38" }}
+              >
+                <Text className="text-foreground text-sm">{item.name}</Text>
+                <View className="flex-row items-center gap-2">
+                  <Text className="text-muted-foreground text-xs">{item.code}</Text>
+                  {item.code === selectedCode && <Check color="#B03BFF" size={14} strokeWidth={2.5} />}
+                </View>
+              </TouchableOpacity>
+            )}
+            ListEmptyComponent={
+              <Text className="text-muted-foreground text-sm text-center py-8">No countries found</Text>
+            }
+          />
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
   );
 }
 
@@ -247,37 +427,14 @@ export default function Onboarding() {
                 <Text className="mb-3 text-muted-foreground text-xs">
                   Pick at least one — powers Discover&apos;s &quot;For you&quot; feed.
                 </Text>
-                {isGamesLoading ? (
-                  <ActivityIndicator color="#B03BFF" style={{ marginVertical: 16 }} />
-                ) : isGamesError ? (
-                  <View className="flex-row items-center justify-between py-2">
-                    <Text className="text-sm text-white/40">Couldn&apos;t load interests.</Text>
-                    <TouchableOpacity onPress={() => refetchGameTypes()} activeOpacity={0.8}>
-                      <Text className="text-sm font-sans-semibold text-violet-bright">Retry</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <View className="flex-row flex-wrap gap-2">
-                    {(gameTypes ?? []).map((g) => {
-                      const active = interests.includes(g.slug);
-                      return (
-                        <TouchableOpacity
-                          key={g.slug}
-                          onPress={() => toggleInterest(g.slug)}
-                          activeOpacity={0.8}
-                          className={`flex-row items-center gap-1 rounded-full border px-3 py-1.5 ${
-                            active ? "border-violet-bright bg-violet/20" : "border-border bg-secondary/40"
-                          }`}
-                        >
-                          {active && <Check color="#fff" size={12} strokeWidth={2.5} />}
-                          <Text className={`text-xs font-semibold ${active ? "text-foreground" : "text-muted-foreground"}`}>
-                            {g.emoji} {g.name}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                )}
+                <InterestsPicker
+                  isLoading={isGamesLoading}
+                  isError={isGamesError}
+                  gameTypes={gameTypes ?? []}
+                  interests={interests}
+                  onRetry={() => refetchGameTypes()}
+                  onToggle={toggleInterest}
+                />
               </View>
 
               <TouchableOpacity
@@ -315,105 +472,23 @@ export default function Onboarding() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* ── Date of birth picker ── */}
-      {Platform.OS === "android" ? (
-        showDatePicker && (
-          <DateTimePicker
-            value={draftDate}
-            mode="date"
-            display="default"
-            maximumDate={new Date()}
-            onChange={onDateChange}
-          />
-        )
-      ) : (
-        <Modal visible={showDatePicker} transparent animationType="slide" onRequestClose={() => setShowDatePicker(false)}>
-          <View style={{ flex: 1 }}>
-            <TouchableOpacity
-              style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }}
-              activeOpacity={1}
-              onPress={() => setShowDatePicker(false)}
-            />
-            <View className="bg-card rounded-t-3xl px-6 pt-6 pb-10">
-              <View className="flex-row items-center justify-between mb-4">
-                <TouchableOpacity onPress={() => setShowDatePicker(false)}>
-                  <Text className="text-muted-foreground text-sm font-semibold">Cancel</Text>
-                </TouchableOpacity>
-                <Text className="text-foreground text-base font-bold">Birthday</Text>
-                <TouchableOpacity onPress={confirmIosDate}>
-                  <Text className="text-violet-bright text-sm font-semibold">Done</Text>
-                </TouchableOpacity>
-              </View>
-              <DateTimePicker
-                value={draftDate}
-                mode="date"
-                display="spinner"
-                maximumDate={new Date()}
-                onChange={onDateChange}
-                textColor="#ffffff"
-                style={{ height: 200 }}
-              />
-            </View>
-          </View>
-        </Modal>
-      )}
+      <BirthdayPickerModal
+        visible={showDatePicker}
+        draftDate={draftDate}
+        onChange={onDateChange}
+        onConfirm={confirmIosDate}
+        onClose={() => setShowDatePicker(false)}
+      />
 
-      {/* ── Country picker ── */}
-      <Modal visible={showCountryPicker} transparent animationType="slide" onRequestClose={closeCountryPicker}>
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-        >
-          <TouchableOpacity
-            style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }}
-            activeOpacity={1}
-            onPress={closeCountryPicker}
-          />
-          {/* Without KeyboardAvoidingView here, the keyboard (once its open animation finishes,
-           * a beat after the first keystroke) covers most of this 75%-height sheet — the list
-           * looked like it "disappeared" because it was still there, just hidden behind the
-           * keyboard. This shifts the whole sheet up instead. */}
-          <View className="bg-card rounded-t-3xl px-6 pt-6 pb-6" style={{ maxHeight: "75%" }}>
-            <Text className="text-foreground text-lg font-bold mb-4">Select country</Text>
-
-            <View className="flex-row items-center rounded-xl bg-input border border-border px-3.5 mb-3">
-              <Search color="#a3a3ab" size={16} strokeWidth={2} />
-              <TextInput
-                className="flex-1 py-3 pl-2 text-foreground text-sm"
-                value={countrySearch}
-                onChangeText={setCountrySearch}
-                placeholder="Search countries"
-                placeholderTextColor="#a3a3ab"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-            </View>
-
-            <FlatList
-              data={filteredCountries}
-              keyExtractor={(item) => item.code}
-              keyboardShouldPersistTaps="handled"
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  activeOpacity={0.8}
-                  onPress={() => selectCountry(item)}
-                  className="flex-row items-center justify-between py-3"
-                  style={{ borderBottomWidth: 1, borderBottomColor: "#2e2e38" }}
-                >
-                  <Text className="text-foreground text-sm">{item.name}</Text>
-                  <View className="flex-row items-center gap-2">
-                    <Text className="text-muted-foreground text-xs">{item.code}</Text>
-                    {item.code === countryCode && <Check color="#B03BFF" size={14} strokeWidth={2.5} />}
-                  </View>
-                </TouchableOpacity>
-              )}
-              ListEmptyComponent={
-                <Text className="text-muted-foreground text-sm text-center py-8">No countries found</Text>
-              }
-            />
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+      <CountryPickerModal
+        visible={showCountryPicker}
+        search={countrySearch}
+        onSearchChange={setCountrySearch}
+        countries={filteredCountries}
+        selectedCode={countryCode}
+        onSelect={selectCountry}
+        onClose={closeCountryPicker}
+      />
     </SafeAreaView>
   );
 }

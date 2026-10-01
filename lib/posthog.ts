@@ -59,7 +59,13 @@ posthog.identify = ((...args: Parameters<typeof rawIdentify>) =>
 // attempt itself while offline, so the next flush once back online sends everything at once.
 let isOnline = true;
 NetInfo.addEventListener((state) => {
+  const wasOnline = isOnline;
   isOnline = state.isConnected ?? true;
+  // Coming back online after a stretch offline — the queue may hold a while's worth of events
+  // that would otherwise just sit there until the next 10s flushInterval tick.
+  if (!wasOnline && isOnline) {
+    void posthog.flush();
+  }
 });
 
 const rawFlush = posthog.flush.bind(posthog);

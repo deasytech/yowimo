@@ -5,6 +5,7 @@ import HeroCard from "@/components/HeroCard";
 import QuickDeckCard from "@/components/QuickDeckCard";
 import QuickDiscoverCard from "@/components/QuickDiscoverCard";
 import ListHeading from "@/components/shared/ListHeading";
+import RailError from "@/components/shared/RailError";
 import { QUICK_ACTIONS } from "@/data/mock";
 import { useFriends } from "@/hooks/api/useFriends";
 import { useGameTypes } from "@/hooks/api/useGameTypes";
@@ -140,14 +141,7 @@ export default function HomeScreen() {
                         {isLoadingFriends ? (
                             <ActivityIndicator color="#B03BFF" style={{ marginVertical: 16 }} />
                         ) : isFriendsError ? (
-                            <View className="items-center gap-2 py-4">
-                                <Text className="text-sm font-sans-medium text-white/60">
-                                    Couldn&apos;t load your crew.
-                                </Text>
-                                <TouchableOpacity onPress={() => refetchFriends()} activeOpacity={0.8}>
-                                    <Text className="text-violet-bright text-sm font-sans-semibold">Retry</Text>
-                                </TouchableOpacity>
-                            </View>
+                            <RailError message="Couldn't load your crew." onRetry={() => refetchFriends()} />
                         ) : (
                             <FlatList
                                 data={_FRIENDS}
@@ -174,17 +168,11 @@ export default function HomeScreen() {
                     {isLoadingParties ? (
                         <ActivityIndicator color="#B03BFF" style={{ marginVertical: 16 }} />
                     ) : isPartiesError ? (
-                        <View className="items-center gap-2 py-4">
-                            <Text className="text-sm font-sans-medium text-white/60">
-                                Couldn&apos;t load parties.
-                            </Text>
-                            <Text className="text-xs text-white/40 text-center px-6">
-                                {partiesError instanceof Error ? partiesError.message : "Unknown error"}
-                            </Text>
-                            <TouchableOpacity onPress={() => refetchParties()} activeOpacity={0.8}>
-                                <Text className="text-violet-bright text-sm font-sans-semibold">Retry</Text>
-                            </TouchableOpacity>
-                        </View>
+                        <RailError
+                            message="Couldn't load parties."
+                            detail={partiesError instanceof Error ? partiesError.message : "Unknown error"}
+                            onRetry={() => refetchParties()}
+                        />
                     ) : (
                     <FlatList
                         data={_PARTIES}
@@ -204,17 +192,11 @@ export default function HomeScreen() {
                     {isLoadingGames ? (
                         <ActivityIndicator color="#B03BFF" style={{ marginVertical: 16 }} />
                     ) : isGamesError ? (
-                        <View className="items-center gap-2 py-4">
-                            <Text className="text-sm font-sans-medium text-white/60">
-                                Couldn&apos;t load games.
-                            </Text>
-                            <Text className="text-xs text-white/40 text-center px-6">
-                                {gamesError instanceof Error ? gamesError.message : "Unknown error"}
-                            </Text>
-                            <TouchableOpacity onPress={() => refetchGameTypes()} activeOpacity={0.8}>
-                                <Text className="text-violet-bright text-sm font-sans-semibold">Retry</Text>
-                            </TouchableOpacity>
-                        </View>
+                        <RailError
+                            message="Couldn't load games."
+                            detail={gamesError instanceof Error ? gamesError.message : "Unknown error"}
+                            onRetry={() => refetchGameTypes()}
+                        />
                     ) : _GAMES.length === 0 ? (
                         <Text className="py-4 text-sm font-sans-medium text-white/60">
                             No games available

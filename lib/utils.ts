@@ -192,7 +192,7 @@ export function isProfileSetupComplete(profile: Pick<UserResource, 'display_name
     profile.display_name?.trim() &&
     profile.date_of_birth &&
     profile.country_code &&
-    profile.interests.length > 0,
+    (profile.interests?.length ?? 0) > 0,
   );
 }
 

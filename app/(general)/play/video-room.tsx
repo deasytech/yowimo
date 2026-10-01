@@ -26,7 +26,6 @@ import { styled } from "nativewind";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  LogBox,
   ScrollView,
   Text,
   TouchableOpacity,
@@ -43,7 +42,21 @@ const SafeAreaView = styled(RNSafeAreaView);
 // teardown, which it doesn't always distinguish from a real connection failure. Benign (the app
 // keeps working fine after leaving), but LogBox surfaces any console.error as a red dev overlay,
 // which alarms testers for no reason. Dev-only noise — never shown in production builds anyway.
-LogBox.ignoreLogs(["error reading from signal stream"]);
+// LogBox.ignoreLogs has no per-pattern "unignore," so a blanket call here would hide this message
+// for the rest of the app's lifetime, including a genuine mid-call signal failure. Instead, only
+// swallow it during the window this screen is actually tearing down.
+let isTearingDown = false;
+const originalConsoleError = console.error;
+console.error = (...args: unknown[]) => {
+  if (
+    isTearingDown &&
+    typeof args[0] === "string" &&
+    args[0].includes("error reading from signal stream")
+  ) {
+    return;
+  }
+  originalConsoleError(...args);
+};
 
 const TILE_COLORS: readonly [string, string][] = [
   ["#7A1EFF", "#D84CFF"],
@@ -68,6 +81,13 @@ export default function LiveVideoRoom() {
   const requestVideoToken = useRequestVideoToken();
   const [credentials, setCredentials] = useState<RoomCredentials | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    isTearingDown = false;
+    return () => {
+      isTearingDown = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!validPartyId) return;
