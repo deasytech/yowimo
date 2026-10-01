@@ -274,11 +274,21 @@ export default function Onboarding() {
                   colors={["#7A1EFF", "#D84CFF", "#FF8A2A"]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
-                  className="h-14 items-center justify-center rounded-2xl"
+                  className="h-14 flex-row items-center justify-center gap-2 rounded-2xl"
                   style={{ opacity: canContinue ? 1 : 0.5 }}
                 >
                   {updateProfile.isPending ? (
-                    <ActivityIndicator color="#fff" size="small" />
+                    <>
+                      <ActivityIndicator color="#fff" size="small" />
+                      {/* A paused mutation (queryClient's onlineManager holding it for real
+                       * connectivity) looks identical to a hang without this — same signal
+                       * NetworkStatusGate uses, surfaced here too since that modal only covers
+                       * a fully-offline device, not "connected but no real route" (the actual
+                       * state seen during testing — PostHog's own fetches were failing too). */}
+                      {updateProfile.isPaused && (
+                        <Text className="text-white text-sm font-semibold">Waiting for connection…</Text>
+                      )}
+                    </>
                   ) : (
                     <Text className="text-white text-base font-semibold">Let&apos;s go</Text>
                   )}
@@ -334,12 +344,19 @@ export default function Onboarding() {
 
       {/* ── Country picker ── */}
       <Modal visible={showCountryPicker} transparent animationType="slide" onRequestClose={closeCountryPicker}>
-        <View style={{ flex: 1 }}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
           <TouchableOpacity
             style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }}
             activeOpacity={1}
             onPress={closeCountryPicker}
           />
+          {/* Without KeyboardAvoidingView here, the keyboard (once its open animation finishes,
+           * a beat after the first keystroke) covers most of this 75%-height sheet — the list
+           * looked like it "disappeared" because it was still there, just hidden behind the
+           * keyboard. This shifts the whole sheet up instead. */}
           <View className="bg-card rounded-t-3xl px-6 pt-6 pb-6" style={{ maxHeight: "75%" }}>
             <Text className="text-foreground text-lg font-bold mb-4">Select country</Text>
 
@@ -379,7 +396,7 @@ export default function Onboarding() {
               }
             />
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
