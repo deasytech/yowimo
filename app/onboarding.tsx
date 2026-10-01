@@ -67,7 +67,12 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 export default function Onboarding() {
   const router = useRouter();
   const { data: profile, isLoading } = useProfile();
-  const { data: gameTypes } = useGameTypes();
+  const {
+    data: gameTypes,
+    isLoading: isGamesLoading,
+    isError: isGamesError,
+    refetch: refetchGameTypes,
+  } = useGameTypes();
   const updateProfile = useUpdateProfile();
 
   const [displayName, setDisplayName] = useState("");
@@ -242,26 +247,37 @@ export default function Onboarding() {
                 <Text className="mb-3 text-muted-foreground text-xs">
                   Pick at least one — powers Discover&apos;s &quot;For you&quot; feed.
                 </Text>
-                <View className="flex-row flex-wrap gap-2">
-                  {(gameTypes ?? []).map((g) => {
-                    const active = interests.includes(g.slug);
-                    return (
-                      <TouchableOpacity
-                        key={g.slug}
-                        onPress={() => toggleInterest(g.slug)}
-                        activeOpacity={0.8}
-                        className={`flex-row items-center gap-1 rounded-full border px-3 py-1.5 ${
-                          active ? "border-violet-bright bg-violet/20" : "border-border bg-secondary/40"
-                        }`}
-                      >
-                        {active && <Check color="#fff" size={12} strokeWidth={2.5} />}
-                        <Text className={`text-xs font-semibold ${active ? "text-foreground" : "text-muted-foreground"}`}>
-                          {g.emoji} {g.name}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
+                {isGamesLoading ? (
+                  <ActivityIndicator color="#B03BFF" style={{ marginVertical: 16 }} />
+                ) : isGamesError ? (
+                  <View className="flex-row items-center justify-between py-2">
+                    <Text className="text-sm text-white/40">Couldn&apos;t load interests.</Text>
+                    <TouchableOpacity onPress={() => refetchGameTypes()} activeOpacity={0.8}>
+                      <Text className="text-sm font-sans-semibold text-violet-bright">Retry</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View className="flex-row flex-wrap gap-2">
+                    {(gameTypes ?? []).map((g) => {
+                      const active = interests.includes(g.slug);
+                      return (
+                        <TouchableOpacity
+                          key={g.slug}
+                          onPress={() => toggleInterest(g.slug)}
+                          activeOpacity={0.8}
+                          className={`flex-row items-center gap-1 rounded-full border px-3 py-1.5 ${
+                            active ? "border-violet-bright bg-violet/20" : "border-border bg-secondary/40"
+                          }`}
+                        >
+                          {active && <Check color="#fff" size={12} strokeWidth={2.5} />}
+                          <Text className={`text-xs font-semibold ${active ? "text-foreground" : "text-muted-foreground"}`}>
+                            {g.emoji} {g.name}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                )}
               </View>
 
               <TouchableOpacity
