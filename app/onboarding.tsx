@@ -199,6 +199,35 @@ function Field({ label, children }: Readonly<{ label: string; children: React.Re
   );
 }
 
+// Birthday and country are both "tap to open a picker" rows with identical chrome — only the
+// label, current value, and trailing icon change.
+function PickerField({
+  label,
+  value,
+  valueClassName,
+  onPress,
+  icon,
+}: Readonly<{
+  label: string;
+  value: string;
+  valueClassName: string;
+  onPress: () => void;
+  icon: React.ReactNode;
+}>) {
+  return (
+    <Field label={label}>
+      <TouchableOpacity
+        activeOpacity={0.8}
+        onPress={onPress}
+        className="flex-row items-center justify-between rounded-xl bg-input border border-border px-3.5 py-3"
+      >
+        <Text className={`text-sm ${valueClassName}`}>{value}</Text>
+        {icon}
+      </TouchableOpacity>
+    </Field>
+  );
+}
+
 function InterestsPicker({
   isLoading,
   isError,
@@ -259,17 +288,16 @@ function BirthdayPickerModal({
   onConfirm: () => void;
   onClose: () => void;
 }>) {
+  const commonPickerProps = {
+    value: draftDate,
+    mode: "date" as const,
+    maximumDate: new Date(),
+    onChange,
+  };
+
   if (Platform.OS === "android") {
     if (!visible) return null;
-    return (
-      <DateTimePicker
-        value={draftDate}
-        mode="date"
-        display="default"
-        maximumDate={new Date()}
-        onChange={onChange}
-      />
-    );
+    return <DateTimePicker {...commonPickerProps} display="default" />;
   }
 
   return (
@@ -284,11 +312,8 @@ function BirthdayPickerModal({
         </TouchableOpacity>
       </View>
       <DateTimePicker
-        value={draftDate}
-        mode="date"
+        {...commonPickerProps}
         display="spinner"
-        maximumDate={new Date()}
-        onChange={onChange}
         textColor="#ffffff"
         style={{ height: 200 }}
       />
@@ -466,27 +491,21 @@ export default function Onboarding() {
                   />
                 </Field>
 
-                <Field label="Birthday">
-                  <TouchableOpacity
-                    activeOpacity={0.8}
-                    onPress={birthday.open}
-                    className="flex-row items-center justify-between rounded-xl bg-input border border-border px-3.5 py-3"
-                  >
-                    <Text className={`text-sm ${birthday.labelClassName}`}>{birthday.displayLabel}</Text>
-                    <Calendar color="#a3a3ab" size={16} strokeWidth={2} />
-                  </TouchableOpacity>
-                </Field>
+                <PickerField
+                  label="Birthday"
+                  value={birthday.displayLabel}
+                  valueClassName={birthday.labelClassName}
+                  onPress={birthday.open}
+                  icon={<Calendar color="#a3a3ab" size={16} strokeWidth={2} />}
+                />
 
-                <Field label="Country">
-                  <TouchableOpacity
-                    activeOpacity={0.8}
-                    onPress={country.open}
-                    className="flex-row items-center justify-between rounded-xl bg-input border border-border px-3.5 py-3"
-                  >
-                    <Text className={`text-sm ${country.labelClassName}`}>{country.displayLabel}</Text>
-                    <ChevronDown color="#a3a3ab" size={16} strokeWidth={2} />
-                  </TouchableOpacity>
-                </Field>
+                <PickerField
+                  label="Country"
+                  value={country.displayLabel}
+                  valueClassName={country.labelClassName}
+                  onPress={country.open}
+                  icon={<ChevronDown color="#a3a3ab" size={16} strokeWidth={2} />}
+                />
               </View>
 
               <View className="mt-7">
