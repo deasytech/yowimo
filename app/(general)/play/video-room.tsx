@@ -26,6 +26,7 @@ import { styled } from "nativewind";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  LogBox,
   ScrollView,
   Text,
   TouchableOpacity,
@@ -36,6 +37,13 @@ import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
 
 const LinearGradient = styled(RNLinearGradient);
 const SafeAreaView = styled(RNSafeAreaView);
+
+// useLiveKitRoom's own unmount cleanup already calls room.disconnect() correctly — this is
+// livekit-client's signal client logging its WebSocket closing as part of that *intentional*
+// teardown, which it doesn't always distinguish from a real connection failure. Benign (the app
+// keeps working fine after leaving), but LogBox surfaces any console.error as a red dev overlay,
+// which alarms testers for no reason. Dev-only noise — never shown in production builds anyway.
+LogBox.ignoreLogs(["error reading from signal stream"]);
 
 const TILE_COLORS: readonly [string, string][] = [
   ["#7A1EFF", "#D84CFF"],
