@@ -151,6 +151,45 @@ function useCountryPicker(initialCode: string) {
   };
 }
 
+// Shared shell for both bottom-sheet modals: a semi-transparent backdrop that closes on tap,
+// plus a rounded sheet for the caller's own content. The two pickers only differ in whether the
+// sheet needs to dodge the keyboard and how the sheet itself is sized.
+function ModalSheet({
+  visible,
+  onClose,
+  keyboardAware,
+  sheetClassName,
+  sheetStyle,
+  children,
+}: Readonly<{
+  visible: boolean;
+  onClose: () => void;
+  keyboardAware?: boolean;
+  sheetClassName: string;
+  sheetStyle?: { maxHeight: `${number}%` };
+  children: React.ReactNode;
+}>) {
+  const Wrapper = keyboardAware ? KeyboardAvoidingView : View;
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Wrapper
+        style={{ flex: 1 }}
+        behavior={keyboardAware && Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <TouchableOpacity
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }}
+          activeOpacity={1}
+          onPress={onClose}
+        />
+        <View className={sheetClassName} style={sheetStyle}>
+          {children}
+        </View>
+      </Wrapper>
+    </Modal>
+  );
+}
+
 function Field({ label, children }: Readonly<{ label: string; children: React.ReactNode }>) {
   return (
     <View className="gap-1.5">
@@ -234,35 +273,26 @@ function BirthdayPickerModal({
   }
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={{ flex: 1 }}>
-        <TouchableOpacity
-          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }}
-          activeOpacity={1}
-          onPress={onClose}
-        />
-        <View className="bg-card rounded-t-3xl px-6 pt-6 pb-10">
-          <View className="flex-row items-center justify-between mb-4">
-            <TouchableOpacity onPress={onClose}>
-              <Text className="text-muted-foreground text-sm font-semibold">Cancel</Text>
-            </TouchableOpacity>
-            <Text className="text-foreground text-base font-bold">Birthday</Text>
-            <TouchableOpacity onPress={onConfirm}>
-              <Text className="text-violet-bright text-sm font-semibold">Done</Text>
-            </TouchableOpacity>
-          </View>
-          <DateTimePicker
-            value={draftDate}
-            mode="date"
-            display="spinner"
-            maximumDate={new Date()}
-            onChange={onChange}
-            textColor="#ffffff"
-            style={{ height: 200 }}
-          />
-        </View>
+    <ModalSheet visible={visible} onClose={onClose} sheetClassName="bg-card rounded-t-3xl px-6 pt-6 pb-10">
+      <View className="flex-row items-center justify-between mb-4">
+        <TouchableOpacity onPress={onClose}>
+          <Text className="text-muted-foreground text-sm font-semibold">Cancel</Text>
+        </TouchableOpacity>
+        <Text className="text-foreground text-base font-bold">Birthday</Text>
+        <TouchableOpacity onPress={onConfirm}>
+          <Text className="text-violet-bright text-sm font-semibold">Done</Text>
+        </TouchableOpacity>
       </View>
-    </Modal>
+      <DateTimePicker
+        value={draftDate}
+        mode="date"
+        display="spinner"
+        maximumDate={new Date()}
+        onChange={onChange}
+        textColor="#ffffff"
+        style={{ height: 200 }}
+      />
+    </ModalSheet>
   );
 }
 
@@ -284,58 +314,55 @@ function CountryPickerModal({
   onClose: () => void;
 }>) {
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-        <TouchableOpacity
-          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }}
-          activeOpacity={1}
-          onPress={onClose}
+    // Without KeyboardAvoidingView here, the keyboard (once its open animation finishes, a beat
+    // after the first keystroke) covers most of this 75%-height sheet — the list looked like it
+    // "disappeared" because it was still there, just hidden behind the keyboard. This shifts the
+    // whole sheet up instead.
+    <ModalSheet
+      visible={visible}
+      onClose={onClose}
+      keyboardAware
+      sheetClassName="bg-card rounded-t-3xl px-6 pt-6 pb-6"
+      sheetStyle={{ maxHeight: "75%" }}
+    >
+      <Text className="text-foreground text-lg font-bold mb-4">Select country</Text>
+
+      <View className="flex-row items-center rounded-xl bg-input border border-border px-3.5 mb-3">
+        <Search color="#a3a3ab" size={16} strokeWidth={2} />
+        <TextInput
+          className="flex-1 py-3 pl-2 text-foreground text-sm"
+          value={search}
+          onChangeText={onSearchChange}
+          placeholder="Search countries"
+          placeholderTextColor="#a3a3ab"
+          autoCapitalize="none"
+          autoCorrect={false}
         />
-        {/* Without KeyboardAvoidingView here, the keyboard (once its open animation finishes,
-         * a beat after the first keystroke) covers most of this 75%-height sheet — the list
-         * looked like it "disappeared" because it was still there, just hidden behind the
-         * keyboard. This shifts the whole sheet up instead. */}
-        <View className="bg-card rounded-t-3xl px-6 pt-6 pb-6" style={{ maxHeight: "75%" }}>
-          <Text className="text-foreground text-lg font-bold mb-4">Select country</Text>
+      </View>
 
-          <View className="flex-row items-center rounded-xl bg-input border border-border px-3.5 mb-3">
-            <Search color="#a3a3ab" size={16} strokeWidth={2} />
-            <TextInput
-              className="flex-1 py-3 pl-2 text-foreground text-sm"
-              value={search}
-              onChangeText={onSearchChange}
-              placeholder="Search countries"
-              placeholderTextColor="#a3a3ab"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-          </View>
-
-          <FlatList
-            data={countries}
-            keyExtractor={(item) => item.code}
-            keyboardShouldPersistTaps="handled"
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={() => onSelect(item)}
-                className="flex-row items-center justify-between py-3"
-                style={{ borderBottomWidth: 1, borderBottomColor: "#2e2e38" }}
-              >
-                <Text className="text-foreground text-sm">{item.name}</Text>
-                <View className="flex-row items-center gap-2">
-                  <Text className="text-muted-foreground text-xs">{item.code}</Text>
-                  {item.code === selectedCode && <Check color="#B03BFF" size={14} strokeWidth={2.5} />}
-                </View>
-              </TouchableOpacity>
-            )}
-            ListEmptyComponent={
-              <Text className="text-muted-foreground text-sm text-center py-8">No countries found</Text>
-            }
-          />
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
+      <FlatList
+        data={countries}
+        keyExtractor={(item) => item.code}
+        keyboardShouldPersistTaps="handled"
+        renderItem={({ item }) => (
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => onSelect(item)}
+            className="flex-row items-center justify-between py-3"
+            style={{ borderBottomWidth: 1, borderBottomColor: "#2e2e38" }}
+          >
+            <Text className="text-foreground text-sm">{item.name}</Text>
+            <View className="flex-row items-center gap-2">
+              <Text className="text-muted-foreground text-xs">{item.code}</Text>
+              {item.code === selectedCode && <Check color="#B03BFF" size={14} strokeWidth={2.5} />}
+            </View>
+          </TouchableOpacity>
+        )}
+        ListEmptyComponent={
+          <Text className="text-muted-foreground text-sm text-center py-8">No countries found</Text>
+        }
+      />
+    </ModalSheet>
   );
 }
 
