@@ -56,6 +56,101 @@ const formatDisplayDate = (s: string) => {
   });
 };
 
+const UNSET_FIELD_CLASS = "text-muted-foreground";
+const SET_FIELD_CLASS = "text-foreground";
+
+function toggleInterestValue(current: string[], slug: string): string[] {
+  return current.includes(slug) ? current.filter((s) => s !== slug) : [...current, slug];
+}
+
+function updateProfileErrorMessage(error: unknown): string {
+  if (!(error instanceof ApiError)) return "Something went wrong. Please try again.";
+  return error.firstValidationError ?? error.message;
+}
+
+// Bundles the birthday field's own state, modal, and derived display label so the screen that
+// renders it doesn't carry any of this branching itself.
+function useBirthdayPicker(initialISODate: string) {
+  const [dateOfBirth, setDateOfBirth] = useState(initialISODate);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [draftDate, setDraftDate] = useState(() => new Date());
+
+  const open = () => {
+    setDraftDate(parseISODate(dateOfBirth) ?? new Date(2000, 0, 1));
+    setShowDatePicker(true);
+  };
+
+  const onChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
+    if (Platform.OS === "android") {
+      setShowDatePicker(false);
+      if (event.type === "set" && selectedDate) setDateOfBirth(toISODate(selectedDate));
+      return;
+    }
+    if (selectedDate) setDraftDate(selectedDate);
+  };
+
+  const confirm = () => {
+    setDateOfBirth(toISODate(draftDate));
+    setShowDatePicker(false);
+  };
+
+  return {
+    dateOfBirth,
+    setDateOfBirth,
+    showDatePicker,
+    draftDate,
+    open,
+    onChange,
+    confirm,
+    close: () => setShowDatePicker(false),
+    hasValue: dateOfBirth.length > 0,
+    displayLabel: dateOfBirth ? formatDisplayDate(dateOfBirth) : "Select your birthday",
+    labelClassName: dateOfBirth ? SET_FIELD_CLASS : UNSET_FIELD_CLASS,
+  };
+}
+
+// Same idea as useBirthdayPicker, for the country field + its search modal.
+function useCountryPicker(initialCode: string) {
+  const [countryCode, setCountryCode] = useState(initialCode);
+  const [showCountryPicker, setShowCountryPicker] = useState(false);
+  const [countrySearch, setCountrySearch] = useState("");
+
+  const filteredCountries = useMemo(() => {
+    const q = countrySearch.trim().toLowerCase();
+    if (!q) return COUNTRIES;
+    return COUNTRIES.filter(
+      (c) => c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q),
+    );
+  }, [countrySearch]);
+
+  const selectedCountry = COUNTRIES.find((c) => c.code === countryCode);
+
+  const close = () => {
+    setShowCountryPicker(false);
+    setCountrySearch("");
+  };
+
+  const select = (country: Country) => {
+    setCountryCode(country.code);
+    close();
+  };
+
+  return {
+    countryCode,
+    setCountryCode,
+    showCountryPicker,
+    open: () => setShowCountryPicker(true),
+    close,
+    select,
+    countrySearch,
+    setCountrySearch,
+    filteredCountries,
+    hasValue: Boolean(selectedCountry),
+    displayLabel: selectedCountry ? `${selectedCountry.name} (${selectedCountry.code})` : "Select your country",
+    labelClassName: selectedCountry ? SET_FIELD_CLASS : UNSET_FIELD_CLASS,
+  };
+}
+
 function Field({ label, children }: Readonly<{ label: string; children: React.ReactNode }>) {
   return (
     <View className="gap-1.5">
@@ -256,14 +351,9 @@ export default function Onboarding() {
   const updateProfile = useUpdateProfile();
 
   const [displayName, setDisplayName] = useState("");
-  const [dateOfBirth, setDateOfBirth] = useState("");
-  const [countryCode, setCountryCode] = useState("");
   const [interests, setInterests] = useState<string[]>([]);
-
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [draftDate, setDraftDate] = useState(() => new Date());
-  const [showCountryPicker, setShowCountryPicker] = useState(false);
-  const [countrySearch, setCountrySearch] = useState("");
+  const birthday = useBirthdayPicker("");
+  const country = useCountryPicker("");
 
   // Prefill from whatever's already there (display_name is usually set from Clerk at
   // account-creation time) — the ref guard stops a background refetch from clobbering
@@ -277,59 +367,19 @@ export default function Onboarding() {
     if (!profile || hasPrefilled.current) return;
     hasPrefilled.current = true;
     setDisplayName(profile.display_name ?? "");
-    setDateOfBirth(profile.date_of_birth ?? "");
-    setCountryCode(profile.country_code ?? "");
+    birthday.setDateOfBirth(profile.date_of_birth ?? "");
+    country.setCountryCode(profile.country_code ?? "");
     setInterests(profile.interests ?? []);
+    // Only ever runs once, the first time `profile` arrives — re-running on every identity
+    // change of these setters (stable, but not memoized across the hooks) isn't the intent.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile]);
 
   const toggleInterest = (slug: string) =>
-    setInterests((current) =>
-      current.includes(slug) ? current.filter((s) => s !== slug) : [...current, slug],
-    );
-
-  const selectedCountry = COUNTRIES.find((c) => c.code === countryCode);
-  const filteredCountries = useMemo(() => {
-    const q = countrySearch.trim().toLowerCase();
-    if (!q) return COUNTRIES;
-    return COUNTRIES.filter(
-      (c) => c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q),
-    );
-  }, [countrySearch]);
-
-  const openDatePicker = () => {
-    setDraftDate(parseISODate(dateOfBirth) ?? new Date(2000, 0, 1));
-    setShowDatePicker(true);
-  };
-
-  const onDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
-    if (Platform.OS === "android") {
-      setShowDatePicker(false);
-      if (event.type === "set" && selectedDate) setDateOfBirth(toISODate(selectedDate));
-      return;
-    }
-    if (selectedDate) setDraftDate(selectedDate);
-  };
-
-  const confirmIosDate = () => {
-    setDateOfBirth(toISODate(draftDate));
-    setShowDatePicker(false);
-  };
-
-  const closeCountryPicker = () => {
-    setShowCountryPicker(false);
-    setCountrySearch("");
-  };
-
-  const selectCountry = (country: Country) => {
-    setCountryCode(country.code);
-    closeCountryPicker();
-  };
+    setInterests((current) => toggleInterestValue(current, slug));
 
   const canContinue =
-    displayName.trim().length > 0 &&
-    dateOfBirth.length > 0 &&
-    countryCode.length > 0 &&
-    interests.length > 0;
+    displayName.trim().length > 0 && birthday.hasValue && country.hasValue && interests.length > 0;
 
   const onContinue = () => {
     if (!canContinue) {
@@ -340,19 +390,13 @@ export default function Onboarding() {
     updateProfile.mutate(
       {
         display_name: displayName.trim(),
-        date_of_birth: dateOfBirth,
-        country_code: countryCode.toUpperCase(),
+        date_of_birth: birthday.dateOfBirth,
+        country_code: country.countryCode.toUpperCase(),
         interests,
       },
       {
         onSuccess: () => router.replace("/(tabs)"),
-        onError: (error) => {
-          const message =
-            error instanceof ApiError
-              ? (error.firstValidationError ?? error.message)
-              : "Something went wrong. Please try again.";
-          Alert.alert("Couldn't save", message);
-        },
+        onError: (error) => Alert.alert("Couldn't save", updateProfileErrorMessage(error)),
       },
     );
   };
@@ -398,12 +442,10 @@ export default function Onboarding() {
                 <Field label="Birthday">
                   <TouchableOpacity
                     activeOpacity={0.8}
-                    onPress={openDatePicker}
+                    onPress={birthday.open}
                     className="flex-row items-center justify-between rounded-xl bg-input border border-border px-3.5 py-3"
                   >
-                    <Text className={`text-sm ${dateOfBirth ? "text-foreground" : "text-muted-foreground"}`}>
-                      {dateOfBirth ? formatDisplayDate(dateOfBirth) : "Select your birthday"}
-                    </Text>
+                    <Text className={`text-sm ${birthday.labelClassName}`}>{birthday.displayLabel}</Text>
                     <Calendar color="#a3a3ab" size={16} strokeWidth={2} />
                   </TouchableOpacity>
                 </Field>
@@ -411,12 +453,10 @@ export default function Onboarding() {
                 <Field label="Country">
                   <TouchableOpacity
                     activeOpacity={0.8}
-                    onPress={() => setShowCountryPicker(true)}
+                    onPress={country.open}
                     className="flex-row items-center justify-between rounded-xl bg-input border border-border px-3.5 py-3"
                   >
-                    <Text className={`text-sm ${selectedCountry ? "text-foreground" : "text-muted-foreground"}`}>
-                      {selectedCountry ? `${selectedCountry.name} (${selectedCountry.code})` : "Select your country"}
-                    </Text>
+                    <Text className={`text-sm ${country.labelClassName}`}>{country.displayLabel}</Text>
                     <ChevronDown color="#a3a3ab" size={16} strokeWidth={2} />
                   </TouchableOpacity>
                 </Field>
@@ -473,21 +513,21 @@ export default function Onboarding() {
       </KeyboardAvoidingView>
 
       <BirthdayPickerModal
-        visible={showDatePicker}
-        draftDate={draftDate}
-        onChange={onDateChange}
-        onConfirm={confirmIosDate}
-        onClose={() => setShowDatePicker(false)}
+        visible={birthday.showDatePicker}
+        draftDate={birthday.draftDate}
+        onChange={birthday.onChange}
+        onConfirm={birthday.confirm}
+        onClose={birthday.close}
       />
 
       <CountryPickerModal
-        visible={showCountryPicker}
-        search={countrySearch}
-        onSearchChange={setCountrySearch}
-        countries={filteredCountries}
-        selectedCode={countryCode}
-        onSelect={selectCountry}
-        onClose={closeCountryPicker}
+        visible={country.showCountryPicker}
+        search={country.countrySearch}
+        onSearchChange={country.setCountrySearch}
+        countries={country.filteredCountries}
+        selectedCode={country.countryCode}
+        onSelect={country.select}
+        onClose={country.close}
       />
     </SafeAreaView>
   );

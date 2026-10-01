@@ -224,7 +224,7 @@ export default function LobbyScreen() {
   // cache (e.g. an action fires before useParty()'s own fetch has resolved), there's nothing to
   // merge onto and the thin response lands as-is. Treat a party missing `host` as not-ready
   // rather than crashing on party.host.id below — retrying forces the real, full fetch.
-  if (isError || !party || !party.host) {
+  if (isError || !party?.host) {
     return (
       <SafeAreaView className="flex-1 bg-background px-5">
         <GoBack title="Lobby" />
