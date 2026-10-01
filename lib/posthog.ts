@@ -1,3 +1,4 @@
+import NetInfo from '@react-native-community/netinfo'
 import PostHog from 'posthog-react-native'
 import Constants from 'expo-constants'
 
@@ -47,3 +48,22 @@ posthog.screen = ((...args: Parameters<typeof rawScreen>) =>
 const rawIdentify = posthog.identify.bind(posthog);
 posthog.identify = ((...args: Parameters<typeof rawIdentify>) =>
   Promise.resolve(rawIdentify(...args)).catch((err: unknown) => warnOnFailure('identify', err))) as typeof posthog.identify;
+
+// capture()/screen()/identify() all funnel through enqueue() -> a 10s-interval flush() timer
+// that keeps firing and attempting a real network request regardless of connectivity — it has
+// no idea the device is offline. Traced a native crash (EXC_BAD_ACCESS in CFNetwork, copying an
+// NSURLRequest mid-`resume()`) to this: during an extended offline period, this timer keeps
+// creating new NSURLSession tasks every 10s on the same process-wide networking queue used by
+// every other request source in the app, compounding the odds of hitting that race. Queued
+// events are NOT lost — enqueue() still persists them locally; this only skips the network
+// attempt itself while offline, so the next flush once back online sends everything at once.
+let isOnline = true;
+NetInfo.addEventListener((state) => {
+  isOnline = state.isConnected ?? true;
+});
+
+const rawFlush = posthog.flush.bind(posthog);
+posthog.flush = (() => {
+  if (!isOnline) return Promise.resolve();
+  return Promise.resolve(rawFlush()).catch((err: unknown) => warnOnFailure('flush', err));
+}) as typeof posthog.flush;
