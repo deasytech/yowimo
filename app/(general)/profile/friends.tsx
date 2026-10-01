@@ -58,14 +58,14 @@ export default function FriendsListScreen() {
   const query = q.trim().toLowerCase();
   const filteredFriends = friends.filter((f) =>
     !query ||
-    f.friend.username.toLowerCase().includes(query) ||
+    (f.friend.username ?? "").toLowerCase().includes(query) ||
     (f.friend.display_name ?? "").toLowerCase().includes(query),
   );
   const filteredIncoming = incoming.filter(
-    (r) => !query || r.sender.username.toLowerCase().includes(query),
+    (r) => !query || (r.sender.username ?? "").toLowerCase().includes(query),
   );
   const filteredSent = sent.filter(
-    (r) => !query || r.receiver.username.toLowerCase().includes(query),
+    (r) => !query || (r.receiver.username ?? "").toLowerCase().includes(query),
   );
 
   const notify = (message: string, variant: "success" | "error") => {
@@ -98,7 +98,7 @@ export default function FriendsListScreen() {
     try {
       if (action === "accept") {
         await acceptRequest.mutateAsync(request.id);
-        notify(`You're now friends with ${request.sender.username}`, "success");
+        notify(`You're now friends with ${request.sender.username ?? "them"}`, "success");
       } else if (action === "reject") {
         await rejectRequest.mutateAsync(request.id);
         notify("Request declined", "success");
@@ -230,9 +230,11 @@ export default function FriendsListScreen() {
                   <Text className="text-foreground text-sm font-semibold" numberOfLines={1}>
                     {f.friend.display_name || f.friend.username}
                   </Text>
-                  <Text className="text-muted-foreground text-xs" numberOfLines={1}>
-                    @{f.friend.username}
-                  </Text>
+                  {f.friend.username && (
+                    <Text className="text-muted-foreground text-xs" numberOfLines={1}>
+                      @{f.friend.username}
+                    </Text>
+                  )}
                 </View>
 
                 <TouchableOpacity
@@ -265,7 +267,7 @@ export default function FriendsListScreen() {
                   <Avatar initials={initialsFromName(r.sender.username)} size={44} />
                   <View className="flex-1">
                     <Text className="text-foreground text-sm font-semibold" numberOfLines={1}>
-                      @{r.sender.username}
+                      {r.sender.username ? `@${r.sender.username}` : "Someone"}
                     </Text>
                     <Text className="text-muted-foreground text-[11px]">
                       {formatRelativeTime(r.created_at)}
@@ -306,7 +308,7 @@ export default function FriendsListScreen() {
                   <Avatar initials={initialsFromName(r.receiver.username)} size={44} />
                   <View className="flex-1">
                     <Text className="text-foreground text-sm font-semibold" numberOfLines={1}>
-                      @{r.receiver.username}
+                      {r.receiver.username ? `@${r.receiver.username}` : "Someone"}
                     </Text>
                     <Text className="text-muted-foreground text-[11px]">
                       {formatRelativeTime(r.created_at)}

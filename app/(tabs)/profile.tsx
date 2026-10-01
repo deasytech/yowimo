@@ -1,5 +1,6 @@
 import Avatar from "@/components/shared/Avatar";
 import ProfileCover from "@/components/screens/profile/ProfileCover";
+import InlineRetry from "@/components/shared/InlineRetry";
 import ListHeading from "@/components/shared/ListHeading";
 import { useEarnedBadges } from "@/hooks/api/useBadges";
 import { useFriends } from "@/hooks/api/useFriends";
@@ -139,12 +140,7 @@ const ProfileScreen = () => {
                 ))}
               </View>
             ) : isBadgesError ? (
-              <View className="flex-row items-center justify-between py-2">
-                <Text className="text-sm text-white/40">Couldn&apos;t load achievements.</Text>
-                <TouchableOpacity onPress={() => refetchBadges()} activeOpacity={0.8}>
-                  <Text className="text-sm font-sans-semibold text-violet-bright">Retry</Text>
-                </TouchableOpacity>
-              </View>
+              <InlineRetry message="Couldn't load achievements." onRetry={() => refetchBadges()} />
             ) : recentBadges.length === 0 ? (
               <Text className="py-2 text-sm text-white/40">
                 Play a game to earn your first badge.
@@ -191,12 +187,7 @@ const ProfileScreen = () => {
             {isFriendsLoading ? (
               <ActivityIndicator color="#B03BFF" style={{ marginVertical: 16 }} />
             ) : isFriendsError ? (
-              <View className="flex-row items-center justify-between py-2">
-                <Text className="text-sm text-white/40">Couldn&apos;t load friends.</Text>
-                <TouchableOpacity onPress={() => refetchFriends()} activeOpacity={0.8}>
-                  <Text className="text-sm font-sans-semibold text-violet-bright">Retry</Text>
-                </TouchableOpacity>
-              </View>
+              <InlineRetry message="Couldn't load friends." onRetry={() => refetchFriends()} />
             ) : recentFriends.length === 0 ? (
               <Text className="py-2 text-sm text-white/40">
                 No friends yet — invite someone to your next party.

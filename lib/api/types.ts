@@ -433,7 +433,10 @@ export interface VideoTokenResource {
 
 export interface FriendResource {
   friendship_id: number;
-  friend: { id: number; username: string; display_name: string; avatar_url: string | null };
+  // `username` is nullable in the DB and never backfilled for an account provisioned without
+  // one (e.g. onboarding doesn't collect it) — genuinely null at runtime, not just defensive
+  // typing.
+  friend: { id: number; username: string | null; display_name: string; avatar_url: string | null };
   accepted_at: string;
 }
 
@@ -442,8 +445,8 @@ export type FriendRequestStatus = 'pending' | 'accepted' | 'rejected';
 export interface FriendRequestResource {
   id: number;
   status: FriendRequestStatus;
-  sender: { id: number; username: string };
-  receiver: { id: number; username: string };
+  sender: { id: number; username: string | null };
+  receiver: { id: number; username: string | null };
   accepted_at: string | null;
   created_at: string;
 }
