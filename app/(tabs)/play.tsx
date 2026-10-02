@@ -2,6 +2,7 @@ import Toast from "@/components/shared/Toast";
 import { useGameTypes } from "@/hooks/api/useGameTypes";
 import { useGameTypePacks } from "@/hooks/api/usePacks";
 import { useCreateParty } from "@/hooks/api/useParties";
+import { useWallet } from "@/hooks/api/useWallet";
 import { useToast } from "@/hooks/useToast";
 import { ApiError, CreatePartyPayload, LocalImageFile, PartyMode } from "@/lib/api/types";
 import DateTimePicker, {
@@ -15,6 +16,7 @@ import {
   Calendar,
   Camera,
   CheckCircle2,
+  Coins,
   Globe,
   Lock,
   Minus,
@@ -62,6 +64,7 @@ export default function CreatePartyScreen() {
   const { gameId } = useLocalSearchParams<{ gameId?: string }>();
   const { width: windowWidth } = useWindowDimensions();
   const { data: gameTypes, isLoading, isError, error, refetch } = useGameTypes();
+  const { data: wallet } = useWallet();
   const createParty = useCreateParty();
 
   const [game, setGame] = useState<number | null>(null);
@@ -79,6 +82,7 @@ export default function CreatePartyScreen() {
   const [draftDate, setDraftDate] = useState(() => new Date());
   const [scheduledModalVisible, setScheduledModalVisible] = useState(false);
   const [scheduledFor, setScheduledFor] = useState<Date | null>(null);
+  const [insufficientFundsVisible, setInsufficientFundsVisible] = useState(false);
 
   const [toastMessage, setToastMessage] = useState("");
   const [toastBg, setToastBg] = useState("bg-green-600");
@@ -87,6 +91,11 @@ export default function CreatePartyScreen() {
   const [gridWidth, setGridWidth] = useState(windowWidth - GRID_PADDING * 2);
 
   const selected = gameTypes?.find((g) => g.id === game) ?? gameTypes?.[0];
+  const partyCost = selected?.cost ?? 0;
+  // Undefined while the wallet is still loading — don't treat that as a zero balance and block
+  // a host who simply hasn't had the request resolve yet.
+  const hasInsufficientFunds =
+    partyCost > 0 && typeof wallet?.balance === "number" && wallet.balance < partyCost;
 
   // Decks are per game type, and a party can't start a game without one — the engine deals its
   // cards straight from the pack. Falls back to the game type's server-side default, then the
@@ -253,6 +262,13 @@ export default function CreatePartyScreen() {
     const payload = buildPayload(saveAsDraft);
     if (!payload) return;
 
+    // Hosting this game type costs tokens — catch it client-side before the round trip so the
+    // host sees why immediately, rather than a generic error after the request fails.
+    if (hasInsufficientFunds) {
+      setInsufficientFundsVisible(true);
+      return;
+    }
+
     try {
       const party = await createParty.mutateAsync(payload);
       // A scheduled party isn't ready to host yet — landing in its lobby would surface a
@@ -265,6 +281,13 @@ export default function CreatePartyScreen() {
       }
       router.replace(`/lobby/${party.id}`);
     } catch (err) {
+      // The client-side check above can go stale (balance spent elsewhere, cost changed) —
+      // recognize the same "insufficient balance" rejection the backend uses for pack
+      // purchases and show the same modal instead of a generic error toast.
+      if (err instanceof ApiError && err.status === 422 && /insufficient/i.test(err.message)) {
+        setInsufficientFundsVisible(true);
+        return;
+      }
       notify(err instanceof ApiError ? err.message : "Couldn't create the party — please try again", "error");
     }
   };
@@ -964,6 +987,60 @@ export default function CreatePartyScreen() {
               >
                 <Text className="text-white text-sm font-semibold">Done</Text>
               </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Insufficient tokens ── */}
+      <Modal
+        visible={insufficientFundsVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setInsufficientFundsVisible(false)}
+      >
+        <View
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)" }}
+          className="items-center justify-center px-8"
+        >
+          <View className="w-full items-center rounded-3xl border border-border bg-card p-6">
+            <View className="h-14 w-14 items-center justify-center rounded-full bg-orange/15">
+              <Coins color="#FF8A2A" size={26} strokeWidth={2} />
+            </View>
+
+            <Text className="mt-4 text-foreground text-lg font-bold text-center">
+              Not enough tokens
+            </Text>
+            <Text className="mt-2 text-muted-foreground text-sm text-center leading-relaxed">
+              Hosting {selected?.name ?? "this game"} costs {partyCost} tokens. You have{" "}
+              {wallet?.balance ?? 0} — fund your wallet to launch this party.
+            </Text>
+
+            <TouchableOpacity
+              onPress={() => {
+                setInsufficientFundsVisible(false);
+                router.push("/wallet/buy-token");
+              }}
+              activeOpacity={0.85}
+              style={{ width: "100%" }}
+              className="mt-6"
+            >
+              <LinearGradient
+                colors={["#FF8A2A", "#D84CFF"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                className="h-12 w-full items-center justify-center rounded-2xl"
+              >
+                <Text className="text-white text-sm font-semibold">Fund wallet</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => setInsufficientFundsVisible(false)}
+              activeOpacity={0.85}
+              className="mt-3"
+            >
+              <Text className="text-muted-foreground text-sm font-semibold">Not now</Text>
             </TouchableOpacity>
           </View>
         </View>
