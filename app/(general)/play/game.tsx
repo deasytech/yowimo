@@ -25,11 +25,14 @@ import {
   Pressable,
   ScrollView,
   StatusBar,
+  StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
 import Svg, { Circle, Defs, LinearGradient, Stop } from "react-native-svg";
+import Animated, { Easing, interpolate, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 
 const SafeAreaView = styled(RNSafeAreaView);
 
@@ -38,6 +41,7 @@ const CIRCUMFERENCE = 2 * Math.PI * CIRCLE_RADIUS;
 const DEFAULT_TURN_SECONDS = 30;
 const VOTING_WINDOW_SECONDS = 30;
 const REACTIONS: ReactionEmoji[] = ["🔥", "😂", "❤️", "😱", "👏", "💀", "🤯", "👀", "✨"];
+const REACTION_BURST_SIZE = 10;
 
 const VOTE_CATEGORIES: { id: VoteCategory; label: string; Icon: typeof Trophy; color: string }[] = [
   { id: "winner", label: "Winner", Icon: Trophy, color: "#FFD166" },
@@ -73,9 +77,19 @@ export default function GameRoom() {
   const reactionCounter = useRef(0);
 
   const pushReaction = (emoji: string) => {
-    const id = `${Date.now()}-${++reactionCounter.current}`;
-    setReactionFeed((f) => [...f, { id, emoji }]);
-    setTimeout(() => setReactionFeed((f) => f.filter((r) => r.id !== id)), 2200);
+    // One tap/broadcast reads as a single reaction but should look like a burst, not one lone
+    // emoji — spawn a batch, each with its own id so ConfettiParticle's randomized trajectory
+    // (picked once per mounted particle) gives every one of these its own flight path.
+    const batchId = `${Date.now()}-${++reactionCounter.current}`;
+    const burst = Array.from({ length: REACTION_BURST_SIZE }, (_, i) => ({
+      id: `${batchId}-${i}`,
+      emoji,
+    }));
+    setReactionFeed((f) => [...f, ...burst]);
+    setTimeout(
+      () => setReactionFeed((f) => f.filter((r) => !r.id.startsWith(batchId))),
+      2200,
+    );
   };
 
   const { connected } = useGameSessionChannel(sessionId, {
@@ -439,7 +453,6 @@ function ActiveGameScreen(props: ActiveGameScreenProps) {
               onVote={props.onVote}
             />
             <ReactionPanel
-              reactionFeed={props.reactionFeed}
               toastMessage={props.toastMessage}
               onReaction={props.onReaction}
             />
@@ -452,6 +465,7 @@ function ActiveGameScreen(props: ActiveGameScreenProps) {
             </Pressable>
           </View>
         </View>
+        <ReactionConfetti reactionFeed={props.reactionFeed} />
       </View>
     </SafeAreaView>
   );
@@ -612,7 +626,11 @@ function TurnPrompt({
         <View className="absolute -bottom-10 -left-10 h-32 w-32 rounded-full bg-white/10" />
         <View className="flex-1">
           <View className="self-start rounded-full bg-white/20 px-3 py-1.5"><Text className="text-[10px] font-black uppercase tracking-widest text-white">{turn.card.kind}</Text></View>
-          <View className="flex-1 justify-center py-8"><Text className="text-2xl font-black leading-8 text-white">{turn.card.text}</Text></View>
+          <View style={{ width: "100%" }} className="flex-1 justify-center py-8">
+            <Text style={{ flexShrink: 1 }} className="text-2xl font-black leading-8 text-white">
+              {turn.card.text}
+            </Text>
+          </View>
           <View className="flex-row items-center gap-3">
             <View className="h-11 w-11 items-center justify-center rounded-full bg-white/20"><Text className="font-black text-white">{initialsFromName(resolvePlayerName(turn.user_id))}</Text></View>
             <View>
@@ -688,12 +706,68 @@ function VotePrompt({
   return <VoteRow votedCategories={votedCategories} onVote={onVote} label={`Rate ${resolvePlayerName(voteableTurn.user_id)}'s last turn`} />;
 }
 
-function ReactionPanel({
+// Full-screen, input-transparent overlay so a reaction (yours or broadcast in from anyone else
+// in the game) reads as a shared, celebratory moment instead of a small icon tucked under the
+// picker — each emoji gets its own randomized rise/drift/rotation so a burst of the same emoji
+// doesn't look like one static sprite repeated in place.
+function ReactionConfetti({
   reactionFeed,
+}: {
+  readonly reactionFeed: readonly { id: string; emoji: string }[];
+}) {
+  return (
+    <View pointerEvents="none" style={StyleSheet.absoluteFillObject}>
+      {reactionFeed.map((reaction) => (
+        <ConfettiParticle key={reaction.id} emoji={reaction.emoji} />
+      ))}
+    </View>
+  );
+}
+
+function ConfettiParticle({ emoji }: { readonly emoji: string }) {
+  const { width, height } = useWindowDimensions();
+  // Randomized once per particle (not per render) — a stable starting point/trajectory for the
+  // whole time this instance is mounted, which is exactly its one-shot animated lifetime.
+  // Math.random() here only scatters a decorative animation's position/timing — nothing
+  // security-sensitive (no token, id, or crypto use), so Sonar's PRNG hotspot doesn't apply.
+  const originX = useRef(24 + Math.random() * (width - 72)).current; // NOSONAR
+  const originY = useRef(height * 0.55 + Math.random() * (height * 0.15)).current; // NOSONAR
+  const drift = useRef((Math.random() - 0.5) * 120).current; // NOSONAR
+  const spin = useRef((Math.random() - 0.5) * 70).current; // NOSONAR
+  const rise = useRef(height * 0.45 + Math.random() * (height * 0.2)).current; // NOSONAR
+  const duration = useRef(1600 + Math.random() * 500).current; // NOSONAR
+
+  const progress = useSharedValue(0);
+
+  useEffect(() => {
+    progress.value = withTiming(1, { duration, easing: Easing.out(Easing.cubic) });
+    // Fires exactly once per mount — this particle never re-animates.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(progress.value, [0, 0.12, 0.75, 1], [0, 1, 1, 0]),
+    transform: [
+      { translateX: interpolate(progress.value, [0, 1], [0, drift]) },
+      { translateY: interpolate(progress.value, [0, 1], [0, -rise]) },
+      { rotate: `${interpolate(progress.value, [0, 1], [0, spin])}deg` },
+      { scale: interpolate(progress.value, [0, 0.15, 1], [0.4, 1.2, 0.9]) },
+    ],
+  }));
+
+  return (
+    <Animated.Text
+      style={[{ position: "absolute", left: originX, top: originY, fontSize: 32 }, animatedStyle]}
+    >
+      {emoji}
+    </Animated.Text>
+  );
+}
+
+function ReactionPanel({
   toastMessage,
   onReaction,
 }: {
-  readonly reactionFeed: readonly { id: string; emoji: string }[];
   readonly toastMessage: string | null;
   readonly onReaction: (emoji: ReactionEmoji) => void;
 }) {
@@ -701,9 +775,6 @@ function ReactionPanel({
     <>
       <View className="mt-7 flex-row flex-wrap justify-center gap-2 px-4">
         {REACTIONS.map((emoji) => <Pressable key={emoji} onPress={() => onReaction(emoji)} className="h-10 w-10 items-center justify-center rounded-full bg-white/10"><Text style={{ fontSize: 18 }}>{emoji}</Text></Pressable>)}
-      </View>
-      <View pointerEvents="none" className="mt-2 flex-row flex-wrap justify-center gap-2">
-        {reactionFeed.map((reaction) => <Text key={reaction.id} style={{ fontSize: 22 }}>{reaction.emoji}</Text>)}
       </View>
       {toastMessage ? <Text className="mt-4 text-center text-xs text-red-300">{toastMessage}</Text> : null}
     </>
