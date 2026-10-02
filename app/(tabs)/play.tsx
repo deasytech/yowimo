@@ -46,6 +46,11 @@ const SafeAreaView = styled(RNSafeAreaView);
 
 const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
+// The backend has no dedicated error code for this rejection — just this exact message on a
+// 422 (see InsufficientWalletBalanceException) — so match it precisely rather than a loose
+// substring test that could false-positive on an unrelated validation error.
+const INSUFFICIENT_BALANCE_MESSAGE = "Insufficient token balance.";
+
 const GRID_PADDING = 20; // matches contentContainerStyle paddingHorizontal
 const GRID_GAP = 12; // matches gap-3
 const GRID_COLUMNS = 3;
@@ -284,7 +289,7 @@ export default function CreatePartyScreen() {
       // The client-side check above can go stale (balance spent elsewhere, cost changed) —
       // recognize the same "insufficient balance" rejection the backend uses for pack
       // purchases and show the same modal instead of a generic error toast.
-      if (err instanceof ApiError && err.status === 422 && /insufficient/i.test(err.message)) {
+      if (err instanceof ApiError && err.status === 422 && err.message === INSUFFICIENT_BALANCE_MESSAGE) {
         setInsufficientFundsVisible(true);
         return;
       }
