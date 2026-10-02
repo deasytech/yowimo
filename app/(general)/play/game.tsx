@@ -728,12 +728,14 @@ function ConfettiParticle({ emoji }: { readonly emoji: string }) {
   const { width, height } = useWindowDimensions();
   // Randomized once per particle (not per render) — a stable starting point/trajectory for the
   // whole time this instance is mounted, which is exactly its one-shot animated lifetime.
-  const originX = useRef(24 + Math.random() * (width - 72)).current;
-  const originY = useRef(height * 0.55 + Math.random() * (height * 0.15)).current;
-  const drift = useRef((Math.random() - 0.5) * 120).current;
-  const spin = useRef((Math.random() - 0.5) * 70).current;
-  const rise = useRef(height * 0.45 + Math.random() * (height * 0.2)).current;
-  const duration = useRef(1600 + Math.random() * 500).current;
+  // Math.random() here only scatters a decorative animation's position/timing — nothing
+  // security-sensitive (no token, id, or crypto use), so Sonar's PRNG hotspot doesn't apply.
+  const originX = useRef(24 + Math.random() * (width - 72)).current; // NOSONAR
+  const originY = useRef(height * 0.55 + Math.random() * (height * 0.15)).current; // NOSONAR
+  const drift = useRef((Math.random() - 0.5) * 120).current; // NOSONAR
+  const spin = useRef((Math.random() - 0.5) * 70).current; // NOSONAR
+  const rise = useRef(height * 0.45 + Math.random() * (height * 0.2)).current; // NOSONAR
+  const duration = useRef(1600 + Math.random() * 500).current; // NOSONAR
 
   const progress = useSharedValue(0);
 
