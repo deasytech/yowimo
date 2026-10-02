@@ -26,6 +26,9 @@ const AuthInput = ({
       borderWidth: 1,
       borderColor: "rgba(255,255,255,0.10)",
     }}
+    // Android draws its own accent-colored underline inside TextInput by default, on top of
+    // this component's own border — iOS has no such thing, which is why it only showed there.
+    underlineColorAndroid="transparent"
     placeholder={placeholder}
     placeholderTextColor="rgba(255,255,255,0.35)"
     value={value}
