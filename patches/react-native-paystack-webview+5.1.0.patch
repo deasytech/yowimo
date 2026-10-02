@@ -32,3 +32,15 @@ index c0f0a86..651bd8c 100644
              </react_native_1.Modal>
          </exports.PaystackContext.Provider>);
  };
+diff --git a/node_modules/react-native-paystack-webview/production/lib/utils.js b/node_modules/react-native-paystack-webview/production/lib/utils.js
+index 356789c..ba95dbc 100644
+--- a/node_modules/react-native-paystack-webview/production/lib/utils.js
++++ b/node_modules/react-native-paystack-webview/production/lib/utils.js
+@@ -78,6 +78,7 @@ const handlePaystackMessage = ({ event, debug, params, onGlobalSuccess, onGlobal
+             case 'error': {
+                 if (debug)
+                     console.error('[Paystack] Error:', data.error);
++                params?.onError?.(data.error);
+                 close?.();
+                 break;
+             }
