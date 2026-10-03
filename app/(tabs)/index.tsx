@@ -151,11 +151,15 @@ export default function HomeScreen() {
                                 contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 8 }}
                                 keyExtractor={(item) => String(item.friendship_id)}
                                 renderItem={({ item }) => (
-                                    <CrewOnline
-                                        name={item.friend.display_name || item.friend.username || "Friend"}
-                                        initials={initialsFromName(item.friend.display_name || item.friend.username)}
-                                        avatarUrl={item.friend.avatar_url}
-                                    />
+                                    <Link href={`/profile/${item.friend.id}`} asChild>
+                                        <TouchableOpacity activeOpacity={0.8}>
+                                            <CrewOnline
+                                                name={item.friend.display_name || item.friend.username || "Friend"}
+                                                initials={initialsFromName(item.friend.display_name || item.friend.username)}
+                                                avatarUrl={item.friend.avatar_url}
+                                            />
+                                        </TouchableOpacity>
+                                    </Link>
                                 )}
                                 ListEmptyComponent={<Text className="py-4 text-lg font-sans-medium text-white/60">No friends yet</Text>}
                             />

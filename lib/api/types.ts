@@ -190,7 +190,8 @@ export type WalletTransactionType =
   | 'refund'
   | 'bonus'
   | 'adjustment'
-  | 'reward';
+  | 'reward'
+  | 'party_entry';
 
 export interface WalletTransactionResource {
   id: number;
@@ -199,6 +200,23 @@ export interface WalletTransactionResource {
   balance_after: number;
   description: string;
   created_at: string;
+}
+
+/** GET /ad-rewards/progress — how many rewarded ads the host has watched today against the
+ * 15/day cap. Not live yet on the backend (requested) — hooks/api/useAdRewards.ts callers should
+ * treat a fetch failure here the same as "no data yet," not a hard error. */
+export interface AdRewardProgressResource {
+  watched_today: number;
+  daily_cap: number;
+  remaining: number;
+  next_reset_at: string;
+}
+
+/** POST /ad-rewards/sessions — a single-use token to attach as the rewarded ad's SSV customData.
+ * Not live yet on the backend (requested). */
+export interface AdRewardSessionResource {
+  token: string;
+  expires_at: string;
 }
 
 export interface BadgeResource {
@@ -214,6 +232,31 @@ export interface UserBadgeResource {
   id: number;
   badge: BadgeResource;
   earned_at: string;
+}
+
+export type FriendshipStatus = 'self' | 'none' | 'friends' | 'request_sent' | 'request_received';
+
+/** GET /users/{id} — another user's profile, as returned by PublicUserResource: a deliberately
+ * small, public-safe subset of UserResource (never email, wallet, date of birth, etc.).
+ * `country_code`/`stats` aren't in that resource yet (requested from backend, not live) —
+ * optional so the UI just doesn't render that section until they ship, no further change
+ * needed then. */
+export interface PublicUserResource {
+  id: number;
+  username: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+  bio?: string | null;
+  interests?: string[];
+  country_code?: string | null;
+  xp: number;
+  badges: UserBadgeResource[];
+  stats?: {
+    friends_count: number;
+    parties_joined_count: number;
+    parties_created_count: number;
+  };
+  friendship: { id: number | null; status: FriendshipStatus };
 }
 
 export type PartyMode = 'online' | 'hybrid' | 'in_person';
