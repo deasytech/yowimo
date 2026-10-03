@@ -10,6 +10,7 @@ const WALLET_TRANSACTION_LABELS: Record<WalletTransactionType, string> = {
   bonus: "Bonus",
   adjustment: "Adjustment",
   reward: "Reward",
+  party_entry: "Party entry",
 };
 
 export function walletTransactionTypeLabel(type: WalletTransactionType): string {

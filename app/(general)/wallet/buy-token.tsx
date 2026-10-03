@@ -182,7 +182,18 @@ function BuyTokensContent({
       idempotencyKeys.current.delete(bundleId);
       setPendingReference(null);
       notify(`${result.amount.toLocaleString()} tokens added!`, "success");
-      router.push("/wallet");
+      // Return to wherever sent the host here (often an insufficient-funds redirect mid-task,
+      // e.g. creating a party) instead of pushing yet another screen forward — the purchase
+      // mutation already invalidates the wallet query, so whatever they land back on shows the
+      // new balance without this screen needing to detour through one of its own. Delayed just
+      // long enough for the toast above to actually be seen before this screen unmounts.
+      setTimeout(() => {
+        if (router.canGoBack()) {
+          router.back();
+        } else {
+          router.replace("/wallet");
+        }
+      }, 900);
     } catch (err) {
       if (paymentReference) {
         // The card was already charged on Paystack's side — never re-run checkout for this
