@@ -66,7 +66,7 @@ const HeroCard = () => {
           className="rounded-full border border-white/15 bg-white/10 px-4 py-2.5 items-center"
         >
           <Text className="font-sans-bold text-sm text-white">
-            +15 Token Quest
+            Token Quest
           </Text>
         </TouchableOpacity>
       </View>

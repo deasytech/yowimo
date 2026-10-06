@@ -24,5 +24,8 @@ const REAL_REWARDED_AD_UNIT_ID = Platform.select({
   android: process.env.EXPO_PUBLIC_ADMOB_REWARDED_ANDROID_UNIT_ID,
 });
 
+// `||`, not `??` — an unset env var reads back as `""` (e.g. .env.example ships the keys empty),
+// and `??` only falls back on null/undefined, so an empty string would otherwise pass straight
+// through as a literal (invalid) ad unit id instead of falling back to the dev test id.
 export const REWARDED_AD_UNIT_ID: string | null =
-  REAL_REWARDED_AD_UNIT_ID ?? (__DEV__ ? TestIds.REWARDED : null);
+  REAL_REWARDED_AD_UNIT_ID || (__DEV__ ? TestIds.REWARDED : null);

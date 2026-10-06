@@ -4,7 +4,7 @@ import { useAdRewardProgress, useMintAdRewardSession } from "@/hooks/api/useAdRe
 import { useWallet } from "@/hooks/api/useWallet";
 import { useToast } from "@/hooks/useToast";
 import { REWARDED_AD_UNIT_ID } from "@/lib/ads/admob";
-import { ApiError } from "@/lib/api/types";
+import { AdRewardProgressResource, ApiError } from "@/lib/api/types";
 import { posthog } from "@/lib/posthog";
 import { LinearGradient as RNLinearGradient } from "expo-linear-gradient";
 import { Coins, Sparkles } from "lucide-react-native";
@@ -33,6 +33,80 @@ function StatTile({ value, label, isFirst }: Readonly<{ value: number; label: st
         {label}
       </Text>
     </View>
+  );
+}
+
+function getButtonLabel({
+  isQuestDisabled,
+  capReached,
+  isReconciling,
+  isBusy,
+}: Readonly<{ isQuestDisabled: boolean; capReached: boolean; isReconciling: boolean; isBusy: boolean }>): string {
+  if (isQuestDisabled) return "Not available right now";
+  if (capReached) return "Come back tomorrow";
+  if (isReconciling) return "Confirming…";
+  if (isBusy) return "Loading ad…";
+  return "Watch an ad";
+}
+
+function QuestProgress({
+  isLoading,
+  isError,
+  onRetry,
+  progress,
+  capReached,
+}: Readonly<{
+  isLoading: boolean;
+  isError: boolean;
+  onRetry: () => void;
+  progress: AdRewardProgressResource | undefined;
+  capReached: boolean;
+}>) {
+  if (isLoading) {
+    return (
+      <View className="mt-6 items-center">
+        <ActivityIndicator color="#B03BFF" />
+      </View>
+    );
+  }
+
+  if (isError) {
+    return (
+      <View className="mt-6 items-center gap-2">
+        <Text className="text-muted-foreground text-sm">Couldn&apos;t load your quest progress.</Text>
+        <TouchableOpacity onPress={onRetry} activeOpacity={0.8}>
+          <Text className="text-violet-bright text-sm font-semibold">Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <>
+      <View className="mt-6 flex-row rounded-2xl overflow-hidden border border-white/10 bg-white/10">
+        <StatTile value={progress?.watched_today ?? 0} label="Videos watched" isFirst />
+        <StatTile
+          value={(progress?.watched_today ?? 0) * (progress?.tokens_per_ad ?? 0)}
+          label="Tokens acquired"
+          isFirst={false}
+        />
+        <StatTile
+          value={(progress?.remaining ?? 0) * (progress?.tokens_per_ad ?? 0)}
+          label="Tokens left"
+          isFirst={false}
+        />
+      </View>
+
+      {capReached && progress?.next_reset_at && (
+        <Text className="mt-3 text-center text-muted-foreground text-xs">
+          Resets{" "}
+          {new Date(progress.next_reset_at).toLocaleString(undefined, {
+            hour: "numeric",
+            minute: "2-digit",
+          })}
+        </Text>
+      )}
+    </>
   );
 }
 
@@ -165,15 +239,7 @@ export default function TokenQuestScreen() {
     }
   };
 
-  const buttonLabel = isQuestDisabled
-    ? "Not available right now"
-    : capReached
-      ? "Come back tomorrow"
-      : isReconciling
-        ? "Confirming…"
-        : isBusy
-          ? "Loading ad…"
-          : "Watch an ad";
+  const buttonLabel = getButtonLabel({ isQuestDisabled, capReached, isReconciling, isBusy });
 
   return (
     <SafeAreaView className="flex-1 bg-background">
@@ -204,44 +270,13 @@ export default function TokenQuestScreen() {
           )}
         </LinearGradient>
 
-        {isProgressLoading ? (
-          <View className="mt-6 items-center">
-            <ActivityIndicator color="#B03BFF" />
-          </View>
-        ) : isProgressError ? (
-          <View className="mt-6 items-center gap-2">
-            <Text className="text-muted-foreground text-sm">Couldn&apos;t load your quest progress.</Text>
-            <TouchableOpacity onPress={() => refetchProgress()} activeOpacity={0.8}>
-              <Text className="text-violet-bright text-sm font-semibold">Retry</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <>
-            <View className="mt-6 flex-row rounded-2xl overflow-hidden border border-white/10 bg-white/10">
-              <StatTile value={progress?.watched_today ?? 0} label="Videos watched" isFirst />
-              <StatTile
-                value={(progress?.watched_today ?? 0) * (progress?.tokens_per_ad ?? 0)}
-                label="Tokens acquired"
-                isFirst={false}
-              />
-              <StatTile
-                value={(progress?.remaining ?? 0) * (progress?.tokens_per_ad ?? 0)}
-                label="Tokens left"
-                isFirst={false}
-              />
-            </View>
-
-            {capReached && progress?.next_reset_at && (
-              <Text className="mt-3 text-center text-muted-foreground text-xs">
-                Resets{" "}
-                {new Date(progress.next_reset_at).toLocaleString(undefined, {
-                  hour: "numeric",
-                  minute: "2-digit",
-                })}
-              </Text>
-            )}
-          </>
-        )}
+        <QuestProgress
+          isLoading={isProgressLoading}
+          isError={isProgressError}
+          onRetry={() => refetchProgress()}
+          progress={progress}
+          capReached={capReached}
+        />
 
         <View className="mt-5 flex-row items-center justify-between rounded-2xl border border-border bg-secondary/40 px-4 py-3.5">
           <View className="flex-row items-center gap-2">

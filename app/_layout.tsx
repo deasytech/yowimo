@@ -27,7 +27,7 @@ registerGlobals();
 // The SDK queues ad requests internally until this resolves — fire-and-forget at startup rather
 // than blocking app render on it, same as every other one-time native SDK bootstrap here.
 const mobileAdsInstance = mobileAds();
-(async () => {
+void (async () => {
   try {
     // Dev builds can point at a real ad unit (see lib/ads/admob.ts — needed to test Server-Side
     // Verification at all, since Google's shared TestIds.REWARDED can't carry our SSV config).

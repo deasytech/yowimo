@@ -28,8 +28,14 @@ export default function NetworkStatusGate({ children }: Readonly<{ children: Rea
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const recheck = async () => {
-    const state = await NetInfo.fetch();
-    setOffline(isOffline(state.isConnected));
+    try {
+      const state = await NetInfo.fetch();
+      setOffline(isOffline(state.isConnected));
+    } catch {
+      // NetInfo.fetch() failing tells us nothing new — keep the gate's current state rather
+      // than letting this become an unhandled rejection (this fires fire-and-forget from the
+      // AppState listener below, not just from the awaited Retry button call).
+    }
   };
 
   useEffect(() => {
