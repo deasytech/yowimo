@@ -17,11 +17,30 @@ import { tokenCache } from '@clerk/expo/token-cache';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { PostHogProvider } from 'posthog-react-native';
 import { StatusBar } from 'react-native';
+import mobileAds from 'react-native-google-mobile-ads';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 // Required once, before any LiveKit/WebRTC usage (video-room.tsx) — sets up the native
 // WebRTC bindings LiveKit's JS layer expects to find on globalThis.
 registerGlobals();
+
+// The SDK queues ad requests internally until this resolves — fire-and-forget at startup rather
+// than blocking app render on it, same as every other one-time native SDK bootstrap here.
+const mobileAdsInstance = mobileAds();
+void (async () => {
+  try {
+    // Dev builds can point at a real ad unit (see lib/ads/admob.ts — needed to test Server-Side
+    // Verification at all, since Google's shared TestIds.REWARDED can't carry our SSV config).
+    // Registering this emulator/simulator as a test device keeps that real unit serving safe
+    // test ads instead of real/billable ones. Never applies to a production build.
+    if (__DEV__) {
+      await mobileAdsInstance.setRequestConfiguration({ testDeviceIdentifiers: ['EMULATOR'] });
+    }
+    await mobileAdsInstance.initialize();
+  } catch (err) {
+    if (__DEV__) console.warn('[AdMob] initialize failed', err);
+  }
+})();
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY as string
 

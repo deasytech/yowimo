@@ -98,6 +98,13 @@ export default {
             'Yowimo needs microphone access so others can hear you in video parties.',
         },
       ],
+      [
+        'react-native-google-mobile-ads',
+        {
+          androidAppId: process.env.EXPO_PUBLIC_ADMOB_ANDROID_APP_ID,
+          iosAppId: process.env.EXPO_PUBLIC_ADMOB_IOS_APP_ID,
+        },
+      ],
     ],
     experiments: {
       typedRoutes: true,

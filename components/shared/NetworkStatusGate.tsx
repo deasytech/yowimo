@@ -2,7 +2,7 @@ import NetInfo from "@react-native-community/netinfo";
 import { WifiOff } from "lucide-react-native";
 import { styled } from "nativewind";
 import { ReactNode, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Modal, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, AppState, Modal, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
 
 const SafeAreaView = styled(RNSafeAreaView);
@@ -27,6 +27,24 @@ export default function NetworkStatusGate({ children }: Readonly<{ children: Rea
   const [checking, setChecking] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const recheck = async () => {
+    try {
+      const state = await NetInfo.fetch();
+      // A debounced update from the NetInfo listener (e.g. a blip right before backgrounding)
+      // can still be pending when this fresher foreground check resolves — drop it so it can't
+      // fire later and stomp this result with a stale reading.
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+      }
+      setOffline(isOffline(state.isConnected));
+    } catch {
+      // NetInfo.fetch() failing tells us nothing new — keep the gate's current state rather
+      // than letting this become an unhandled rejection (this fires fire-and-forget from the
+      // AppState listener below, not just from the awaited Retry button call).
+    }
+  };
+
   useEffect(() => {
     const setDebounced = (next: boolean) => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -36,8 +54,20 @@ export default function NetworkStatusGate({ children }: Readonly<{ children: Rea
     const unsubscribe = NetInfo.addEventListener((state) => {
       setDebounced(isOffline(state.isConnected));
     });
+
+    // A transition that happens while the app is backgrounded (toggling airplane mode from
+    // Settings, a Wi-Fi handoff mid-suspend) can land without this listener ever firing — iOS in
+    // particular can suspend the JS thread entirely while backgrounded, so there's no live
+    // callback to miss so much as a queue that never gets drained. Force a fresh, uncached check
+    // every time the app comes back to the foreground as a backstop, independent of whatever the
+    // listener did or didn't deliver while away.
+    const appStateSubscription = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active") void recheck();
+    });
+
     return () => {
       unsubscribe();
+      appStateSubscription.remove();
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, []);
@@ -45,8 +75,7 @@ export default function NetworkStatusGate({ children }: Readonly<{ children: Rea
   const handleRetry = async () => {
     setChecking(true);
     try {
-      const state = await NetInfo.fetch();
-      setOffline(isOffline(state.isConnected));
+      await recheck();
     } finally {
       setChecking(false);
     }
