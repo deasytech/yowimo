@@ -12,6 +12,11 @@ const HeroCard = () => {
     router.replace('/play');
   }
 
+  const gotoTokenQuest = () => {
+    posthog.capture('token_quest_opened', { source: 'hero_card' });
+    router.push('/wallet/token-quest');
+  }
+
   return (
     <LinearGradient
       colors={["#7A1EFF", "#D84CFF", "#FF8A2A"]}
@@ -57,7 +62,7 @@ const HeroCard = () => {
 
         <TouchableOpacity
           activeOpacity={0.66}
-          onPress={() => router.replace('/wallet')}
+          onPress={() => gotoTokenQuest()}
           className="rounded-full border border-white/15 bg-white/10 px-4 py-2.5 items-center"
         >
           <Text className="font-sans-bold text-sm text-white">

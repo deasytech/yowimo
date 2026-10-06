@@ -202,18 +202,26 @@ export interface WalletTransactionResource {
   created_at: string;
 }
 
-/** GET /ad-rewards/progress — how many rewarded ads the host has watched today against the
- * 15/day cap. Not live yet on the backend (requested) — hooks/api/useAdRewards.ts callers should
- * treat a fetch failure here the same as "no data yet," not a hard error. */
+/** GET /ad-rewards/progress — how many rewarded ads the host has watched today, and whether
+ * they still can. `daily_cap`/`tokens_per_ad` are backend config, not constants — never
+ * hard-code either client-side, they can change without a release. `can_earn` is the
+ * authoritative gate (`enabled && remaining > 0`, computed server-side) — check it before
+ * minting a session rather than re-deriving it from the other fields, so a disabled/exhausted
+ * state is caught before round-tripping through a 422/503. */
 export interface AdRewardProgressResource {
   watched_today: number;
   daily_cap: number;
+  tokens_per_ad: number;
   remaining: number;
   next_reset_at: string;
+  enabled: boolean;
+  can_earn: boolean;
+  server_date: string;
 }
 
 /** POST /ad-rewards/sessions — a single-use token to attach as the rewarded ad's SSV customData.
- * Not live yet on the backend (requested). */
+ * 503s if the quest is currently disabled (see AdRewardProgressResource.enabled) — check
+ * progress.can_earn before calling this rather than relying on the error. */
 export interface AdRewardSessionResource {
   token: string;
   expires_at: string;
