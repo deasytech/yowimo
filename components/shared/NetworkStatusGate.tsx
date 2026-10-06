@@ -55,7 +55,7 @@ export default function NetworkStatusGate({ children }: Readonly<{ children: Rea
     // every time the app comes back to the foreground as a backstop, independent of whatever the
     // listener did or didn't deliver while away.
     const appStateSubscription = AppState.addEventListener("change", (nextState) => {
-      if (nextState === "active") recheck();
+      if (nextState === "active") void recheck();
     });
 
     return () => {
