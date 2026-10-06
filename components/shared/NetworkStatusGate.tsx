@@ -30,6 +30,13 @@ export default function NetworkStatusGate({ children }: Readonly<{ children: Rea
   const recheck = async () => {
     try {
       const state = await NetInfo.fetch();
+      // A debounced update from the NetInfo listener (e.g. a blip right before backgrounding)
+      // can still be pending when this fresher foreground check resolves — drop it so it can't
+      // fire later and stomp this result with a stale reading.
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+      }
       setOffline(isOffline(state.isConnected));
     } catch {
       // NetInfo.fetch() failing tells us nothing new — keep the gate's current state rather
