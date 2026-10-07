@@ -5,8 +5,10 @@ import { useToast } from "@/hooks/useToast";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { LinearGradient as RNLinearGradient } from "expo-linear-gradient";
+import { useFocusEffect } from "expo-router";
 import { Copy, Gift, MessageCircleHeart, Users } from "lucide-react-native";
 import { styled } from "nativewind";
+import { useCallback } from "react";
 import { ActivityIndicator, ScrollView, Share, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
 
@@ -32,6 +34,16 @@ function StatTile({
 export default function ReferralCenterScreen() {
   const { opacity, isVisible, showToast } = useToast();
   const { data: summary, isLoading, isError, refetch } = useReferralSummary();
+
+  // The reward isn't synchronous — it only lands once a referred friend completes their first
+  // party, with no push/webhook for "a referral just paid out." Refetch whenever this screen
+  // regains focus so a payout that landed while the user was elsewhere shows up without needing
+  // a manual pull-to-refresh.
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+    }, [refetch]),
+  );
 
   const handleCopy = async () => {
     if (!summary) return;

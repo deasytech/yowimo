@@ -461,7 +461,14 @@ export default function Onboarding() {
           claimReferralCode.mutate(
             { code },
             {
-              onError: () => Alert.alert("Referral code not applied", "That code didn't work, but you're all set otherwise."),
+              onError: (error) => {
+                // 409 means a code was already claimed before (e.g. a retried request after
+                // the first attempt actually succeeded) — that's not a failure from the user's
+                // perspective, so it shouldn't alarm them the way an invalid/self-referral code
+                // (422) should.
+                if (error instanceof ApiError && error.status === 409) return;
+                Alert.alert("Referral code not applied", "That code didn't work, but you're all set otherwise.");
+              },
               onSettled: () => router.replace("/(tabs)"),
             },
           );
