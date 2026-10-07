@@ -8,13 +8,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 export const TOKEN_BUNDLES_QUERY_KEY = ['token-bundles'] as const;
 
-/** Purchasable token bundles — a plain catalog resource, not user-scoped. */
+/** Purchasable token bundles — a plain catalog resource, not user-scoped. Cursor-paginated
+ * backend-side; the wallet screen wants every bundle in its grid, not a "load more" control. */
 export function useTokenBundles() {
-  const { request } = useApi();
+  const { requestAllPages } = useApi();
 
   return useQuery({
     queryKey: TOKEN_BUNDLES_QUERY_KEY,
-    queryFn: () => request<TokenBundleResource[]>('/token-bundles'),
+    queryFn: () => requestAllPages<TokenBundleResource>('/token-bundles'),
   });
 }
 

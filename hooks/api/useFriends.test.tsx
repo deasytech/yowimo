@@ -38,8 +38,8 @@ const makeRequest = (
 ): FriendRequestResource => ({
   id,
   status: 'pending',
-  sender,
-  receiver,
+  sender: { ...sender, display_name: null, avatar_url: null },
+  receiver: { ...receiver, display_name: null, avatar_url: null },
   accepted_at: null,
   created_at: '2026-08-27T00:00:00Z',
 });

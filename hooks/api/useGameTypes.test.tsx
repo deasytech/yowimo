@@ -5,9 +5,9 @@ import React from 'react';
 
 import { useGameTypes } from './useGameTypes';
 
-const mockRequest = jest.fn();
+const mockRequestAllPages = jest.fn();
 jest.mock('@/hooks/api/useApi', () => ({
-  useApi: () => ({ request: mockRequest, requestPaginated: jest.fn() }),
+  useApi: () => ({ request: jest.fn(), requestPaginated: jest.fn(), requestAllPages: mockRequestAllPages }),
 }));
 
 const GAME_TYPES: GameTypeResource[] = [
@@ -43,7 +43,7 @@ const newClient = () => {
 };
 
 beforeEach(() => {
-  mockRequest.mockReset();
+  mockRequestAllPages.mockReset();
 });
 
 afterEach(() => {
@@ -52,25 +52,25 @@ afterEach(() => {
 });
 
 it('fetches /game-types and returns the resolved list', async () => {
-  mockRequest.mockResolvedValueOnce(GAME_TYPES);
+  mockRequestAllPages.mockResolvedValueOnce(GAME_TYPES);
   const client = newClient();
 
   const { result } = await renderHook(() => useGameTypes(), { wrapper: wrapper(client) });
 
   await waitFor(() => expect(result.current.isSuccess).toBe(true));
   expect(result.current.data).toEqual(GAME_TYPES);
-  expect(mockRequest).toHaveBeenCalledWith('/game-types');
+  expect(mockRequestAllPages).toHaveBeenCalledWith('/game-types');
 });
 
 it('keeps the last successfully loaded game types usable after a failed refetch', async () => {
-  mockRequest.mockResolvedValueOnce(GAME_TYPES);
+  mockRequestAllPages.mockResolvedValueOnce(GAME_TYPES);
   const client = newClient();
 
   const { result } = await renderHook(() => useGameTypes(), { wrapper: wrapper(client) });
   await waitFor(() => expect(result.current.isSuccess).toBe(true));
   expect(result.current.data).toEqual(GAME_TYPES);
 
-  mockRequest.mockRejectedValueOnce(new Error('network blip'));
+  mockRequestAllPages.mockRejectedValueOnce(new Error('network blip'));
   result.current.refetch();
 
   await waitFor(() => expect(result.current.isError).toBe(true));
