@@ -5,6 +5,7 @@ import { useCreateParty } from "@/hooks/api/useParties";
 import { useWallet } from "@/hooks/api/useWallet";
 import { useToast } from "@/hooks/useToast";
 import { ApiError, CreatePartyPayload, LocalImageFile, PackResource, PartyMode } from "@/lib/api/types";
+import { ANDROID_MIN_BOTTOM_INSET } from "@/lib/utils";
 import DateTimePicker, {
   type DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
@@ -354,13 +355,11 @@ export default function CreatePartyScreen() {
         contentContainerStyle={{
           paddingTop: 20,
           paddingHorizontal: 20,
-          // The tabs layout's floating tab bar (absolute, bottom: 16, height: 70) isn't inset-
-          // aware on its own, so this screen's own scroll content has to reserve that space
-          // itself. 100 already covers that on iOS, where the home indicator inset is small and
-          // consistent; Android's edge-to-edge gesture/button nav inset is both taller and more
-          // variable by device, so it needs adding on top explicitly rather than baking in a
-          // second guessed constant that would just be wrong on some other Android device.
-          paddingBottom: 100 + (Platform.OS === "android" ? insets.bottom : 0),
+          // The tab bar now also shifts up by insets.bottom on Android (see app/(tabs)/_layout.tsx)
+          // to clear the system nav bar — which means it sits that much higher than before, so
+          // this screen's own content needs the same amount of extra clearance on top of the
+          // base 100 to keep the Launch Party button from landing underneath it.
+          paddingBottom: 100 + (Platform.OS === "android" ? Math.max(insets.bottom, ANDROID_MIN_BOTTOM_INSET) : 0),
         }}
         showsVerticalScrollIndicator={false}
       >

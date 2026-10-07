@@ -37,8 +37,18 @@ const WalletScreen = () => {
     (packGridWidth - PACK_GAP * (packColumns - 1)) / packColumns,
   );
 
-  const { data: wallet, isLoading: isWalletLoading } = useWallet();
-  const { data: bundles, isLoading: isBundlesLoading } = useTokenBundles();
+  const {
+    data: wallet,
+    isLoading: isWalletLoading,
+    isError: isWalletError,
+    refetch: refetchWallet,
+  } = useWallet();
+  const {
+    data: bundles,
+    isLoading: isBundlesLoading,
+    isError: isBundlesError,
+    refetch: refetchBundles,
+  } = useTokenBundles();
   const { transactions, isLoading: isTxLoading } = useWalletTransactions();
   const recentTransactions = transactions.slice(0, 5);
 
@@ -76,6 +86,15 @@ const WalletScreen = () => {
               <View className="mt-1 min-h-16 flex-row items-center gap-3">
                 {isWalletLoading ? (
                   <ActivityIndicator color="#1e1e24" />
+                ) : isWalletError ? (
+                  <View className="flex-row items-center gap-2">
+                    <Text className="font-sans-semibold text-sm text-ink" style={{ opacity: 0.8 }}>
+                      Couldn&apos;t load balance.
+                    </Text>
+                    <TouchableOpacity onPress={() => refetchWallet()} activeOpacity={0.8}>
+                      <Text className="font-sans-bold text-sm text-ink underline">Retry</Text>
+                    </TouchableOpacity>
+                  </View>
                 ) : (
                   <Text
                     className="font-sans-extrabold text-5xl text-ink"
@@ -147,6 +166,13 @@ const WalletScreen = () => {
 
           {isBundlesLoading ? (
             <ActivityIndicator color="#B03BFF" style={{ marginVertical: 16 }} />
+          ) : isBundlesError ? (
+            <View className="items-center gap-2" style={{ marginVertical: 16 }}>
+              <Text className="text-muted-foreground text-sm">Couldn&apos;t load token packs.</Text>
+              <TouchableOpacity onPress={() => refetchBundles()} activeOpacity={0.8}>
+                <Text className="text-violet-bright text-sm font-semibold">Retry</Text>
+              </TouchableOpacity>
+            </View>
           ) : (
             <View
               className="flex-row flex-wrap gap-3"
@@ -193,10 +219,14 @@ const WalletScreen = () => {
                       </View>
 
                       <View className="mt-1 h-10 flex-row items-center gap-2">
+                        {/* No adjustsFontSizeToFit — paired with a custom font it's a known
+                            real-device-only rendering hazard (shrunk custom-font text can render
+                            invisible while the OS text engine settles; see the font-timing note
+                            in app/_layout.tsx for the same underlying class of bug). Real token
+                            bundle sizes top out at "5,000", well within a fixed text-3xl box, so
+                            there's nothing here that actually needs to shrink. */}
                         <Text
-                          adjustsFontSizeToFit
-                          className="min-w-0 shrink font-sans-extrabold text-3xl text-white"
-                          minimumFontScale={0.65}
+                          className="shrink font-sans-extrabold text-3xl text-white"
                           numberOfLines={1}
                         >
                           {p.tokens.toLocaleString()}
