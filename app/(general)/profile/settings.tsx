@@ -2,6 +2,7 @@ import GoBack from "@/components/shared/GoBack";
 import ListHeading from "@/components/shared/ListHeading";
 import { useRegisterPushToken, useUnregisterPushToken } from "@/hooks/api/usePushToken";
 import { ensureAndroidNotificationChannel } from "@/lib/notifications/androidChannel";
+import { getPushToken } from "@/lib/notifications/getPushToken";
 import { getPushOptIn, setPushOptIn } from "@/lib/notifications/pushOptIn";
 import { posthog } from "@/lib/posthog";
 import { useClerk } from "@clerk/expo";
@@ -61,12 +62,9 @@ export default function SettingsScreen() {
   }, []);
 
   const registerDeviceToken = async () => {
-    const devicePushToken = await Notifications.getDevicePushTokenAsync();
-    if (devicePushToken.type !== "ios" && devicePushToken.type !== "android") return;
-    await registerPushToken.mutateAsync({
-      token: devicePushToken.data,
-      platform: devicePushToken.type,
-    });
+    const pushToken = await getPushToken();
+    if (!pushToken) return;
+    await registerPushToken.mutateAsync(pushToken);
   };
 
   const performSetPush = async (next: boolean) => {

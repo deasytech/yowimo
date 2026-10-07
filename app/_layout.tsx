@@ -15,6 +15,7 @@ import { EchoProvider } from '@/lib/realtime/EchoProvider';
 import { ClerkProvider, useAuth } from '@clerk/expo';
 import { tokenCache } from '@clerk/expo/token-cache';
 import { QueryClientProvider } from '@tanstack/react-query';
+import * as Notifications from 'expo-notifications';
 import { PostHogProvider } from 'posthog-react-native';
 import { StatusBar } from 'react-native';
 import mobileAds from 'react-native-google-mobile-ads';
@@ -23,6 +24,19 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 // Required once, before any LiveKit/WebRTC usage (video-room.tsx) — sets up the native
 // WebRTC bindings LiveKit's JS layer expects to find on globalThis.
 registerGlobals();
+
+// Without a registered handler, a push that arrives while the app is in the foreground is
+// received silently with no visible banner — only a background/killed-state push shows one
+// automatically via the OS. Most real testing happens foregrounded (e.g. right after an in-app
+// purchase), so without this it looks like pushes aren't being sent at all.
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
 
 // The SDK queues ad requests internally until this resolves — fire-and-forget at startup rather
 // than blocking app render on it, same as every other one-time native SDK bootstrap here.
