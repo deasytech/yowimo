@@ -110,7 +110,11 @@ const ProfileScreen = () => {
           </View>
 
           <View>
+            {/* Same first-render-paints-blank font bug as the Friends heading below — see its
+             * comment for the full explanation. Same fix: remount once loading settles instead
+             * of a props-update on the same instance. */}
             <ListHeading
+              key={isBadgesLoading ? "achievements-pending" : "achievements-loaded"}
               title="Achievements"
               titleSize="text-lg"
               link="/profile/achievements"
