@@ -5,6 +5,7 @@ import { useCreateParty } from "@/hooks/api/useParties";
 import { useWallet } from "@/hooks/api/useWallet";
 import { useToast } from "@/hooks/useToast";
 import { ApiError, CreatePartyPayload, LocalImageFile, PackResource, PartyMode } from "@/lib/api/types";
+import { ANDROID_MIN_BOTTOM_INSET } from "@/lib/utils";
 import DateTimePicker, {
   type DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
@@ -39,7 +40,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView as RNSafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 const LinearGradient = styled(RNLinearGradient);
 const SafeAreaView = styled(RNSafeAreaView);
@@ -68,6 +69,7 @@ export default function CreatePartyScreen() {
   const router = useRouter();
   const { gameId } = useLocalSearchParams<{ gameId?: string }>();
   const { width: windowWidth } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const { data: gameTypes, isLoading, isError, error, refetch } = useGameTypes();
   const { data: wallet } = useWallet();
   const createParty = useCreateParty();
@@ -350,7 +352,15 @@ export default function CreatePartyScreen() {
 
       <ScrollView
         className="flex-1"
-        contentContainerStyle={{ paddingTop: 20, paddingHorizontal: 20, paddingBottom: 100 }}
+        contentContainerStyle={{
+          paddingTop: 20,
+          paddingHorizontal: 20,
+          // The tab bar now also shifts up by insets.bottom on Android (see app/(tabs)/_layout.tsx)
+          // to clear the system nav bar — which means it sits that much higher than before, so
+          // this screen's own content needs the same amount of extra clearance on top of the
+          // base 100 to keep the Launch Party button from landing underneath it.
+          paddingBottom: 100 + (Platform.OS === "android" ? Math.max(insets.bottom, ANDROID_MIN_BOTTOM_INSET) : 0),
+        }}
         showsVerticalScrollIndicator={false}
       >
         <Text className="text-foreground text-3xl font-bold tracking-tight mt-16">

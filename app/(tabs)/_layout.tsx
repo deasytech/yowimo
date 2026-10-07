@@ -1,6 +1,6 @@
 import Header from "@/components/Header";
 import { useProfile } from "@/hooks/api/useProfile";
-import { isProfileSetupComplete } from "@/lib/utils";
+import { ANDROID_MIN_BOTTOM_INSET, isProfileSetupComplete } from "@/lib/utils";
 import { useAuth } from "@clerk/expo";
 import { LinearGradient } from "expo-linear-gradient";
 import { Redirect, Tabs, useSegments } from "expo-router";
@@ -148,7 +148,14 @@ const TabLayout = () => {
             // system gesture/nav bar instead of above it — same root cause as the create-party
             // screen's Launch button being covered. iOS's small, consistent home-indicator inset
             // never showed this; Android's taller, per-device inset did.
-            bottom: 16 + (Platform.OS === "android" ? insets.bottom : 0),
+            //
+            // insets.bottom alone isn't trustworthy here: react-native-safe-area-context has a
+            // known unresolved bug (reported on some Samsung models) where it reports 0 on
+            // Android even though the real system nav bar is present and overlapping — see
+            // https://github.com/AppAndFlow/react-native-safe-area-context/issues/663. Floor it
+            // at a sane gesture-nav height so a device hitting that bug still gets real clearance
+            // instead of silently falling back to the original (broken) 16.
+            bottom: 16 + (Platform.OS === "android" ? Math.max(insets.bottom, ANDROID_MIN_BOTTOM_INSET) : 0),
             height: 70,
             borderRadius: 24,
             backgroundColor: "#19191F",
