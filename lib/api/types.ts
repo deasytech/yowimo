@@ -67,6 +67,7 @@ export interface UserResource {
   interests: string[];
   privacy_settings: Record<string, unknown>;
   status: string;
+  xp: number;
   last_seen_at: string;
   created_at: string;
   updated_at: string;
@@ -248,21 +249,18 @@ export interface UserBadgeResource {
 export type FriendshipStatus = 'self' | 'none' | 'friends' | 'request_sent' | 'request_received';
 
 /** GET /users/{id} — another user's profile, as returned by PublicUserResource: a deliberately
- * small, public-safe subset of UserResource (never email, wallet, date of birth, etc.).
- * `country_code`/`stats` aren't in that resource yet (requested from backend, not live) —
- * optional so the UI just doesn't render that section until they ship, no further change
- * needed then. */
+ * small, public-safe subset of UserResource (never email, wallet, date of birth, etc.). */
 export interface PublicUserResource {
   id: number;
   username: string | null;
   display_name: string | null;
   avatar_url: string | null;
-  bio?: string | null;
-  interests?: string[];
-  country_code?: string | null;
+  bio: string | null;
+  interests: string[];
+  country_code: string | null;
   xp: number;
   badges: UserBadgeResource[];
-  stats?: {
+  stats: {
     friends_count: number;
     parties_joined_count: number;
     parties_created_count: number;
@@ -362,8 +360,7 @@ export interface GameTurn {
   completed_at: string | null;
   expires_at: string;
   is_afk: boolean;
-  // Only present on GET /game/{id} and GET /parties/{party}/game.
-  is_skipped?: boolean;
+  is_skipped: boolean;
 }
 
 export interface GameRound {
@@ -422,6 +419,7 @@ export interface PartyPlayerResource {
   join_mode: PlayerJoinMode | null;
   is_host: boolean;
   status: PartyPlayerStatus;
+  is_ready: boolean;
   joined_at: string;
   left_at: string | null;
 }
@@ -499,8 +497,8 @@ export type FriendRequestStatus = 'pending' | 'accepted' | 'rejected';
 export interface FriendRequestResource {
   id: number;
   status: FriendRequestStatus;
-  sender: { id: number; username: string | null };
-  receiver: { id: number; username: string | null };
+  sender: { id: number; username: string | null; display_name: string | null; avatar_url: string | null };
+  receiver: { id: number; username: string | null; display_name: string | null; avatar_url: string | null };
   accepted_at: string | null;
   created_at: string;
 }

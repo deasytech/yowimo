@@ -1,4 +1,4 @@
-import { apiRequest, apiRequestPaginated, ApiRequestOptions } from '@/lib/api/client';
+import { apiRequest, apiRequestPaginated, ApiRequestOptions, toQueryString } from '@/lib/api/client';
 import { CursorMeta } from '@/lib/api/types';
 import { useAuth } from '@clerk/expo';
 import { useCallback } from 'react';
@@ -30,5 +30,42 @@ export function useApi() {
     [getToken],
   );
 
-  return { request, requestPaginated };
+  // Several endpoints (game types, token bundles, badges, featured packs) are cursor-paginated
+  // backend-side, but the screens that read them want the complete list up front, not an
+  // infinite-scroll/"load more" UI — the catalogs are small reference data, not a feed. Reaching
+  // for plain request() there silently truncated to whatever fit on the first page once a
+  // catalog grew past the default page size, with nothing on screen indicating anything was
+  // missing. This walks every page and concatenates, so the caller always gets the full set.
+  const requestAllPages = useCallback(
+    async <T>(
+      path: string,
+      params: Record<string, string | number | undefined | null> = {},
+    ): Promise<T[]> => {
+      const token = await getToken();
+      const results: T[] = [];
+      let cursor: string | undefined;
+
+      do {
+        const { data, meta } = await apiRequestPaginated<T[]>(
+          `${path}${toQueryString({ ...params, cursor, per_page: params.per_page ?? 50 })}`,
+          { token },
+        );
+        results.push(...data);
+
+        const previousCursor = cursor;
+        cursor = meta?.has_more_pages ? (meta.next_cursor ?? undefined) : undefined;
+
+        // A well-formed response always advances the cursor when it claims more pages exist —
+        // if it didn't, looping on `cursor` truthiness alone would request the same page forever.
+        if (cursor && cursor === previousCursor) {
+          throw new Error(`requestAllPages: ${path} returned the same cursor while claiming more pages exist.`);
+        }
+      } while (cursor);
+
+      return results;
+    },
+    [getToken],
+  );
+
+  return { request, requestPaginated, requestAllPages };
 }

@@ -5,10 +5,12 @@ import { useQuery } from '@tanstack/react-query';
 export const GAME_TYPES_QUERY_KEY = ['game-types'] as const;
 
 export function useGameTypes() {
-  const { request } = useApi();
+  const { requestAllPages } = useApi();
 
   return useQuery({
     queryKey: GAME_TYPES_QUERY_KEY,
-    queryFn: () => request<GameTypeResource[]>('/game-types'),
+    // Cursor-paginated backend-side; the create-party screen wants the full catalog to render
+    // its grid, not a "load more" control.
+    queryFn: () => requestAllPages<GameTypeResource>('/game-types'),
   });
 }

@@ -62,10 +62,16 @@ export default function FriendsListScreen() {
     (f.friend.display_name ?? "").toLowerCase().includes(query),
   );
   const filteredIncoming = incoming.filter(
-    (r) => !query || (r.sender.username ?? "").toLowerCase().includes(query),
+    (r) =>
+      !query ||
+      (r.sender.username ?? "").toLowerCase().includes(query) ||
+      (r.sender.display_name ?? "").toLowerCase().includes(query),
   );
   const filteredSent = sent.filter(
-    (r) => !query || (r.receiver.username ?? "").toLowerCase().includes(query),
+    (r) =>
+      !query ||
+      (r.receiver.username ?? "").toLowerCase().includes(query) ||
+      (r.receiver.display_name ?? "").toLowerCase().includes(query),
   );
 
   const notify = (message: string, variant: "success" | "error") => {
@@ -264,10 +270,14 @@ export default function FriendsListScreen() {
             ) : (
               filteredIncoming.map((r) => (
                 <View key={r.id} className="mb-2 flex-row items-center gap-3 rounded-2xl bg-card p-3">
-                  <Avatar initials={initialsFromName(r.sender.username)} size={44} />
+                  <Avatar
+                    avatarUrl={r.sender.avatar_url}
+                    initials={initialsFromName(r.sender.display_name || r.sender.username)}
+                    size={44}
+                  />
                   <View className="flex-1">
                     <Text className="text-foreground text-sm font-semibold" numberOfLines={1}>
-                      {r.sender.username ? `@${r.sender.username}` : "Someone"}
+                      {r.sender.display_name || (r.sender.username ? `@${r.sender.username}` : "Someone")}
                     </Text>
                     <Text className="text-muted-foreground text-[11px]">
                       {formatRelativeTime(r.created_at)}
@@ -305,10 +315,14 @@ export default function FriendsListScreen() {
             ) : (
               filteredSent.map((r) => (
                 <View key={r.id} className="mb-2 flex-row items-center gap-3 rounded-2xl bg-card p-3">
-                  <Avatar initials={initialsFromName(r.receiver.username)} size={44} />
+                  <Avatar
+                    avatarUrl={r.receiver.avatar_url}
+                    initials={initialsFromName(r.receiver.display_name || r.receiver.username)}
+                    size={44}
+                  />
                   <View className="flex-1">
                     <Text className="text-foreground text-sm font-semibold" numberOfLines={1}>
-                      {r.receiver.username ? `@${r.receiver.username}` : "Someone"}
+                      {r.receiver.display_name || (r.receiver.username ? `@${r.receiver.username}` : "Someone")}
                     </Text>
                     <Text className="text-muted-foreground text-[11px]">
                       {formatRelativeTime(r.created_at)}
