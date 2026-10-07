@@ -9,8 +9,6 @@ import {
   QrCode,
   Search,
   Sparkles,
-  Volume2,
-  VolumeX,
   X
 } from "lucide-react-native";
 import { styled } from "nativewind";
@@ -44,7 +42,6 @@ export default function DiscoverScreen() {
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
-  const [muted, setMuted] = useState(true);
   const [likedOverrides, setLikedOverrides] = useState<Record<number, boolean>>({});
   const [activeIdx, setActiveIdx] = useState(0);
   const [feedHeight, setFeedHeight] = useState(0);
@@ -244,20 +241,6 @@ export default function DiscoverScreen() {
                   <QrCode color="rgba(255,255,255,0.80)" size={16} strokeWidth={2} />
                 </TouchableOpacity>
               </Link>
-
-              {!isMine && (
-                <TouchableOpacity
-                  onPress={() => setMuted((m) => !m)}
-                  activeOpacity={0.8}
-                  className="h-9 w-9 items-center justify-center rounded-full bg-white/10 border border-white/10"
-                >
-                  {muted ? (
-                    <VolumeX color="rgba(255,255,255,0.80)" size={16} strokeWidth={2} />
-                  ) : (
-                    <Volume2 color="rgba(255,255,255,0.80)" size={16} strokeWidth={2} />
-                  )}
-                </TouchableOpacity>
-              )}
 
               {!isMine && (
                 <TouchableOpacity

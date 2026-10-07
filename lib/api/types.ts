@@ -195,7 +195,8 @@ export type WalletTransactionType =
   | 'bonus'
   | 'adjustment'
   | 'reward'
-  | 'party_entry';
+  | 'party_entry'
+  | 'referral';
 
 export interface WalletTransactionResource {
   id: number;
@@ -229,6 +230,21 @@ export interface AdRewardProgressResource {
 export interface AdRewardSessionResource {
   token: string;
   expires_at: string;
+}
+
+/** GET /referrals/summary. `reward_amount` is backend config, not a constant — never hard-code
+ * it client-side (same reasoning as AdRewardProgressResource's tokens_per_ad/daily_cap), since
+ * it can change without a release and both the Wallet banner and this screen need to reflect
+ * whatever it currently is. */
+export interface ReferralSummaryResource {
+  referral_code: string;
+  referred_count: number;
+  tokens_earned: number;
+  reward_amount: number;
+}
+
+export interface ClaimReferralCodePayload {
+  code: string;
 }
 
 export interface BadgeResource {
@@ -488,7 +504,7 @@ export interface FriendResource {
   // `username` is nullable in the DB and never backfilled for an account provisioned without
   // one (e.g. onboarding doesn't collect it) — genuinely null at runtime, not just defensive
   // typing.
-  friend: { id: number; username: string | null; display_name: string; avatar_url: string | null };
+  friend: { id: number; username: string | null; display_name: string; avatar_url: string | null; xp: number };
   accepted_at: string;
 }
 

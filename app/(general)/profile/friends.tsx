@@ -29,7 +29,17 @@ import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
 
 const SafeAreaView = styled(RNSafeAreaView);
 
-type Tab = "All" | "Requests";
+type Tab = "All" | "Requests" | "Ranking";
+
+type RankedEntry = {
+  id: number;
+  name: string;
+  username: string | null;
+  avatarUrl: string | null;
+  xp: number;
+  isYou: boolean;
+  rank: number;
+};
 
 export default function FriendsListScreen() {
   const [tab, setTab] = useState<Tab>("All");
@@ -72,6 +82,38 @@ export default function FriendsListScreen() {
       !query ||
       (r.receiver.username ?? "").toLowerCase().includes(query) ||
       (r.receiver.display_name ?? "").toLowerCase().includes(query),
+  );
+
+  // Friends-by-XP, viewer included — replaces the old global-stranger leaderboard with a
+  // ranking that actually matches this app's social loop. Ranked against the full (unfiltered)
+  // list first so rank numbers stay stable while searching, then filtered for display.
+  const rankedEntries: RankedEntry[] = profile
+    ? [
+        {
+          id: profile.id,
+          name: profile.display_name || profile.username,
+          username: profile.username,
+          avatarUrl: profile.avatar_url,
+          xp: profile.xp,
+          isYou: true,
+        },
+        ...friends.map((f) => ({
+          id: f.friend.id,
+          name: f.friend.display_name || f.friend.username || "Friend",
+          username: f.friend.username,
+          avatarUrl: f.friend.avatar_url,
+          xp: f.friend.xp,
+          isYou: false,
+        })),
+      ]
+        .sort((a, b) => b.xp - a.xp)
+        .map((entry, index) => ({ ...entry, rank: index + 1 }))
+    : [];
+  const filteredRanked = rankedEntries.filter(
+    (r) =>
+      !query ||
+      (r.username ?? "").toLowerCase().includes(query) ||
+      r.name.toLowerCase().includes(query),
   );
 
   const notify = (message: string, variant: "success" | "error") => {
@@ -119,15 +161,16 @@ export default function FriendsListScreen() {
     }
   };
 
-  const activeQuery = tab === "All" ? friendsQuery : requestsQuery;
-  // The Requests tab's incoming/sent split filters on profile?.id — if requests resolve before
-  // the profile query does, both filters compare against undefined and everything looks empty
-  // even though requests exist. Fold profile's own loading/error into this tab's gate too.
-  const isActiveLoading = activeQuery.isLoading || (tab === "Requests" && profileQuery.isLoading);
-  const isActiveError = activeQuery.isError || (tab === "Requests" && profileQuery.isError);
+  const activeQuery = tab === "Requests" ? requestsQuery : friendsQuery;
+  // The Requests tab's incoming/sent split filters on profile?.id, and Ranking needs the
+  // viewer's own xp to include "You" in the list — both fold profile's own loading/error into
+  // this tab's gate too, so neither renders against a still-undefined profile.
+  const needsProfile = tab === "Requests" || tab === "Ranking";
+  const isActiveLoading = activeQuery.isLoading || (needsProfile && profileQuery.isLoading);
+  const isActiveError = activeQuery.isError || (needsProfile && profileQuery.isError);
   const refetchActive = () => {
     activeQuery.refetch();
-    if (tab === "Requests") profileQuery.refetch();
+    if (needsProfile) profileQuery.refetch();
   };
 
   return (
@@ -170,7 +213,7 @@ export default function FriendsListScreen() {
 
       {/* ── Tabs ── */}
       <View className="flex-row gap-2 px-5">
-        {(["All", "Requests"] as Tab[]).map((t) => {
+        {(["All", "Requests", "Ranking"] as Tab[]).map((t) => {
           const active = tab === t;
           const badge = t === "Requests" ? incoming.length : 0;
           return (
@@ -208,7 +251,7 @@ export default function FriendsListScreen() {
         {!isActiveLoading && isActiveError && (
           <View className="items-center gap-3 py-16">
             <Text className="text-center text-sm text-muted-foreground">
-              Couldn&apos;t load {tab === "All" ? "friends" : "requests"}.
+              Couldn&apos;t load {tab === "Requests" ? "requests" : tab === "Ranking" ? "ranking" : "friends"}.
             </Text>
             <TouchableOpacity onPress={refetchActive} activeOpacity={0.85}>
               <Text className="text-xs font-sans-semibold text-violet-bright">Retry</Text>
@@ -255,6 +298,38 @@ export default function FriendsListScreen() {
                     <Text className="text-muted-foreground text-xs font-semibold">Remove</Text>
                   )}
                 </TouchableOpacity>
+              </View>
+            ))
+          )
+        )}
+
+        {!isActiveLoading && !isActiveError && tab === "Ranking" && (
+          filteredRanked.length === 0 ? (
+            <View className="items-center py-16">
+              <Text className="text-sm text-white/40">No one matches your search.</Text>
+            </View>
+          ) : (
+            filteredRanked.map((r) => (
+              <View
+                key={r.id}
+                className={`flex-row items-center gap-3 rounded-2xl p-3 ${r.isYou ? "bg-violet/20 border border-violet-bright" : "bg-card"
+                  }`}
+              >
+                <Text className="w-6 text-center text-muted-foreground text-base font-bold">
+                  {r.rank}
+                </Text>
+                <Avatar avatarUrl={r.avatarUrl} initials={initialsFromName(r.name)} size={44} />
+                <View className="flex-1">
+                  <Text className="text-foreground text-sm font-semibold" numberOfLines={1}>
+                    {r.isYou ? "You" : r.name}
+                  </Text>
+                  {r.username && (
+                    <Text className="text-muted-foreground text-xs" numberOfLines={1}>
+                      @{r.username}
+                    </Text>
+                  )}
+                </View>
+                <Text className="text-orange text-base font-bold">{r.xp.toLocaleString()} XP</Text>
               </View>
             ))
           )

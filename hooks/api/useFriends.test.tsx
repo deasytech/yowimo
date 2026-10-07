@@ -27,7 +27,7 @@ jest.mock('@clerk/expo', () => ({
 
 const makeFriend = (friendshipId: number, id: number, username: string): FriendResource => ({
   friendship_id: friendshipId,
-  friend: { id, username, display_name: username, avatar_url: null },
+  friend: { id, username, display_name: username, avatar_url: null, xp: 0 },
   accepted_at: '2026-07-01T00:00:00Z',
 });
 
