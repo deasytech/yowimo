@@ -6,7 +6,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Redirect, Tabs, useSegments } from "expo-router";
 import { Compass, Home, Plus, User, Wallet } from "lucide-react-native";
 import { useEffect, useRef } from "react";
-import { Animated, View } from "react-native";
+import { Animated, Platform, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const PulsingPlusIcon = () => {
   const glowAnim = useRef(new Animated.Value(0)).current;
@@ -111,6 +112,7 @@ const TabLayout = () => {
   const segments = useSegments();
   const hideHeader = segments[1] === "discover";
   const { data: profile, isLoading: isProfileLoading } = useProfile();
+  const insets = useSafeAreaInsets();
 
   // Wait for auth to load before rendering anything
   if (!isLoaded) {
@@ -141,7 +143,12 @@ const TabLayout = () => {
           tabBarStyle: {
             position: "absolute",
             marginHorizontal: 16,
-            bottom: 16,
+            // Absolute positioning opts this tab bar out of react-navigation's own safe-area
+            // handling, so on Android's edge-to-edge layout it was floating partly under the
+            // system gesture/nav bar instead of above it — same root cause as the create-party
+            // screen's Launch button being covered. iOS's small, consistent home-indicator inset
+            // never showed this; Android's taller, per-device inset did.
+            bottom: 16 + (Platform.OS === "android" ? insets.bottom : 0),
             height: 70,
             borderRadius: 24,
             backgroundColor: "#19191F",

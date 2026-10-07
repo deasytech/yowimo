@@ -193,10 +193,14 @@ const WalletScreen = () => {
                       </View>
 
                       <View className="mt-1 h-10 flex-row items-center gap-2">
+                        {/* No adjustsFontSizeToFit — paired with a custom font it's a known
+                            real-device-only rendering hazard (shrunk custom-font text can render
+                            invisible while the OS text engine settles; see the font-timing note
+                            in app/_layout.tsx for the same underlying class of bug). Real token
+                            bundle sizes top out at "5,000", well within a fixed text-3xl box, so
+                            there's nothing here that actually needs to shrink. */}
                         <Text
-                          adjustsFontSizeToFit
-                          className="min-w-0 shrink font-sans-extrabold text-3xl text-white"
-                          minimumFontScale={0.65}
+                          className="shrink font-sans-extrabold text-3xl text-white"
                           numberOfLines={1}
                         >
                           {p.tokens.toLocaleString()}

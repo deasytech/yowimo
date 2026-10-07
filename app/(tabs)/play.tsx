@@ -39,7 +39,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { SafeAreaView as RNSafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
 
 const LinearGradient = styled(RNLinearGradient);
 const SafeAreaView = styled(RNSafeAreaView);
@@ -68,7 +68,6 @@ export default function CreatePartyScreen() {
   const router = useRouter();
   const { gameId } = useLocalSearchParams<{ gameId?: string }>();
   const { width: windowWidth } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
   const { data: gameTypes, isLoading, isError, error, refetch } = useGameTypes();
   const { data: wallet } = useWallet();
   const createParty = useCreateParty();
@@ -351,17 +350,7 @@ export default function CreatePartyScreen() {
 
       <ScrollView
         className="flex-1"
-        contentContainerStyle={{
-          paddingTop: 20,
-          paddingHorizontal: 20,
-          // The tabs layout's floating tab bar (absolute, bottom: 16, height: 70) isn't inset-
-          // aware on its own, so this screen's own scroll content has to reserve that space
-          // itself. 100 already covers that on iOS, where the home indicator inset is small and
-          // consistent; Android's edge-to-edge gesture/button nav inset is both taller and more
-          // variable by device, so it needs adding on top explicitly rather than baking in a
-          // second guessed constant that would just be wrong on some other Android device.
-          paddingBottom: 100 + (Platform.OS === "android" ? insets.bottom : 0),
-        }}
+        contentContainerStyle={{ paddingTop: 20, paddingHorizontal: 20, paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
       >
         <Text className="text-foreground text-3xl font-bold tracking-tight mt-16">
