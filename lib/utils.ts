@@ -7,11 +7,15 @@ import { PartyMode, UserResource, WalletTransactionType } from "@/lib/api/types"
  * bar (app/(tabs)/_layout.tsx) or a screen's own bottom padding (e.g. app/(tabs)/play.tsx).
  * useSafeAreaInsets().bottom has a known unresolved bug on some Android devices where it
  * reports 0 even though a real system gesture/nav bar is present — see
- * https://github.com/AppAndFlow/react-native-safe-area-context/issues/663. This is the modern
- * gesture-nav height (most common default on current Android), used as a floor via
+ * https://github.com/AppAndFlow/react-native-safe-area-context/issues/663. Used as a floor via
  * Math.max(insets.bottom, ANDROID_MIN_BOTTOM_INSET) so a device hitting that bug still gets real
- * clearance instead of silently falling back to whatever the broken 0 implies. */
-export const ANDROID_MIN_BOTTOM_INSET = 24;
+ * clearance instead of silently falling back to whatever the broken 0 implies.
+ *
+ * Deliberately generous (not just a typical ~24dp gesture-nav height): the Play tab's "+" icon
+ * floats 30px above the tab bar itself by design (PulsingPlusIcon's marginTop: -30, meant to
+ * look like a floating action button), so clearing the tab bar alone isn't enough — this also
+ * has to clear that icon's own footprint on top of it. */
+export const ANDROID_MIN_BOTTOM_INSET = 64;
 
 const WALLET_TRANSACTION_LABELS: Record<WalletTransactionType, string> = {
   top_up: "Top-up",
