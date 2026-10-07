@@ -27,6 +27,7 @@ const makePack = (id: number, name: string): PackResource => ({
   truths_count: 18,
   dares_count: 22,
   cards_count: 40,
+  preview_cards_count: 4,
   cover_image_url: null,
   gradient: ['#D84CFF', '#FF8A2A'],
   is_featured: false,

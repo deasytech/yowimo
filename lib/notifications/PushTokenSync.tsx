@@ -1,5 +1,6 @@
 import { useRegisterPushToken } from '@/hooks/api/usePushToken';
 import { ensureAndroidNotificationChannel } from '@/lib/notifications/androidChannel';
+import { getPushToken } from '@/lib/notifications/getPushToken';
 import { getPushOptIn } from '@/lib/notifications/pushOptIn';
 import { useAuth } from '@clerk/expo';
 import * as Device from 'expo-device';
@@ -32,12 +33,9 @@ export function PushTokenSync() {
         const { status } = await Notifications.getPermissionsAsync();
         if (status !== 'granted') return;
         await ensureAndroidNotificationChannel();
-        const devicePushToken = await Notifications.getDevicePushTokenAsync();
-        if (devicePushToken.type !== 'ios' && devicePushToken.type !== 'android') return;
-        await registerPushToken.mutateAsync({
-          token: devicePushToken.data,
-          platform: devicePushToken.type,
-        });
+        const pushToken = await getPushToken();
+        if (!pushToken) return;
+        await registerPushToken.mutateAsync(pushToken);
         syncedUserId.current = userId;
       } catch {
         // Best-effort background refresh — a failure here isn't worth surfacing to the user.

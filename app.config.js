@@ -11,6 +11,7 @@ export default {
     ios: {
       supportsTablet: true,
       bundleIdentifier: 'com.deasytech.yowimo',
+      googleServicesFile: './GoogleService-Info.plist',
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
       },
@@ -33,6 +34,13 @@ export default {
     },
     plugins: [
       'expo-router',
+      // RN 0.75+ defaults Firebase's iOS SDK resolution to Swift Package Manager, which requires
+      // switching the whole Podfile to dynamic framework linkage (use_frameworks! :linkage =>
+      // :dynamic) — a project-wide change risking every other native pod (LiveKit/WebRTC, AdMob,
+      // Reanimated). disableSPM keeps CocoaPods + the existing static linkage everything else
+      // already relies on.
+      ['@react-native-firebase/app', { ios: { disableSPM: true } }],
+      '@react-native-firebase/messaging',
       [
         'expo-splash-screen',
         {
