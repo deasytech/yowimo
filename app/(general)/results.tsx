@@ -44,10 +44,6 @@ const QUICK_LINKS = [
     label: "Highlights",
   },
   {
-    route: "/leaderboard",
-    label: "Leaderboard",
-  },
-  {
     route: "/results/end-party-summary",
     label: "Party Recap",
   },

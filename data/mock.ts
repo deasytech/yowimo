@@ -182,6 +182,9 @@ export const QUICK_ACTIONS = [
   // dedicated matchmaking endpoint.
   { icon: Zap, label: "Quick Match", href: "/discover", colors: ["#FF8A2A", "#D84CFF"] as const },
   { icon: Users, label: "Friends", href: "/profile/friends", colors: ["#7A1EFF", "#A855F7"] as const },
-  { icon: Trophy, label: "Leaderboard", href: "/leaderboard", colors: ["#D84CFF", "#FF8A2A"] as const },
+  // Real, already-built showcase of the badge catalog + what the user's actually earned
+  // (/profile/achievements) — replaces the old fully-mock /leaderboard screen, which had no
+  // real backend support for two of its three tabs (see backlog_leaderboard memory).
+  { icon: Trophy, label: "Achievements", href: "/profile/achievements", colors: ["#D84CFF", "#FF8A2A"] as const },
   { icon: Flame, label: "Trending", href: "/play/public", colors: ["#312E81", "#7A1EFF"] as const },
 ];
