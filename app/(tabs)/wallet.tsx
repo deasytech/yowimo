@@ -198,7 +198,6 @@ const WalletScreen = () => {
                           className="min-w-0 shrink font-sans-extrabold text-3xl text-white"
                           minimumFontScale={0.65}
                           numberOfLines={1}
-                          style={{ lineHeight: 40 }}
                         >
                           {p.tokens.toLocaleString()}
                         </Text>
