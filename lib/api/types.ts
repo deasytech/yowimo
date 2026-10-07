@@ -488,7 +488,7 @@ export interface FriendResource {
   // `username` is nullable in the DB and never backfilled for an account provisioned without
   // one (e.g. onboarding doesn't collect it) — genuinely null at runtime, not just defensive
   // typing.
-  friend: { id: number; username: string | null; display_name: string; avatar_url: string | null };
+  friend: { id: number; username: string | null; display_name: string; avatar_url: string | null; xp: number };
   accepted_at: string;
 }
 
