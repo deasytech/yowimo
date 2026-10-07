@@ -134,6 +134,9 @@ export interface PackResource {
   truths_count: number;
   dares_count: number;
   cards_count: number;
+  /** How many of this pack's cards are flagged is_preview — the subset a host who hasn't
+   * purchased the pack can still play with, instead of the full cards_count. */
+  preview_cards_count: number;
   cover_image_url: string | null;
   gradient: [string, string];
   is_featured: boolean;

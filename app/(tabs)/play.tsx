@@ -4,7 +4,7 @@ import { useGameTypePacks } from "@/hooks/api/usePacks";
 import { useCreateParty } from "@/hooks/api/useParties";
 import { useWallet } from "@/hooks/api/useWallet";
 import { useToast } from "@/hooks/useToast";
-import { ApiError, CreatePartyPayload, LocalImageFile, PartyMode } from "@/lib/api/types";
+import { ApiError, CreatePartyPayload, LocalImageFile, PackResource, PartyMode } from "@/lib/api/types";
 import DateTimePicker, {
   type DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
@@ -39,7 +39,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView as RNSafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 const LinearGradient = styled(RNLinearGradient);
 const SafeAreaView = styled(RNSafeAreaView);
@@ -68,6 +68,7 @@ export default function CreatePartyScreen() {
   const router = useRouter();
   const { gameId } = useLocalSearchParams<{ gameId?: string }>();
   const { width: windowWidth } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const { data: gameTypes, isLoading, isError, error, refetch } = useGameTypes();
   const { data: wallet } = useWallet();
   const createParty = useCreateParty();
@@ -88,6 +89,9 @@ export default function CreatePartyScreen() {
   const [scheduledModalVisible, setScheduledModalVisible] = useState(false);
   const [scheduledFor, setScheduledFor] = useState<Date | null>(null);
   const [insufficientFundsVisible, setInsufficientFundsVisible] = useState(false);
+  // Set whenever a host selects a paid deck they don't own — the deck itself is still usable
+  // (gameplay falls back to its preview cards server-side), this is just informational.
+  const [unownedDeck, setUnownedDeck] = useState<PackResource | null>(null);
 
   const [toastMessage, setToastMessage] = useState("");
   const [toastBg, setToastBg] = useState("bg-green-600");
@@ -122,10 +126,11 @@ export default function CreatePartyScreen() {
     if (!selected) return;
 
     setDeckId((current) => {
-      // Keep the host's pick while it's still offered for this game type; otherwise take the
-      // game type's default deck. Switching games therefore can't carry a stale deck over.
-      if (current !== null && deckIds.includes(current)) return current;
-      return selected.default_pack_id ?? deckIds[0] ?? null;
+      // Keep the host's pick while it's still offered for this game type; otherwise clear it
+      // rather than silently filling in a default — deck choice must be an explicit action, both
+      // so the host actually sees the unowned-deck notice when it applies, and so switching games
+      // can't carry a stale deck over.
+      return current !== null && deckIds.includes(current) ? current : null;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected, deckIdsKey]);
@@ -234,6 +239,16 @@ export default function CreatePartyScreen() {
         return null;
       }
 
+      // Deck choice is a required, explicit action now — no longer auto-filled — so a host who
+      // had decks to choose from but hasn't tapped one yet gets stopped here instead of silently
+      // launching against whatever the game type's default happens to be. Doesn't apply when
+      // there was nothing to pick from in the first place (decks failed/empty) — that case
+      // already fell through to the default-pack-id fallback above.
+      if (deckId === null && decks.length > 0) {
+        notify("Pick a deck for your game", "error");
+        return null;
+      }
+
       packId = selectedPackIsAvailable
         ? deckId
         : hasValidDefaultPackId
@@ -336,7 +351,17 @@ export default function CreatePartyScreen() {
 
       <ScrollView
         className="flex-1"
-        contentContainerStyle={{ paddingTop: 20, paddingHorizontal: 20, paddingBottom: 100 }}
+        contentContainerStyle={{
+          paddingTop: 20,
+          paddingHorizontal: 20,
+          // The tabs layout's floating tab bar (absolute, bottom: 16, height: 70) isn't inset-
+          // aware on its own, so this screen's own scroll content has to reserve that space
+          // itself. 100 already covers that on iOS, where the home indicator inset is small and
+          // consistent; Android's edge-to-edge gesture/button nav inset is both taller and more
+          // variable by device, so it needs adding on top explicitly rather than baking in a
+          // second guessed constant that would just be wrong on some other Android device.
+          paddingBottom: 100 + (Platform.OS === "android" ? insets.bottom : 0),
+        }}
         showsVerticalScrollIndicator={false}
       >
         <Text className="text-foreground text-3xl font-bold tracking-tight mt-16">
@@ -601,12 +626,16 @@ export default function CreatePartyScreen() {
                 <View className="mt-3 gap-2.5">
                   {decks.map((deck) => {
                     const active = deck.id === deckId;
+                    const isLocked = deck.price > 0 && !deck.owned_by_me;
 
                     return (
                       <TouchableOpacity
                         key={deck.id}
                         testID={`deck-option-${deck.id}`}
-                        onPress={() => setDeckId(deck.id)}
+                        onPress={() => {
+                          setDeckId(deck.id);
+                          if (isLocked) setUnownedDeck(deck);
+                        }}
                         activeOpacity={0.85}
                         className={`flex-row items-center gap-3 rounded-2xl border p-3 ${active ? "border-violet-bright bg-secondary/60" : "border-border bg-card"
                           }`}
@@ -618,15 +647,25 @@ export default function CreatePartyScreen() {
                             {deck.name}
                           </Text>
                           <Text className="text-muted-foreground text-[11px]">
-                            {deck.cards_count} cards{deck.tag ? ` · ${deck.tag}` : ""}
+                            {isLocked
+                              ? `${deck.preview_cards_count} preview cards · ${deck.cards_count} total`
+                              : `${deck.cards_count} cards${deck.tag ? ` · ${deck.tag}` : ""}`}
                           </Text>
                         </View>
 
                         <View className="items-end gap-1">
                           {deck.price > 0 ? (
-                            <Text className="text-muted-foreground text-[11px]">
-                              🪙 {deck.price}
-                            </Text>
+                            <View className="items-end">
+                              <View className="flex-row items-center gap-1">
+                                {isLocked && <Lock color="#a3a3ab" size={10} strokeWidth={2.5} />}
+                                <Text className="text-muted-foreground text-[11px]">
+                                  🪙 {deck.price}
+                                </Text>
+                              </View>
+                              <Text className="text-muted-foreground/70 text-[9px]">
+                                unlock price
+                              </Text>
+                            </View>
                           ) : (
                             <Text className="text-violet-bright text-[11px] font-bold">FREE</Text>
                           )}
@@ -853,6 +892,17 @@ export default function CreatePartyScreen() {
               </View>
             </View>
 
+            {/* ── Entry cost reminder ── */}
+            {partyCost > 0 && (
+              <View className="mt-6 flex-row items-center justify-center gap-1.5">
+                <Coins color="#FF8A2A" size={14} strokeWidth={2.5} />
+                <Text className="text-muted-foreground text-xs">
+                  Hosting {selected?.name ?? "this game"} costs{" "}
+                  <Text className="font-semibold text-foreground">{partyCost} tokens</Text>
+                </Text>
+              </View>
+            )}
+
             {/* ── Actions ── */}
             <View className="mt-8 flex-row gap-3">
               <TouchableOpacity
@@ -1046,6 +1096,65 @@ export default function CreatePartyScreen() {
               className="mt-3"
             >
               <Text className="text-muted-foreground text-sm font-semibold">Not now</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Deck not yet purchased ── */}
+      <Modal
+        visible={unownedDeck !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setUnownedDeck(null)}
+      >
+        <View
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)" }}
+          className="items-center justify-center px-8"
+        >
+          <View className="w-full items-center rounded-3xl border border-border bg-card p-6">
+            <View className="h-14 w-14 items-center justify-center rounded-full bg-orange/15">
+              <Lock color="#FF8A2A" size={24} strokeWidth={2} />
+            </View>
+
+            <Text className="mt-4 text-foreground text-lg font-bold text-center">
+              Deck not unlocked
+            </Text>
+            <Text className="mt-2 text-muted-foreground text-sm text-center leading-relaxed">
+              You haven&apos;t purchased &quot;{unownedDeck?.name}&quot; yet. You can still host
+              with it — only its {unownedDeck?.preview_cards_count} preview cards will be in play,
+              not the full {unownedDeck?.cards_count}.
+            </Text>
+
+            <TouchableOpacity
+              onPress={() => {
+                setUnownedDeck(null);
+                router.push("/market-place");
+              }}
+              activeOpacity={0.85}
+              style={{ width: "100%" }}
+              className="mt-6"
+            >
+              <LinearGradient
+                colors={["#7A1EFF", "#D84CFF", "#FF8A2A"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                className="h-12 w-full items-center justify-center rounded-2xl"
+              >
+                <Text className="text-white text-sm font-semibold">
+                  Unlock deck — 🪙 {unownedDeck?.price}
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => setUnownedDeck(null)}
+              activeOpacity={0.85}
+              className="mt-3"
+            >
+              <Text className="text-muted-foreground text-sm font-semibold">
+                Continue with preview
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
