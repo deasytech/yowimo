@@ -51,7 +51,15 @@ export function useApi() {
           { token },
         );
         results.push(...data);
+
+        const previousCursor = cursor;
         cursor = meta?.has_more_pages ? (meta.next_cursor ?? undefined) : undefined;
+
+        // A well-formed response always advances the cursor when it claims more pages exist —
+        // if it didn't, looping on `cursor` truthiness alone would request the same page forever.
+        if (cursor && cursor === previousCursor) {
+          throw new Error(`requestAllPages: ${path} returned the same cursor while claiming more pages exist.`);
+        }
       } while (cursor);
 
       return results;
