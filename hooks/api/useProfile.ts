@@ -49,8 +49,11 @@ export function useUpdateProfile() {
       // refetch is in flight), but don't trust it alone as the source of truth afterward — force
       // a real GET /users/me too, so the profile screen it's about to navigate to is guaranteed
       // to reflect what the server actually persisted, not just what the PATCH response echoed.
+      // Returning this promise matters: React Query awaits an onSuccess's return value before
+      // running the caller's own onSuccess (the navigation), so that navigation can't fire while
+      // this refetch is still in flight and land moments before an unrelated re-render.
       queryClient.setQueryData(profileQueryKey(userId), user);
-      queryClient.invalidateQueries({ queryKey: profileQueryKey(userId) });
+      return queryClient.invalidateQueries({ queryKey: profileQueryKey(userId) });
     },
   });
 }

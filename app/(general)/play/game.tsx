@@ -167,15 +167,14 @@ export default function GameRoom() {
   const { data: results } = useGameResults(sessionId, { enabled: isSessionOver });
 
   const goToLobby = () => {
-    // The game screen is only ever reached by pushing on top of an existing Lobby (or
-    // waiting-room) screen — except on a cold launch straight into this route (e.g. a push
-    // notification deep link), where there's nothing to pop back to. Prefer popping back to
-    // that existing screen; replacing unconditionally left a second Lobby entry stacked on top
-    // of the original one, so back navigation out of it had to be pressed twice.
-    if (router.canGoBack()) {
-      router.back();
-    } else if (Number.isFinite(partyId)) {
-      router.replace(`/lobby/${partyId}`);
+    // Game can be reached through more than one path on top of Lobby (e.g. Lobby → video room →
+    // Game), so router.back() isn't reliable — it pops to whatever's immediately underneath,
+    // which isn't always Lobby. dismissTo targets the route itself: if a Lobby screen for this
+    // party is already anywhere in the stack, it pops straight to that existing instance (no
+    // duplicate); if there isn't one (e.g. a cold launch via push-notification deep link), it
+    // falls back to pushing a fresh one instead of erroring.
+    if (Number.isFinite(partyId)) {
+      router.dismissTo(`/lobby/${partyId}`);
     } else {
       router.replace("/");
     }
