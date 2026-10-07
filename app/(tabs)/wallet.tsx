@@ -37,8 +37,18 @@ const WalletScreen = () => {
     (packGridWidth - PACK_GAP * (packColumns - 1)) / packColumns,
   );
 
-  const { data: wallet, isLoading: isWalletLoading } = useWallet();
-  const { data: bundles, isLoading: isBundlesLoading } = useTokenBundles();
+  const {
+    data: wallet,
+    isLoading: isWalletLoading,
+    isError: isWalletError,
+    refetch: refetchWallet,
+  } = useWallet();
+  const {
+    data: bundles,
+    isLoading: isBundlesLoading,
+    isError: isBundlesError,
+    refetch: refetchBundles,
+  } = useTokenBundles();
   const { transactions, isLoading: isTxLoading } = useWalletTransactions();
   const recentTransactions = transactions.slice(0, 5);
 
@@ -76,6 +86,15 @@ const WalletScreen = () => {
               <View className="mt-1 min-h-16 flex-row items-center gap-3">
                 {isWalletLoading ? (
                   <ActivityIndicator color="#1e1e24" />
+                ) : isWalletError ? (
+                  <View className="flex-row items-center gap-2">
+                    <Text className="font-sans-semibold text-sm text-ink" style={{ opacity: 0.8 }}>
+                      Couldn&apos;t load balance.
+                    </Text>
+                    <TouchableOpacity onPress={() => refetchWallet()} activeOpacity={0.8}>
+                      <Text className="font-sans-bold text-sm text-ink underline">Retry</Text>
+                    </TouchableOpacity>
+                  </View>
                 ) : (
                   <Text
                     className="font-sans-extrabold text-5xl text-ink"
@@ -147,6 +166,13 @@ const WalletScreen = () => {
 
           {isBundlesLoading ? (
             <ActivityIndicator color="#B03BFF" style={{ marginVertical: 16 }} />
+          ) : isBundlesError ? (
+            <View className="items-center gap-2" style={{ marginVertical: 16 }}>
+              <Text className="text-muted-foreground text-sm">Couldn&apos;t load token packs.</Text>
+              <TouchableOpacity onPress={() => refetchBundles()} activeOpacity={0.8}>
+                <Text className="text-violet-bright text-sm font-semibold">Retry</Text>
+              </TouchableOpacity>
+            </View>
           ) : (
             <View
               className="flex-row flex-wrap gap-3"
