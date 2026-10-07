@@ -22,6 +22,7 @@ const WALLET_TRANSACTION_LABELS: Record<WalletTransactionType, string> = {
   adjustment: "Adjustment",
   reward: "Reward",
   party_entry: "Party entry",
+  referral: "Referral",
 };
 
 export function walletTransactionTypeLabel(type: WalletTransactionType): string {

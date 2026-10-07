@@ -2,6 +2,7 @@ import InlineRetry from "@/components/shared/InlineRetry";
 import { COUNTRIES, type Country } from "@/data/countries";
 import { useGameTypes } from "@/hooks/api/useGameTypes";
 import { useProfile, useUpdateProfile } from "@/hooks/api/useProfile";
+import { useClaimReferralCode } from "@/hooks/api/useReferrals";
 import { ApiError, type GameTypeResource } from "@/lib/api/types";
 import { posthog } from "@/lib/posthog";
 import { isProfileSetupComplete } from "@/lib/utils";
@@ -401,8 +402,10 @@ export default function Onboarding() {
     refetch: refetchGameTypes,
   } = useGameTypes();
   const updateProfile = useUpdateProfile();
+  const claimReferralCode = useClaimReferralCode();
 
   const [displayName, setDisplayName] = useState("");
+  const [referralCode, setReferralCode] = useState("");
   const [interests, setInterests] = useState<string[]>([]);
   const birthday = useBirthdayPicker("");
   const country = useCountryPicker("");
@@ -447,7 +450,22 @@ export default function Onboarding() {
         interests,
       },
       {
-        onSuccess: () => router.replace("/(tabs)"),
+        onSuccess: () => {
+          const code = referralCode.trim();
+          if (!code) {
+            router.replace("/(tabs)");
+            return;
+          }
+          // Best-effort: an invalid/self/already-claimed code shouldn't block onboarding from
+          // completing — just let them know it didn't apply, then continue either way.
+          claimReferralCode.mutate(
+            { code },
+            {
+              onError: () => Alert.alert("Referral code not applied", "That code didn't work, but you're all set otherwise."),
+              onSettled: () => router.replace("/(tabs)"),
+            },
+          );
+        },
         onError: (error) => Alert.alert("Couldn't save", updateProfileErrorMessage(error)),
       },
     );
@@ -521,6 +539,21 @@ export default function Onboarding() {
                   onRetry={() => refetchGameTypes()}
                   onToggle={toggleInterest}
                 />
+              </View>
+
+              <View className="mt-7">
+                <Field label="Referral code (optional)">
+                  <TextInput
+                    value={referralCode}
+                    onChangeText={(value) => setReferralCode(value.toUpperCase())}
+                    autoCapitalize="characters"
+                    autoCorrect={false}
+                    maxLength={20}
+                    placeholder="Got a code from a friend?"
+                    placeholderTextColor="#a3a3ab"
+                    className="rounded-xl bg-input border border-border px-3.5 py-3 text-foreground text-sm"
+                  />
+                </Field>
               </View>
 
               <TouchableOpacity

@@ -1,3 +1,4 @@
+import { useReferralSummary } from "@/hooks/api/useReferrals";
 import { useTokenBundles } from "@/hooks/api/useTokenBundles";
 import { useWallet, useWalletTransactions } from "@/hooks/api/useWallet";
 import { formatCurrency, formatRelativeTime, walletTransactionTypeLabel } from "@/lib/utils";
@@ -43,6 +44,8 @@ const WalletScreen = () => {
     isError: isWalletError,
     refetch: refetchWallet,
   } = useWallet();
+  // reward_amount is backend config, not a constant — never hard-code it in this banner.
+  const { data: referralSummary } = useReferralSummary();
   const {
     data: bundles,
     isLoading: isBundlesLoading,
@@ -149,10 +152,10 @@ const WalletScreen = () => {
 
             <View className="flex-1">
               <Text className="font-sans-semibold text-sm text-foreground">
-                Earn 50 tokens
+                {referralSummary ? `Earn ${referralSummary.reward_amount} tokens` : "Earn tokens"}
               </Text>
               <Text className="font-sans text-[11px] text-muted-foreground">
-                Invite a friend to your next party
+                Invite a friend — you both get rewarded
               </Text>
             </View>
 
