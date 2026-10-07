@@ -1,5 +1,5 @@
 import {
-  Flame,
+  ShoppingBag,
   Trophy,
   Users,
   Zap,
@@ -186,5 +186,9 @@ export const QUICK_ACTIONS = [
   // (/profile/achievements) — replaces the old fully-mock /leaderboard screen, which had no
   // real backend support for two of its three tabs (see backlog_leaderboard memory).
   { icon: Trophy, label: "Achievements", href: "/profile/achievements", colors: ["#D84CFF", "#FF8A2A"] as const },
-  { icon: Flame, label: "Trending", href: "/play/public", colors: ["#312E81", "#7A1EFF"] as const },
+  // Real, complete pack-purchase screen (/market-place) that was deliberately hidden from the
+  // tab bar (href: null in app/(tabs)/_layout.tsx) with no other Home-level entry point —
+  // replaces the old "Trending" tile, which pointed at a 100% mock /play/public screen whose
+  // real replacement (Discover's "Live now") is already its own full section further down Home.
+  { icon: ShoppingBag, label: "Marketplace", href: "/market-place", colors: ["#312E81", "#7A1EFF"] as const },
 ];

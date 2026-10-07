@@ -134,7 +134,7 @@ export default function SettingsScreen() {
     {
       title: "EXPLORE",
       items: [
-        { Icon: Globe, label: "Public parties", to: "/play/public" },
+        { Icon: Globe, label: "Public parties", to: "/discover" },
         { Icon: Globe, label: "Marketplace", to: "/market-place" },
         { Icon: Globe, label: "Sponsor management", to: "/profile/sponsor-management" },
         { Icon: Globe, label: "Connect TV", to: "/play/connect-tv" },
