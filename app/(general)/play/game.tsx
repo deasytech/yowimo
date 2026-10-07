@@ -167,7 +167,14 @@ export default function GameRoom() {
   const { data: results } = useGameResults(sessionId, { enabled: isSessionOver });
 
   const goToLobby = () => {
-    if (Number.isFinite(partyId)) {
+    // The game screen is only ever reached by pushing on top of an existing Lobby (or
+    // waiting-room) screen — except on a cold launch straight into this route (e.g. a push
+    // notification deep link), where there's nothing to pop back to. Prefer popping back to
+    // that existing screen; replacing unconditionally left a second Lobby entry stacked on top
+    // of the original one, so back navigation out of it had to be pressed twice.
+    if (router.canGoBack()) {
+      router.back();
+    } else if (Number.isFinite(partyId)) {
       router.replace(`/lobby/${partyId}`);
     } else {
       router.replace("/");

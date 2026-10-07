@@ -45,7 +45,12 @@ export function useUpdateProfile() {
     mutationFn: (payload: UpdateProfilePayload) =>
       request<UserResource>('/users/me', { method: 'PATCH', body: payload }),
     onSuccess: (user) => {
+      // The optimistic write shows the saved values instantly (no flash of stale data while a
+      // refetch is in flight), but don't trust it alone as the source of truth afterward — force
+      // a real GET /users/me too, so the profile screen it's about to navigate to is guaranteed
+      // to reflect what the server actually persisted, not just what the PATCH response echoed.
       queryClient.setQueryData(profileQueryKey(userId), user);
+      queryClient.invalidateQueries({ queryKey: profileQueryKey(userId) });
     },
   });
 }
