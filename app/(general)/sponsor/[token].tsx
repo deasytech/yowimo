@@ -27,8 +27,9 @@ export default function SponsorPartyScreen() {
   const toast = useToast();
   const [toastMessage, setToastMessage] = useState("");
   const [toastBg, setToastBg] = useState("bg-green-600");
-  // One key per attempt, reused if the same attempt is retried after a network failure.
-  const idempotencyKeyRef = useRef<string | null>(null);
+  // One key per attempt, reused if the same attempt is retried after a network failure. Tied to
+  // the token it was minted for, so opening a different link can never reuse it.
+  const idempotencyKeyRef = useRef<{ token: string; key: string } | null>(null);
 
   const notify = (message: string, variant: "success" | "error") => {
     setToastMessage(message);
@@ -65,7 +66,10 @@ export default function SponsorPartyScreen() {
   const insufficient = typeof balance === "number" && balance < invite.amount;
   const isOwnParty = profile?.id === party.host.id;
   const isPaid = invite.status === "paid";
-  const isClosed = invite.status === "cancelled" || invite.status === "expired";
+  const isPending = invite.status === "pending";
+  // Anything that isn't exactly pending or paid (cancelled, expired, or a status this build
+  // doesn't know) must not offer payment.
+  const isClosed = !isPaid && !isPending;
   const scopeLabel =
     invite.scope === "full_party"
       ? party.entry_fee > 0
@@ -74,10 +78,12 @@ export default function SponsorPartyScreen() {
       : "Covers the party creation fee";
 
   const handlePay = async () => {
-    if (pay.isPending) return;
-    idempotencyKeyRef.current ??= newIdempotencyKey();
+    if (pay.isPending || !isPending) return;
+    if (idempotencyKeyRef.current?.token !== invite.token) {
+      idempotencyKeyRef.current = { token: invite.token, key: newIdempotencyKey() };
+    }
     try {
-      await pay.mutateAsync({ token: invite.token, idempotencyKey: idempotencyKeyRef.current });
+      await pay.mutateAsync({ token: invite.token, idempotencyKey: idempotencyKeyRef.current.key });
       idempotencyKeyRef.current = null;
       notify("Thank you — party sponsored!", "success");
     } catch (err) {
