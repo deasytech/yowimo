@@ -196,7 +196,9 @@ export type WalletTransactionType =
   | 'adjustment'
   | 'reward'
   | 'party_entry'
-  | 'referral';
+  | 'referral'
+  | 'sponsor'
+  | 'free_party_guest_cost';
 
 export interface WalletTransactionResource {
   id: number;
@@ -286,7 +288,15 @@ export interface PublicUserResource {
 
 export type PartyMode = 'online' | 'hybrid' | 'in_person';
 export type PartyVisibility = 'public' | 'private';
-export type PartyStatus = 'draft' | 'scheduled' | 'live' | 'ended' | 'cancelled';
+/** `pending_sponsorship`: created with a sponsor requested; hidden from Discover and not
+ * joinable/startable until the sponsor pays, then it becomes scheduled or live on its own. */
+export type PartyStatus =
+  | 'draft'
+  | 'pending_sponsorship'
+  | 'scheduled'
+  | 'live'
+  | 'ended'
+  | 'cancelled';
 export type PartyMembershipStatus = 'active' | 'left' | 'removed';
 
 export interface PartyLocation {
@@ -319,10 +329,27 @@ export interface PartyMembership {
   party: PartyDetail;
 }
 
+/** What a sponsor covers: just the host's creation fee, or the creation fee plus every guest's
+ * entry fee (max_players - 1 guests, since the host doesn't pay to join their own party). */
+export type SponsorshipScope = 'creation_fee' | 'full_party';
+export type SponsorshipStatus = 'pending' | 'paid' | 'cancelled' | 'expired';
+
+export interface PartySponsorship {
+  id: number;
+  scope: SponsorshipScope;
+  status: SponsorshipStatus;
+  /** Tokens the sponsor pays (or has paid) — server-computed and authoritative. */
+  amount: number;
+  sponsor: { id: number; username: string; display_name: string; avatar_url: string | null } | null;
+}
+
 export interface PartyDetail extends Omit<PartySummary, 'host'> {
   description: string | null;
   is_sponsored: boolean;
   sponsor_name: string | null;
+  /** Tokens a guest pays to join. Absent/0 means free. */
+  entry_fee?: number;
+  sponsorship?: PartySponsorship | null;
   tags: string[];
   starts_at: string | null;
   location: PartyLocation | null;
@@ -354,6 +381,11 @@ export interface CreatePartyPayload {
   max_players?: number;
   starts_at?: string | null;
   save_as_draft?: boolean;
+  /** Tokens each guest pays to join; omit or 0 for a free party. */
+  entry_fee?: number;
+  /** The host is asking a friend to sponsor — the host isn't charged the creation fee at
+   * create time when this covers it. The invite itself is minted afterwards. */
+  sponsorship_scope?: SponsorshipScope;
   location?: PartyLocation;
   tags?: string[];
   /** jpeg/png/webp, max 8MB. Sending this forces the request into multipart/form-data. */
@@ -517,4 +549,42 @@ export interface FriendRequestResource {
   receiver: { id: number; username: string | null; display_name: string | null; avatar_url: string | null };
   accepted_at: string | null;
   created_at: string;
+}
+
+
+/** POST /parties/{party}/sponsorship-invites — a shareable link a sponsor opens to pay. */
+export interface SponsorshipInviteResource {
+  token: string;
+  url: string;
+  scope: SponsorshipScope;
+  amount: number;
+  status: SponsorshipStatus;
+  expires_at: string | null;
+  party: {
+    id: number;
+    title: string;
+    max_players: number;
+    entry_fee: number;
+    cover_image_url: string | null;
+    gradient: [string, string];
+    host: { id: number; username: string; display_name: string; avatar_url: string | null };
+  };
+}
+
+/** GET /sponsors/me — lifetime totals for the Sponsor Center header. */
+export interface SponsorSummaryResource {
+  players_covered: number;
+  parties_count: number;
+  tokens_spent: number;
+}
+
+/** A row from GET /sponsors/me/sponsorships. `tokens_spent` is net of any end-of-party refund
+ * for guest slots that never filled. */
+export interface SponsorshipListItem {
+  id: number;
+  status: SponsorshipStatus;
+  covered_guest_count: number;
+  tokens_spent: number;
+  paid_at: string | null;
+  party: { id: number; title: string; status?: PartyStatus; cover_image_url?: string | null };
 }

@@ -219,7 +219,9 @@ export default function MyPartiesView({ topInset }: { topInset: number }) {
             const { party } = item;
             const canCancel =
               item.role === "hosted" &&
-              (party.status === "draft" || party.status === "scheduled");
+              (party.status === "draft" ||
+                party.status === "pending_sponsorship" ||
+                party.status === "scheduled");
 
             return (
               <View className="flex-row items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3">

@@ -2,10 +2,23 @@ import Toast from "@/components/shared/Toast";
 import { useGameTypes } from "@/hooks/api/useGameTypes";
 import { useGameTypePacks } from "@/hooks/api/usePacks";
 import { useCreateParty } from "@/hooks/api/useParties";
+import { useCreateSponsorshipInvite } from "@/hooks/api/useSponsorship";
 import { useWallet } from "@/hooks/api/useWallet";
 import { useToast } from "@/hooks/useToast";
-import { ApiError, CreatePartyPayload, LocalImageFile, PackResource, PartyMode } from "@/lib/api/types";
-import { ANDROID_MIN_BOTTOM_INSET } from "@/lib/utils";
+import {
+  ApiError,
+  CreatePartyPayload,
+  LocalImageFile,
+  PackResource,
+  PartyMode,
+  SponsorshipScope,
+} from "@/lib/api/types";
+import {
+  ANDROID_MIN_BOTTOM_INSET,
+  estimateSponsorshipAmount,
+  MIN_ENTRY_FEE,
+  sponsorshipShareMessage,
+} from "@/lib/utils";
 import DateTimePicker, {
   type DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
@@ -34,6 +47,7 @@ import {
   Modal,
   Platform,
   ScrollView,
+  Share,
   Text,
   TextInput,
   TouchableOpacity,
@@ -56,6 +70,7 @@ const GRID_PADDING = 20; // matches contentContainerStyle paddingHorizontal
 const GRID_GAP = 12; // matches gap-3
 const GRID_COLUMNS = 3;
 const MIN_PLAYERS = 2;
+const ENTRY_FEE_STEP = 5;
 const MAX_PLAYERS = 200;
 const DEFAULT_PLAYERS = 8;
 
@@ -73,6 +88,7 @@ export default function CreatePartyScreen() {
   const { data: gameTypes, isLoading, isError, error, refetch } = useGameTypes();
   const { data: wallet } = useWallet();
   const createParty = useCreateParty();
+  const createSponsorshipInvite = useCreateSponsorshipInvite();
 
   const [game, setGame] = useState<number | null>(null);
   const [title, setTitle] = useState("");
@@ -80,6 +96,10 @@ export default function CreatePartyScreen() {
   const [mode, setMode] = useState<PartyMode>("online");
   const [visibility, setVisibility] = useState<"public" | "private">("private");
   const [maxPlayers, setMaxPlayers] = useState(DEFAULT_PLAYERS);
+  // Tokens each guest pays to join (0 = free), and whether the host is asking a friend to pay —
+  // for just the creation fee, or the creation fee plus every guest's entry fee.
+  const [entryFee, setEntryFee] = useState(0);
+  const [sponsorScope, setSponsorScope] = useState<SponsorshipScope | null>(null);
   const [maxPlayersDraft, setMaxPlayersDraft] = useState(String(DEFAULT_PLAYERS));
   const [venueName, setVenueName] = useState("");
   const [address, setAddress] = useState("");
@@ -104,8 +124,13 @@ export default function CreatePartyScreen() {
   const partyCost = selected?.cost ?? 0;
   // Undefined while the wallet is still loading — don't treat that as a zero balance and block
   // a host who simply hasn't had the request resolve yet.
+  // A free party's guest slots still cost MIN_ENTRY_FEE each when someone sponsors it: a
+  // full-party sponsor pays it up front, and with a creation-fee-only sponsor the host is
+  // debited it as each guest joins. A free party with no sponsor at all stays free for everyone.
+  const perGuestCost = entryFee > 0 ? entryFee : MIN_ENTRY_FEE;
+  // A sponsor covers the creation fee under either scope, so the host's own balance is moot.
   const hasInsufficientFunds =
-    partyCost > 0 && typeof wallet?.balance === "number" && wallet.balance < partyCost;
+    !sponsorScope && partyCost > 0 && typeof wallet?.balance === "number" && wallet.balance < partyCost;
 
   // Decks are per game type, and a party can't start a game without one — the engine deals its
   // cards straight from the pack. Falls back to the game type's server-side default, then the
@@ -269,6 +294,8 @@ export default function CreatePartyScreen() {
       mode,
       visibility,
       max_players: resolveMaxPlayers(),
+      entry_fee: entryFee > 0 ? entryFee : undefined,
+      sponsorship_scope: sponsorScope ?? undefined,
       starts_at: isScheduled && startsAt ? startsAt.toISOString() : null,
       save_as_draft: saveAsDraft,
       location: needsLocation
@@ -278,8 +305,31 @@ export default function CreatePartyScreen() {
     };
   };
 
+  // Best-effort: the party already exists by now, so a failure here must not read as a failed
+  // launch — the host can re-send the link from the lobby's sponsorship card instead.
+  const shareSponsorshipLink = async (
+    partyId: number,
+    hostName: string,
+    partyTitle: string,
+    scope: SponsorshipScope,
+  ) => {
+    try {
+      const invite = await createSponsorshipInvite.mutateAsync({ partyId, scope });
+      await Share.share({
+        message: sponsorshipShareMessage(hostName, partyTitle, invite.amount, scope, invite.token, invite.url),
+      });
+    } catch {
+      notify("Party created — send the sponsor link from the lobby", "success");
+    }
+  };
+
   const handleCreate = async (saveAsDraft: boolean) => {
     if (createParty.isPending) return;
+    // A draft never goes live, so there's nothing for a sponsor to unlock.
+    if (saveAsDraft && sponsorScope) {
+      notify("Pick 'No sponsor' to save a draft", "error");
+      return;
+    }
     const payload = buildPayload(saveAsDraft);
     if (!payload) return;
 
@@ -292,10 +342,12 @@ export default function CreatePartyScreen() {
 
     try {
       const party = await createParty.mutateAsync(payload);
+      if (sponsorScope) await shareSponsorshipLink(party.id, party.host.username, party.title, sponsorScope);
       // A scheduled party isn't ready to host yet — landing in its lobby would surface a
       // "Start party" action that doesn't make sense until closer to starts_at, so confirm
       // and send the host home instead of into the lobby.
-      if (!saveAsDraft && isScheduled && startsAt) {
+      // Not for a sponsored party, though: it waits on the sponsor, whatever its start time.
+      if (!saveAsDraft && !sponsorScope && isScheduled && startsAt) {
         setScheduledFor(startsAt);
         setScheduledModalVisible(true);
         return;
@@ -864,6 +916,89 @@ export default function CreatePartyScreen() {
                   </View>
                 </TouchableOpacity>
               </View>
+            </View>
+
+            {/* ── Entry fee + sponsorship ── */}
+            <View className="mt-6">
+              <Text className="mb-1 text-foreground text-base font-semibold">Entry fee</Text>
+              <Text className="mb-3 text-muted-foreground text-xs">
+                Tokens each guest pays to join — free, or {MIN_ENTRY_FEE} and up.
+              </Text>
+              <View className="flex-row items-center justify-between rounded-2xl border border-border bg-secondary/40 p-3">
+                <TouchableOpacity
+                  onPress={() => setEntryFee((f) => (f <= MIN_ENTRY_FEE ? 0 : f - ENTRY_FEE_STEP))}
+                  accessibilityLabel="Decrease entry fee"
+                  disabled={entryFee === 0}
+                  style={{ opacity: entryFee === 0 ? 0.4 : 1 }}
+                  className="h-10 w-10 items-center justify-center rounded-full bg-secondary"
+                >
+                  <Minus color="#fff" size={16} strokeWidth={2} />
+                </TouchableOpacity>
+                <View className="flex-row items-center gap-1.5">
+                  <Coins color="#FF8A2A" size={16} strokeWidth={2.5} />
+                  <Text className="text-foreground text-lg font-bold">
+                    {entryFee === 0 ? "Free" : entryFee}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setEntryFee((f) => (f === 0 ? MIN_ENTRY_FEE : f + ENTRY_FEE_STEP))}
+                  accessibilityLabel="Increase entry fee"
+                  className="h-10 w-10 items-center justify-center rounded-full bg-secondary"
+                >
+                  <Plus color="#fff" size={16} strokeWidth={2} />
+                </TouchableOpacity>
+              </View>
+
+              <Text className="mt-5 mb-3 text-foreground text-base font-semibold">
+                Ask a friend to sponsor?
+              </Text>
+              {entryFee === 0 && (
+                <Text className="mt-2 text-muted-foreground text-xs">
+                  {sponsorScope === "creation_fee"
+                    ? `Free for guests — you'll be charged ${MIN_ENTRY_FEE} tokens per guest as they join (up to ${(resolveMaxPlayers() - 1) * MIN_ENTRY_FEE}). Guests can't join if you run out.`
+                    : sponsorScope === "full_party"
+                      ? `Free for guests — your sponsor covers ${MIN_ENTRY_FEE} tokens per guest.`
+                      : "Free for everyone, including you."}
+                </Text>
+              )}
+              {(
+                [
+                  { value: null, title: "No sponsor", sub: "You pay the creation fee" },
+                  { value: "creation_fee", title: "Creation fee", sub: "A friend covers hosting" },
+                  { value: "full_party", title: "Entire party", sub: "Covers hosting and every guest" },
+                ] as { value: SponsorshipScope | null; title: string; sub: string }[]
+              ).map((opt) => {
+                const active = sponsorScope === opt.value;
+                return (
+                  <TouchableOpacity
+                    key={opt.title}
+                    onPress={() => setSponsorScope(opt.value)}
+                    activeOpacity={0.85}
+                    className={`mb-2 flex-row items-center justify-between rounded-2xl border p-4 ${active
+                      ? "border-violet-bright bg-violet/15"
+                      : "border-border bg-secondary/40"
+                      }`}
+                  >
+                    <View className="flex-1">
+                      <Text className="text-foreground text-sm font-semibold">{opt.title}</Text>
+                      <Text className="text-muted-foreground text-[11px]">{opt.sub}</Text>
+                    </View>
+                    {opt.value && (
+                      <Text className="text-foreground text-sm font-bold">
+                        🪙 {estimateSponsorshipAmount(opt.value, partyCost, perGuestCost, resolveMaxPlayers())}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+              {sponsorScope && (
+                <Text className="text-muted-foreground text-[11px]">
+                  {"You'll get a link to send your friend right after launching. "}
+                  {sponsorScope === "full_party"
+                    ? `${resolveMaxPlayers() - 1} guests × ${perGuestCost} tokens, plus the creation fee.`
+                    : ""}
+                </Text>
+              )}
             </View>
 
             {/* ── AI assist ── */}
