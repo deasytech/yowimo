@@ -27,14 +27,28 @@ import {
   useUnlikeParty,
 } from "@/hooks/api/useParties";
 import { useProfile } from "@/hooks/api/useProfile";
+import { useCreateSponsorshipInvite } from "@/hooks/api/useSponsorship";
+import { useWallet } from "@/hooks/api/useWallet";
 import { useToast } from "@/hooks/useToast";
-import { ApiError, FriendRequestResource, FriendResource, PartyPlayerResource } from "@/lib/api/types";
-import { initialsFromName, partyModeLabel, titleCaseSlug } from "@/lib/utils";
+import {
+  ApiError,
+  FriendRequestResource,
+  FriendResource,
+  PartyPlayerResource,
+  SponsorshipScope,
+} from "@/lib/api/types";
+import {
+  initialsFromName,
+  partyModeLabel,
+  sponsorshipShareMessage,
+  titleCaseSlug,
+} from "@/lib/utils";
 import * as Clipboard from "expo-clipboard";
 import { Image } from "expo-image";
 import { LinearGradient as RNLinearGradient } from "expo-linear-gradient";
 import { Link, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import {
+  Coins,
   Copy,
   Heart,
   QrCode,
@@ -46,7 +60,7 @@ import {
 } from "lucide-react-native";
 import { styled } from "nativewind";
 import { useCallback, useRef, useState } from "react";
-import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, ScrollView, Share, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView as RNSafeAreaView } from "react-native-safe-area-context";
 
 const LinearGradient = styled(RNLinearGradient);
@@ -75,6 +89,8 @@ export default function LobbyScreen() {
   const likeParty = useLikeParty();
   const unlikeParty = useUnlikeParty();
   const joinParty = useJoinParty();
+  const createSponsorshipInvite = useCreateSponsorshipInvite();
+  const { data: wallet } = useWallet();
   const leaveParty = useLeaveParty();
   const startParty = useStartParty();
   const endParty = useEndParty();
@@ -117,6 +133,7 @@ export default function LobbyScreen() {
   // before the first render commits — this ref is the synchronous guard.
   const busyRef = useRef<string | null>(null);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const [confirmingJoin, setConfirmingJoin] = useState(false);
   const [showQr, setShowQr] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [toastBg, setToastBg] = useState("bg-green-600");
@@ -136,7 +153,7 @@ export default function LobbyScreen() {
       await action();
       if (successMessage) notify(successMessage, "success");
     } catch (err) {
-      notify(err instanceof ApiError ? err.message : "Something went wrong — please try again", "error");
+      notify(actionErrorMessage(err), "error");
     } finally {
       busyRef.current = null;
       setBusy(null);
@@ -180,6 +197,37 @@ export default function LobbyScreen() {
       busyRef.current = null;
       setBusy(null);
     }
+  };
+
+  const handleShareSponsorLink = (scope: SponsorshipScope) =>
+    runAction("sponsor", async () => {
+      if (!party) return;
+      const invite = await createSponsorshipInvite.mutateAsync({ partyId: party.id, scope });
+      await refetch();
+      await Share.share({
+        message: sponsorshipShareMessage(
+          party.host.display_name || party.host.username,
+          party.title,
+          invite.amount,
+          scope,
+          invite.token,
+          invite.url,
+        ),
+      });
+    });
+
+  const handleJoinPress = () => {
+    if (!party || busyRef.current) return;
+    // Free or fully sponsored — nothing to confirm.
+    if (!guestPays) {
+      void runAction("join", () => joinParty.mutateAsync({ partyId: party.id, roomCode }), "You're in!");
+      return;
+    }
+    if (cannotAffordEntry) {
+      router.push("/wallet/buy-token");
+      return;
+    }
+    setConfirmingJoin(true);
   };
 
   const handleCopy = async () => {
@@ -243,10 +291,26 @@ export default function LobbyScreen() {
   const isHost = profile?.id === party.host.id;
   const canStart = isHost && (party.status === "draft" || party.status === "scheduled");
   const canEnd = isHost && party.status === "live";
-  const canCancel = isHost && (party.status === "draft" || party.status === "scheduled");
+  const canCancel =
+    isHost &&
+    (party.status === "draft" || party.status === "pending_sponsorship" || party.status === "scheduled");
   const canJoin =
     !isHost && !party.joined_by_me && (party.status === "scheduled" || party.status === "live");
   const canLeave = !isHost && party.joined_by_me;
+  // A guest pays the entry fee at join time, unless a sponsor has already paid for the whole
+  // party. A sponsorship that's only pending (or covers just the creation fee) doesn't waive it.
+  const entryFee = party.entry_fee ?? 0;
+  const sponsorship = party.sponsorship ?? null;
+  const sponsorPaid = sponsorship?.status === "paid";
+  const guestsCovered = sponsorPaid && sponsorship?.scope === "full_party";
+  const guestPays = entryFee > 0 && !guestsCovered;
+  const balance = wallet?.balance;
+  // Undefined while the wallet loads — don't block a guest who simply hasn't had it resolve.
+  const cannotAffordEntry = guestPays && typeof balance === "number" && balance < entryFee;
+  const canRequestSponsor =
+    isHost &&
+    (party.status === "draft" || party.status === "pending_sponsorship" || party.status === "scheduled") &&
+    !sponsorPaid;
   const roomCode = "room_code" in party ? party.room_code : undefined;
   const inviteLink = roomCode ? `https://yowimo.app/p/${roomCode}` : undefined;
   const isGameActionPending = busy === "game" || isLoadingPartyGame;
@@ -278,6 +342,25 @@ export default function LobbyScreen() {
           void runAction("cancel", () => cancelParty.mutateAsync(party.id), "Party canceled");
         }}
         onCancel={() => setConfirmingCancel(false)}
+      />
+      <ConfirmDialog
+        visible={confirmingJoin}
+        title={`Join for ${entryFee} tokens?`}
+        message={`${entryFee} tokens will be taken from your wallet${
+          typeof balance === "number" ? ` (balance: ${balance})` : ""
+        }.`}
+        confirmLabel={`Pay ${entryFee} & join`}
+        cancelLabel="Not now"
+        destructive={false}
+        onConfirm={() => {
+          setConfirmingJoin(false);
+          void runAction(
+            "join",
+            () => joinParty.mutateAsync({ partyId: party.id, roomCode }),
+            "You're in!",
+          );
+        }}
+        onCancel={() => setConfirmingJoin(false)}
       />
       {inviteLink && roomCode && (
         <InviteQrModal
@@ -582,6 +665,64 @@ export default function LobbyScreen() {
           </View>
         )}
 
+        {(entryFee > 0 || sponsorship) && (
+          <View className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4">
+            <View className="flex-row items-center justify-between">
+              <View className="flex-row items-center gap-2">
+                <Coins color="#FF8A2A" size={16} strokeWidth={2.5} />
+                <Text className="text-foreground text-sm font-semibold">
+                  {entryFee > 0 ? `${entryFee} tokens to join` : "Free to join"}
+                </Text>
+              </View>
+              {guestsCovered && (
+                <View className="rounded-full bg-green-600/20 px-2.5 py-1">
+                  <Text className="text-green-400 text-[11px] font-semibold">
+                    Sponsored{sponsorship?.sponsor ? ` by ${sponsorship.sponsor.display_name || sponsorship.sponsor.username}` : ""}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {sponsorship && (
+              <Text className="mt-2 text-muted-foreground text-xs">
+                {sponsorPaid
+                  ? sponsorship.scope === "full_party"
+                    ? "Guests join free — a sponsor has paid for the whole party."
+                    : "A sponsor covered the creation fee."
+                  : `Waiting for a sponsor to pay ${sponsorship.amount} tokens.`}
+              </Text>
+            )}
+
+            {!isHost && guestPays && typeof balance === "number" && (
+              <Text className="mt-2 text-muted-foreground text-xs">
+                Your balance: <Text className="text-foreground font-semibold">{balance} tokens</Text>
+              </Text>
+            )}
+
+            {canRequestSponsor && (
+              <View className="mt-3 flex-row gap-2">
+                {(
+                  [
+                    { scope: "creation_fee", label: "Sponsor creation fee" },
+                    { scope: "full_party", label: "Sponsor entire party" },
+                  ] as { scope: SponsorshipScope; label: string }[]
+                ).map((o) => (
+                  <TouchableOpacity
+                    key={o.scope}
+                    onPress={() => handleShareSponsorLink(o.scope)}
+                    disabled={busy === "sponsor"}
+                    activeOpacity={0.8}
+                    style={{ flex: 1, opacity: busy === "sponsor" ? 0.6 : 1 }}
+                    className="items-center rounded-xl bg-secondary px-2 py-2.5"
+                  >
+                    <Text className="text-foreground text-xs font-medium text-center">{o.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
+
         {canLeave && (
           <TouchableOpacity
             onPress={() =>
@@ -635,13 +776,7 @@ export default function LobbyScreen() {
       <View className="border-t border-white/10 bg-background px-5 pb-3">
         {canJoin ? (
           <TouchableOpacity
-            onPress={() =>
-              runAction(
-                "join",
-                () => joinParty.mutateAsync({ partyId: party.id, roomCode }),
-                "You're in!",
-              )
-            }
+            onPress={handleJoinPress}
             disabled={busy === "join"}
             activeOpacity={0.85}
             className="mt-8"
@@ -656,7 +791,15 @@ export default function LobbyScreen() {
               {busy === "join" ? (
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
-                <Text className="text-white text-base font-semibold">Join party</Text>
+                <Text className="text-white text-base font-semibold">
+                  {!guestPays
+                    ? entryFee > 0
+                      ? "Join free · Sponsored"
+                      : "Join party"
+                    : cannotAffordEntry
+                      ? `Fund wallet · ${entryFee} tokens to join`
+                      : `Join · ${entryFee} tokens`}
+                </Text>
               )}
             </LinearGradient>
           </TouchableOpacity>
@@ -728,9 +871,22 @@ function getGameActionLabel(hasGame: boolean, isHost: boolean): string {
   return "Waiting for host";
 }
 
+/** A 422 from join with `errors.payer === "host"` means the host's balance is the one that's
+ * short (a free party with a creation-fee sponsor charges the host per guest) — not the
+ * guest's. Keyed on that field rather than the message text, which isn't guaranteed stable. */
+function actionErrorMessage(err: unknown): string {
+  if (!(err instanceof ApiError)) return "Something went wrong — please try again";
+  const payer = (err.errors as Record<string, unknown> | undefined)?.payer;
+  if (err.status === 422 && payer === "host") {
+    return "The host can't cover this party's guest cost right now.";
+  }
+  return err.message;
+}
+
 function getPartyStatusLabel(status: string): string {
   if (status === "ended") return "This party has ended";
   if (status === "cancelled") return "This party was canceled";
+  if (status === "pending_sponsorship") return "Waiting for a sponsor to pay";
   return "Waiting to start";
 }
 

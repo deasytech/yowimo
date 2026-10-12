@@ -123,8 +123,8 @@ export default function SettingsScreen() {
       title: "ACCOUNT",
       items: [
         { Icon: User, label: "Edit profile", to: "/profile/edit" },
-        { Icon: Shield, label: "Privacy", to: "/settings" },
-        { Icon: Lock, label: "Security", to: "/settings" },
+        // Privacy toggles live on the Edit profile screen (privacy_settings is part of the profile).
+        { Icon: Shield, label: "Privacy", to: "/profile/edit" },
       ],
     },
     {

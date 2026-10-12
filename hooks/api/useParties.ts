@@ -183,6 +183,8 @@ function toPartyFormData(payload: CreatePartyPayload): FormData {
   form.append('mode', payload.mode);
   form.append('visibility', payload.visibility);
   if (payload.max_players != null) form.append('max_players', String(payload.max_players));
+  if (payload.entry_fee != null) form.append('entry_fee', String(payload.entry_fee));
+  if (payload.sponsorship_scope) form.append('sponsorship_scope', payload.sponsorship_scope);
   if (payload.starts_at != null) form.append('starts_at', payload.starts_at);
   if (payload.save_as_draft != null) form.append('save_as_draft', payload.save_as_draft ? '1' : '0');
   if (payload.location) {
@@ -240,6 +242,8 @@ function usePartyActionMutation<TVars = number>(
       );
       queryClient.invalidateQueries({ queryKey: hostedPartiesQueryKey });
       queryClient.invalidateQueries({ queryKey: joinedPartiesQueryKey });
+      // Joining can debit an entry fee (and leaving/cancelling can refund one).
+      queryClient.invalidateQueries({ queryKey: ['wallet'] });
     },
   });
 }

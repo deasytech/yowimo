@@ -23,6 +23,8 @@ const WALLET_TRANSACTION_LABELS: Record<WalletTransactionType, string> = {
   reward: "Reward",
   party_entry: "Party entry",
   referral: "Referral",
+  sponsor: "Sponsorship",
+  free_party_guest_cost: "Free party guest",
 };
 
 export function walletTransactionTypeLabel(type: WalletTransactionType): string {
@@ -216,3 +218,33 @@ export const getInitials = (user: any) => {
   const fallback = user.emailAddresses?.[0]?.emailAddress?.charAt(0) ?? "U";
   return `${first}${last}`.toUpperCase() || fallback.toUpperCase();
 };
+/** A guest-paid entry fee can be 0 (free for guests) or any amount from this floor up. A free
+ * party still costs this much per guest, borne by the host — or by a full-party sponsor. */
+export const MIN_ENTRY_FEE = 10;
+
+/** What a sponsor would pay, for showing before the server has confirmed it (the server's
+ * `amount` on the invite is authoritative). A full-party sponsorship covers the creation fee
+ * plus every guest slot — max_players minus the host, who doesn't pay to join their own party. */
+export function estimateSponsorshipAmount(
+  scope: 'creation_fee' | 'full_party',
+  creationFee: number,
+  entryFee: number,
+  maxPlayers: number,
+): number {
+  if (scope === 'creation_fee') return creationFee;
+  return creationFee + entryFee * Math.max(maxPlayers - 1, 0);
+}
+
+/** Share text for a sponsorship link — includes the custom-scheme link too, since the https one
+ * doesn't open the app until universal links are set up. */
+export function sponsorshipShareMessage(
+  hostName: string,
+  title: string,
+  amount: number,
+  scope: 'creation_fee' | 'full_party',
+  token: string,
+  url: string,
+): string {
+  const what = scope === 'full_party' ? "the whole party" : "the party creation fee";
+  return `${hostName} is asking you to sponsor "${title}" on Yowimo — ${amount} tokens covers ${what}.\n${url}\nIn the app: yowimo://sponsor/${token}`;
+}
